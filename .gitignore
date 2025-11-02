@@ -24,3 +24,6 @@ TestResults.xml
 db.sqlite3
 #venv
 venv
+
+# for my self
+tasks.txt

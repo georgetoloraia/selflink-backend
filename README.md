@@ -126,3 +126,4 @@ After the stack is running the API is available on `http://localhost:8000`, real
 - WebSocket gateway (`services/realtime`) now fans out events via Redis pub/sub. Configure `REALTIME_REDIS_URL` (defaults to `redis://localhost:6379/1`).
 - Django publishes message events to per-user channels (`user:<id>`); multiple gateway instances stay in sync through Redis.
 - If Redis is unavailable, the system falls back to in-process broadcasting and logs warnings.
+- Messaging events also create in-app notifications (`apps/notifications/services.py`). Push/email delivery is stubbed and can be wired to real providers later.

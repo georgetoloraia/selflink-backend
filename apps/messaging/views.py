@@ -7,6 +7,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .events import publish_message_event
+from apps.notifications.consumers import notify_thread_message
 from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
 
@@ -55,3 +56,4 @@ class MessageViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Not a member of this thread")
         message = serializer.save()
         publish_message_event(message)
+        notify_thread_message(message.thread, message.sender_id)
