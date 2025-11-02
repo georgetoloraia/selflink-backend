@@ -35,6 +35,7 @@ THIRD_PARTY_APPS = [
     "django_filters",
     "corsheaders",
     "ratelimit",
+    "django_prometheus",
 ]
 
 LOCAL_APPS = [
@@ -58,6 +59,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -65,6 +67,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
 ROOT_URLCONF = "core.urls"
@@ -207,17 +210,32 @@ LOGGING: Dict[str, Any] = {
     "formatters": {
         "console": {
             "format": "%(levelname)s %(name)s %(message)s",
-        }
+        },
+        "json": {
+            "()": "pythonjsonlogger.jsonlogger.JsonFormatter",
+            "fmt": "%(levelname)s %(name)s %(message)s %(asctime)s %(request_id)s",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
-        }
+        },
+        "json": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        },
     },
     "root": {
-        "handlers": ["console"],
+        "handlers": ["json"],
         "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        "apps": {
+            "handlers": ["json"],
+            "level": os.getenv("APP_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        }
     },
 }
 

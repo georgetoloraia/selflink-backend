@@ -146,3 +146,8 @@ After the stack is running the API is available on `http://localhost:8000`, real
 
 - API throttles default to `THROTTLE_USER_RATE=120/min` and `THROTTLE_ANON_RATE=60/min` (override via env vars).
 - Write-heavy endpoints (posts, comments, messages, mentor asks) have additional per-user limits enforced via `django-ratelimit`.
+
+### Observability
+
+- Prometheus metrics exposed at `/metrics` via `django-prometheus`; run a Prometheus instance or forward metrics from that endpoint.
+- Structured JSON logging enabled by default (env `APP_LOG_LEVEL` to adjust app logger verbosity).
