@@ -99,8 +99,14 @@ After the stack is running the API is available on `http://localhost:8000`, real
 ### Tests
 
 - Sample API tests reside in `tests/test_api.py`. Run with `python manage.py test` after generating migrations (`python manage.py makemigrations`).
+- Feature flag tests in `tests/test_feature_flags.py` exercise the new flag service.
 
 ### Demo Data
 
 - Seed the database with demo users, posts, and baseline plans via `python manage.py seed_demo`.
 - Use `python manage.py seed_demo --reset` to purge existing demo users before reseeding.
+
+### Admin & Fixtures
+
+- `python manage.py bootstrap_admin` provisions a superuser (configurable via `--email/--password`) and sets up moderation/support groups along with baseline feature flags.
+- `python manage.py load_fixtures` loads JSON fixtures from `config/fixtures/` (override with `--path`).

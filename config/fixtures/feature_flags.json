@@ -1,0 +1,14 @@
+[
+  {
+    "model": "config.featureflag",
+    "pk": 1001,
+    "fields": {
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z",
+      "key": "demo_feature",
+      "description": "Example feature flag seeded via fixtures",
+      "enabled": false,
+      "rollout": "0.00"
+    }
+  }
+]

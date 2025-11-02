@@ -7,8 +7,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.feed.tasks import rebuild_user_timeline_task
 from apps.social.models import Follow
+from services.reco.jobs import rebuild_user_timeline
 
 from .models import Device, User
 from .serializers import (
@@ -46,6 +46,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all().select_related("settings")
     serializer_class = UserSerializer
     lookup_field = "id"
+    lookup_url_kwarg = "id"
     search_fields = ["handle", "name", "email"]
 
     def get_queryset(self):  # type: ignore[override]
@@ -76,22 +77,20 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(UserSerializer(user, context={"request": request}).data)
 
     @action(methods=["post", "delete"], detail=True, url_path="follow")
-    def follow(self, request: Request, pk: str | None = None) -> Response:
+    def follow(self, request: Request, *args, **kwargs) -> Response:
         target = self.get_object()
         if target == request.user:
             return Response({"detail": "Cannot follow yourself"}, status=status.HTTP_400_BAD_REQUEST)
         if request.method.lower() == "post":
-            follow, created = Follow.objects.get_or_create(follower=request.user, followee=target)
-            if created:
-                rebuild_user_timeline_task.delay(request.user.id)
+            follow, _ = Follow.objects.get_or_create(follower=request.user, followee=target)
+            rebuild_user_timeline(request.user.id)
             return Response({"following": True})
-        deleted, _ = Follow.objects.filter(follower=request.user, followee=target).delete()
-        if deleted:
-            rebuild_user_timeline_task.delay(request.user.id)
+        Follow.objects.filter(follower=request.user, followee=target).delete()
+        rebuild_user_timeline(request.user.id)
         return Response({"following": False})
 
     @action(detail=True, methods=["get"], url_path="followers")
-    def followers(self, request: Request, pk: str | None = None) -> Response:
+    def followers(self, request: Request, *args, **kwargs) -> Response:
         target = self.get_object()
         qs = Follow.objects.filter(followee=target).select_related("follower")
         users = [follow.follower for follow in qs]
@@ -99,7 +98,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["get"], url_path="following")
-    def following(self, request: Request, pk: str | None = None) -> Response:
+    def following(self, request: Request, *args, **kwargs) -> Response:
         target = self.get_object()
         qs = Follow.objects.filter(follower=target).select_related("followee")
         users = [follow.followee for follow in qs]

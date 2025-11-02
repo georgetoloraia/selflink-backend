@@ -48,6 +48,7 @@ LOCAL_APPS = [
     "apps.moderation",
     "apps.feed",
     "apps.media",
+    "apps.config",
     "apps.search",
 ]
 
