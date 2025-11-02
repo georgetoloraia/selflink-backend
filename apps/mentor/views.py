@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import date
 
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -13,6 +15,7 @@ from .serializers import DailyTaskSerializer, MentorAskSerializer, MentorProfile
 from .services import generate_mentor_reply
 
 
+@method_decorator(ratelimit(key="user", rate="30/min", method="POST", block=True), name="ask")
 class MentorSessionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MentorSessionSerializer
     permission_classes = [permissions.IsAuthenticated]

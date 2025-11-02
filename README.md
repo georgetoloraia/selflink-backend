@@ -141,3 +141,8 @@ After the stack is running the API is available on `http://localhost:8000`, real
 - Configure `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `PAYMENTS_CHECKOUT_SUCCESS_URL`, and `PAYMENTS_CHECKOUT_CANCEL_URL` in your environment.
 - Set `Plan.external_price_id` to the Stripe price ID. `POST /api/v1/payments/subscriptions/` returns a `checkout_url` and `session_id` for Stripe Checkout.
 - Receive Stripe webhooks at `/api/v1/payments/stripe/webhook/` to update subscription status.
+
+### Safety & Rate Limiting
+
+- API throttles default to `THROTTLE_USER_RATE=120/min` and `THROTTLE_ANON_RATE=60/min` (override via env vars).
+- Write-heavy endpoints (posts, comments, messages, mentor asks) have additional per-user limits enforced via `django-ratelimit`.

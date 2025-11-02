@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -17,6 +19,7 @@ from .serializers import (
 )
 
 
+@method_decorator(ratelimit(key="user", rate="30/min", method="POST", block=True), name="create")
 class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
@@ -58,6 +61,7 @@ class PostViewSet(viewsets.ModelViewSet):
         return Response({"liked": False})
 
 
+@method_decorator(ratelimit(key="user", rate="60/min", method="POST", block=True), name="create")
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]

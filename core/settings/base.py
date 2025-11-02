@@ -34,6 +34,7 @@ THIRD_PARTY_APPS = [
     "drf_spectacular",
     "django_filters",
     "corsheaders",
+    "ratelimit",
 ]
 
 LOCAL_APPS = [
@@ -139,6 +140,14 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.CursorPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.AnonRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "user": os.getenv("THROTTLE_USER_RATE", "120/min"),
+        "anon": os.getenv("THROTTLE_ANON_RATE", "60/min"),
+    },
 }
 
 SPECTACULAR_SETTINGS = {

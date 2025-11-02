@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -12,6 +14,7 @@ from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
 
 
+@method_decorator(ratelimit(key="user", rate="20/min", method="POST", block=True), name="create")
 class ThreadViewSet(viewsets.ModelViewSet):
     serializer_class = ThreadSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -39,6 +42,7 @@ class ThreadViewSet(viewsets.ModelViewSet):
         return Response({"status": "read"})
 
 
+@method_decorator(ratelimit(key="user", rate="60/min", method="POST", block=True), name="create")
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]
