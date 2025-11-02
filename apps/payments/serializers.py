@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import timedelta
-
-from django.utils import timezone
+from django.conf import settings
 from rest_framework import serializers
 
 from .models import GiftType, Plan, Subscription, Wallet
+from .services import CheckoutSessionResult, create_checkout_session
 
 
 class PlanSerializer(serializers.ModelSerializer):
@@ -47,23 +46,22 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 class SubscriptionCreateSerializer(serializers.Serializer):
     plan_id = serializers.IntegerField()
+    success_url = serializers.URLField(required=False)
+    cancel_url = serializers.URLField(required=False)
 
     def validate_plan_id(self, value: int) -> int:
         if not Plan.objects.filter(id=value, is_active=True).exists():
             raise serializers.ValidationError("Plan not available")
         return value
 
-    def save(self) -> Subscription:
+    def save(self) -> CheckoutSessionResult:
         request = self.context["request"]
         plan = Plan.objects.get(id=self.validated_data["plan_id"])
-        subscription, _ = Subscription.objects.update_or_create(
-            user=request.user,
-            plan=plan,
-            defaults={
-                "status": Subscription.Status.ACTIVE,
-                "current_period_start": timezone.now(),
-                "current_period_end": timezone.now() + timedelta(days=30),
-            },
+        success_url = self.validated_data.get("success_url") or getattr(
+            settings, "PAYMENTS_CHECKOUT_SUCCESS_URL", "http://localhost:3000/payments/success"
         )
-        Wallet.objects.get_or_create(user=request.user)
-        return subscription
+        cancel_url = self.validated_data.get("cancel_url") or getattr(
+            settings, "PAYMENTS_CHECKOUT_CANCEL_URL", "http://localhost:3000/payments/cancel"
+        )
+        result = create_checkout_session(request.user, plan, success_url, cancel_url)
+        return result

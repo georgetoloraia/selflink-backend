@@ -134,3 +134,10 @@ After the stack is running the API is available on `http://localhost:8000`, real
 - Feature flag `FEATURE_SOULMATCH` (default true) controls availability. Override via environment variable `FEATURE_SOULMATCH=false`.
 - `python manage.py refresh_soulmatch_profiles` recomputes compatibility profiles (use `--user <id>` for a single user).
 - `python manage.py rebuild_soulmatch_scores` computes pairwise scores. API lives at `/api/v1/soulmatch/` (list) and `/api/v1/soulmatch/refresh/` (manual refresh).
+
+### Payments
+
+- Feature flag `FEATURE_PAYMENTS` (default true) controls availability.
+- Configure `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`, `PAYMENTS_CHECKOUT_SUCCESS_URL`, and `PAYMENTS_CHECKOUT_CANCEL_URL` in your environment.
+- Set `Plan.external_price_id` to the Stripe price ID. `POST /api/v1/payments/subscriptions/` returns a `checkout_url` and `session_id` for Stripe Checkout.
+- Receive Stripe webhooks at `/api/v1/payments/stripe/webhook/` to update subscription status.

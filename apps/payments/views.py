@@ -13,6 +13,7 @@ from .serializers import (
     SubscriptionSerializer,
     WalletSerializer,
 )
+from .feature_flag import payments_enabled
 
 
 class PlanViewSet(viewsets.ReadOnlyModelViewSet):
@@ -20,11 +21,21 @@ class PlanViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PlanSerializer
     permission_classes = [permissions.AllowAny]
 
+    def list(self, request: Request, *args, **kwargs) -> Response:  # type: ignore[override]
+        if not payments_enabled():
+            return Response([], status=status.HTTP_200_OK)
+        return super().list(request, *args, **kwargs)
+
 
 class GiftTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = GiftType.objects.all()
     serializer_class = GiftTypeSerializer
     permission_classes = [permissions.AllowAny]
+
+    def list(self, request: Request, *args, **kwargs) -> Response:  # type: ignore[override]
+        if not payments_enabled():
+            return Response([], status=status.HTTP_200_OK)
+        return super().list(request, *args, **kwargs)
 
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
@@ -40,11 +51,18 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def create(self, request: Request, *args, **kwargs) -> Response:  # type: ignore[override]
+        if not payments_enabled():
+            return Response({"detail": "Payments disabled"}, status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        subscription = serializer.save()
-        output = SubscriptionSerializer(subscription)
-        return Response(output.data, status=status.HTTP_201_CREATED)
+        result = serializer.save()
+        output = SubscriptionSerializer(result.subscription, context={"request": request})
+        data = {
+            "subscription": output.data,
+            "checkout_url": result.checkout_url,
+            "session_id": result.session_id,
+        }
+        return Response(data, status=status.HTTP_201_CREATED)
 
     @action(detail=False, methods=["get"], url_path="wallet")
     def wallet(self, request: Request) -> Response:

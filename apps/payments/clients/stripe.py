@@ -20,6 +20,7 @@ class StripeClient:
         price_id: str,
         success_url: str,
         cancel_url: str,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> stripe.checkout.Session:
         return stripe.checkout.Session.create(
             customer=customer_id,
@@ -27,7 +28,11 @@ class StripeClient:
             line_items=[{"price": price_id, "quantity": 1}],
             success_url=success_url,
             cancel_url=cancel_url,
+            metadata=metadata or {},
         )
+
+    def retrieve_subscription(self, subscription_id: str) -> stripe.Subscription:
+        return stripe.Subscription.retrieve(subscription_id)
 
     def construct_event(self, payload: bytes, signature: str) -> stripe.Event:
         if not self.webhook_secret:

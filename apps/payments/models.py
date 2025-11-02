@@ -39,6 +39,7 @@ class Subscription(BaseModel):
 class Wallet(BaseModel):
     user = models.OneToOneField("users.User", on_delete=models.CASCADE, related_name="wallet")
     balance_cents = models.IntegerField(default=0)
+    external_customer_id = models.CharField(max_length=96, blank=True, unique=True)
 
 
 class GiftType(BaseModel):

@@ -189,6 +189,7 @@ FEATURE_FLAGS = {
     "ollama_support": True,
     "realtime": True,
     "soulmatch": os.getenv("FEATURE_SOULMATCH", "true").lower() == "true",
+    "payments": os.getenv("FEATURE_PAYMENTS", "true").lower() == "true",
 }
 
 LOGGING: Dict[str, Any] = {
