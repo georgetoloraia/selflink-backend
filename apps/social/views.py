@@ -10,6 +10,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .models import Comment, Follow, Gift, Like, Post, Timeline
+from apps.moderation.autoflag import auto_report_post
 from .serializers import (
     CommentSerializer,
     FeedRequestSerializer,
@@ -30,7 +31,8 @@ class PostViewSet(viewsets.ModelViewSet):
     )
 
     def perform_create(self, serializer: PostSerializer) -> None:  # type: ignore[override]
-        serializer.save()
+        post = serializer.save()
+        auto_report_post(post)
 
     @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated])
     def like(self, request: Request, pk: str | None = None) -> Response:

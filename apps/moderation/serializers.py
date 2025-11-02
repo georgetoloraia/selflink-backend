@@ -41,3 +41,19 @@ class EnforcementSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
+
+
+class AdminReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Report
+        fields = [
+            "id",
+            "target_type",
+            "target_id",
+            "reason",
+            "status",
+            "notes",
+            "created_at",
+            "reporter",
+        ]
+        read_only_fields = ["id", "target_type", "target_id", "reason", "created_at", "reporter"]

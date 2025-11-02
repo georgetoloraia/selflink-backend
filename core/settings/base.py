@@ -204,6 +204,12 @@ FEATURE_FLAGS = {
     "payments": os.getenv("FEATURE_PAYMENTS", "true").lower() == "true",
 }
 
+MODERATION_BANNED_WORDS = [
+    word.strip()
+    for word in os.getenv("MODERATION_BANNED_WORDS", "spam,scam,offensive").split(",")
+    if word.strip()
+]
+
 LOGGING: Dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,

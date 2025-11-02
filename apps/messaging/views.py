@@ -13,6 +13,7 @@ from apps.notifications.consumers import notify_thread_message
 from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
 from .typing import get_typing_users, start_typing, stop_typing
+from apps.moderation.autoflag import auto_report_message
 
 
 @method_decorator(ratelimit(key="user", rate="20/min", method="POST", block=True), name="create")
@@ -79,3 +80,4 @@ class MessageViewSet(viewsets.ModelViewSet):
         message = serializer.save()
         publish_message_event(message)
         notify_thread_message(message.thread, message.sender_id)
+        auto_report_message(message)

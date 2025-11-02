@@ -12,11 +12,17 @@ class Report(BaseModel):
         COMMENT = "comment", "Comment"
         MESSAGE = "message", "Message"
 
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        IN_REVIEW = "in_review", "In Review"
+        RESOLVED = "resolved", "Resolved"
+        DISMISSED = "dismissed", "Dismissed"
+
     reporter = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="reports_made")
     target_type = models.CharField(max_length=32, choices=TargetType.choices)
     target_id = models.BigIntegerField()
     reason = models.CharField(max_length=255)
-    status = models.CharField(max_length=32, default="open")
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.OPEN)
     notes = models.TextField(blank=True)
 
 
