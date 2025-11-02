@@ -1,22 +1,25 @@
 # selflink-backend
 
+## Project Layout
+
 ```
 selflink-backend/
 │
 ├── apps/
-│   ├── users/              # auth, profiles, privacy
-│   ├── social/             # posts, comments, likes, follow
-│   ├── messaging/          # threads, messages
-│   ├── mentor/             # AI mentor core
-│   ├── matrix/             # astro/matrix logic
-│   ├── payments/           # wallet, subscriptions
-│   ├── notifications/      # push/email notifications
-│   ├── moderation/         # reports, bans
-│   └── feed/               # feed ranking system
+│   ├── core/               # shared mixins, pagination, API router
+│   ├── users/              # auth, profiles, privacy controls
+│   ├── social/             # posts, comments, likes, follow, feed fan-out
+│   ├── messaging/          # threads, direct messages, read receipts
+│   ├── mentor/             # AI mentor sessions, tasks, profiles
+│   ├── matrix/             # astro + numerology logic
+│   ├── payments/           # plans, subscriptions, wallet, gifts
+│   ├── notifications/      # in-app notifications API
+│   ├── moderation/         # user-generated reports & enforcement
+│   └── feed/               # feed services + Celery tasks
 │
 ├── services/
 │   ├── realtime/           # FastAPI WebSocket gateway
-│   └── reco/               # recommendation workers
+│   └── reco/               # recommendation workers (placeholder)
 │
 ├── core/
 │   ├── settings/
@@ -25,21 +28,79 @@ selflink-backend/
 │   │   └── prod.py
 │   ├── urls.py
 │   ├── asgi.py
-│   └── wsgi.py
-│
-├── libs/
-│   ├── idgen.py
-│   └── utils/
+│   ├── wsgi.py
+│   └── celery.py
 │
 ├── infra/
 │   ├── docker/
+│   │   ├── Dockerfile.api
+│   │   └── Dockerfile.realtime
 │   ├── compose.yaml
 │   ├── k8s/
 │   └── Makefile
 │
+├── libs/                   # shared libraries (Snowflake ID generator)
 ├── tests/
-│
 ├── manage.py
 ├── requirements.txt
+├── .env.example
 └── README.md
 ```
+
+## Getting Started
+
+1. Create a virtualenv and install dependencies:
+
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. Copy `.env.example` to `.env` and adjust secrets.
+
+3. Run migrations and start the server:
+
+   ```bash
+   python manage.py makemigrations
+   python manage.py migrate
+   python manage.py runserver
+   ```
+
+4. Celery worker & beat (optional for dev):
+
+   ```bash
+   celery -A core worker -l info
+   celery -A core beat -l info
+   ```
+
+## Docker Compose (Dev Stack)
+
+The infra bundle under `infra/` provisions Postgres, Redis, OpenSearch, MinIO, Django API, Celery workers, and the realtime gateway.
+
+```bash
+make -C infra up       # build & start services
+make -C infra logs     # follow logs
+make -C infra down     # stop stack
+```
+
+After the stack is running the API is available on `http://localhost:8000`, realtime gateway on `ws://localhost:8001/ws`, Postgres on `localhost:5432`, Redis on `localhost:6379`, OpenSearch on `localhost:9200`, and MinIO console on `http://localhost:9001`.
+
+### Search Service
+
+- OpenSearch connection is managed by `apps.search.client`. Set `OPENSEARCH_ENABLED=false` to fall back to relational lookups.
+- Indexing is triggered via Celery tasks (`apps/search/tasks.py`) fired from model signals. Run a worker/beat (`celery -A core worker -l info`) to keep indices fresh.
+
+### Recommendation Worker
+
+- Lightweight scoring logic lives in `services/reco/engine.py`. Celery task `rebuild_user_timeline_task` rebuilds materialized feeds.
+- Follow/unfollow actions enqueue rebuilds; schedule periodic refreshes via Celery beat if needed.
+
+### Tests
+
+- Sample API tests reside in `tests/test_api.py`. Run with `python manage.py test` after generating migrations (`python manage.py makemigrations`).
+
+### Demo Data
+
+- Seed the database with demo users, posts, and baseline plans via `python manage.py seed_demo`.
+- Use `python manage.py seed_demo --reset` to purge existing demo users before reseeding.
