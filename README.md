@@ -128,3 +128,9 @@ After the stack is running the API is available on `http://localhost:8000`, real
 - Django publishes message events to per-user channels (`user:<id>`); multiple gateway instances stay in sync through Redis.
 - If Redis is unavailable, the system falls back to in-process broadcasting and logs warnings.
 - Messaging events also create in-app notifications (`apps/notifications/services.py`). Push/email delivery is stubbed and can be wired to real providers later.
+
+### Recommendation & SoulMatch
+
+- Feature flag `FEATURE_SOULMATCH` (default true) controls availability. Override via environment variable `FEATURE_SOULMATCH=false`.
+- `python manage.py refresh_soulmatch_profiles` recomputes compatibility profiles (use `--user <id>` for a single user).
+- `python manage.py rebuild_soulmatch_scores` computes pairwise scores. API lives at `/api/v1/soulmatch/` (list) and `/api/v1/soulmatch/refresh/` (manual refresh).

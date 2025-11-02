@@ -184,6 +184,13 @@ OPENSEARCH_USER = os.getenv("OPENSEARCH_USER", "admin")
 OPENSEARCH_PASSWORD = os.getenv("OPENSEARCH_PASSWORD", "admin")
 OPENSEARCH_SCHEME = os.getenv("OPENSEARCH_SCHEME", "http")
 
+FEATURE_FLAGS = {
+    "mentor_llm": True,
+    "ollama_support": True,
+    "realtime": True,
+    "soulmatch": os.getenv("FEATURE_SOULMATCH", "true").lower() == "true",
+}
+
 LOGGING: Dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
