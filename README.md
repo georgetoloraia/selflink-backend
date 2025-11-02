@@ -110,6 +110,7 @@ After the stack is running the API is available on `http://localhost:8000`, real
 
 - `python manage.py bootstrap_admin` provisions a superuser (configurable via `--email/--password`) and sets up moderation/support groups along with baseline feature flags.
 - `python manage.py load_fixtures` loads JSON fixtures from `config/fixtures/` (override with `--path`).
+- `python manage.py refresh_soulmatch_profiles` recomputes compatibility profiles (use `--user <id>` for a single user).
 
 ### AI Mentor Configuration
 

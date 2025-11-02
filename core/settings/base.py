@@ -49,6 +49,7 @@ LOCAL_APPS = [
     "apps.feed",
     "apps.media",
     "apps.config",
+    "apps.reco",
     "apps.search",
 ]
 
