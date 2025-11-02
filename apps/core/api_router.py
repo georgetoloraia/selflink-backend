@@ -13,4 +13,5 @@ urlpatterns = [
     path("", include("apps.notifications.urls")),
     path("", include("apps.moderation.urls")),
     path("", include("apps.feed.urls")),
+    path("", include("apps.reco.api.urls")),
 ]
