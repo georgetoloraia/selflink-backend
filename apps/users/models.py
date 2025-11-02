@@ -80,6 +80,9 @@ class UserSettings(BaseModel):
     dm_policy = models.CharField(max_length=32, default="everyone")
     language = models.CharField(max_length=32, default="en")
     quiet_hours = models.JSONField(default=dict, blank=True)
+    push_enabled = models.BooleanField(default=True)
+    email_enabled = models.BooleanField(default=True)
+    digest_enabled = models.BooleanField(default=False)
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"Settings<{self.user_id}>"

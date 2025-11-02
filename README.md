@@ -147,6 +147,7 @@ After the stack is running the API is available on `http://localhost:8000`, real
 
 - API throttles default to `THROTTLE_USER_RATE=120/min` and `THROTTLE_ANON_RATE=60/min` (override via env vars).
 - Write-heavy endpoints (posts, comments, messages, mentor asks) have additional per-user limits enforced via `django-ratelimit`.
+- Users can control notification delivery (push/email/digest) and quiet hours via `PATCH /api/v1/users/me/` settings payload (`push_enabled`, `email_enabled`, `digest_enabled`, `quiet_hours`).
 
 ### Observability
 

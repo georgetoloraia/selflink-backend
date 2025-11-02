@@ -16,7 +16,15 @@ class DeviceSerializer(serializers.ModelSerializer):
 class UserSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserSettings
-        fields = ["privacy", "dm_policy", "language", "quiet_hours"]
+        fields = [
+            "privacy",
+            "dm_policy",
+            "language",
+            "quiet_hours",
+            "push_enabled",
+            "email_enabled",
+            "digest_enabled",
+        ]
 
 
 class UserSerializer(serializers.ModelSerializer):
