@@ -120,3 +120,9 @@ After the stack is running the API is available on `http://localhost:8000`, real
   - `MENTOR_LLM_TIMEOUT` controls request timeout (seconds).
 - Mentor sessions persist per-user memory (`apps.mentor.models.MentorMemory`) to inform future responses.
 - To run a local model with [Ollama](https://ollama.com/): install Ollama, run `ollama serve`, pull a model (e.g., `ollama pull llama3`), then set `MENTOR_LLM_PROVIDER=ollama` and restart the backend.
+
+### Realtime Messaging
+
+- WebSocket gateway (`services/realtime`) now fans out events via Redis pub/sub. Configure `REALTIME_REDIS_URL` (defaults to `redis://localhost:6379/1`).
+- Django publishes message events to per-user channels (`user:<id>`); multiple gateway instances stay in sync through Redis.
+- If Redis is unavailable, the system falls back to in-process broadcasting and logs warnings.

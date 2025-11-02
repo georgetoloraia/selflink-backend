@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from .events import publish_message_event
 from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
 
@@ -52,4 +53,5 @@ class MessageViewSet(viewsets.ModelViewSet):
         thread = serializer.validated_data.get("thread")
         if thread and not thread.members.filter(user=self.request.user).exists():
             raise PermissionDenied("Not a member of this thread")
-        serializer.save()
+        message = serializer.save()
+        publish_message_event(message)
