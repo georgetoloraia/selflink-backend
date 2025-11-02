@@ -11,6 +11,7 @@ class Plan(BaseModel):
     interval = models.CharField(max_length=16, default="month")
     features = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
+    external_price_id = models.CharField(max_length=96, blank=True)
 
     class Meta:
         ordering = ["price_cents"]
