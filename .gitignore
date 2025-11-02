@@ -20,3 +20,7 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+#Database
+db.sqlite3
+#venv
+venv
