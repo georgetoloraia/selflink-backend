@@ -8,10 +8,11 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from .events import publish_message_event
+from .events import publish_message_event, publish_typing_event
 from apps.notifications.consumers import notify_thread_message
 from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
+from .typing import get_typing_users, start_typing, stop_typing
 
 
 @method_decorator(ratelimit(key="user", rate="20/min", method="POST", block=True), name="create")
@@ -40,6 +41,23 @@ class ThreadViewSet(viewsets.ModelViewSet):
             last_read_message=last_message
         )
         return Response({"status": "read"})
+
+    @action(detail=True, methods=["get", "post"], url_path="typing")
+    def typing(self, request: Request, pk: str | None = None) -> Response:
+        thread = self.get_object()
+        if not thread.members.filter(user=request.user).exists():
+            raise PermissionDenied("Not a member of this thread")
+        if request.method.lower() == "get":
+            users = get_typing_users(thread.id)
+            return Response({"typing_user_ids": users})
+
+        is_typing = bool(request.data.get("is_typing", True))
+        if is_typing:
+            start_typing(request.user.id, thread.id)
+        else:
+            stop_typing(request.user.id, thread.id)
+        publish_typing_event(thread, request.user.id, is_typing)
+        return Response({"is_typing": is_typing})
 
 
 @method_decorator(ratelimit(key="user", rate="60/min", method="POST", block=True), name="create")

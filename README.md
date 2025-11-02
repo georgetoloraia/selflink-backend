@@ -128,6 +128,7 @@ After the stack is running the API is available on `http://localhost:8000`, real
 - Django publishes message events to per-user channels (`user:<id>`); multiple gateway instances stay in sync through Redis.
 - If Redis is unavailable, the system falls back to in-process broadcasting and logs warnings.
 - Messaging events also create in-app notifications (`apps/notifications/services.py`). Push/email delivery is stubbed and can be wired to real providers later.
+- Typing indicators: `POST /api/v1/threads/<id>/typing/` toggles state; `GET` returns active typing user IDs. Events broadcast to other participants over WebSocket channels.
 
 ### Recommendation & SoulMatch
 
