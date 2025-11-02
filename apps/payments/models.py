@@ -21,12 +21,15 @@ class Subscription(BaseModel):
         ACTIVE = "active", "Active"
         CANCELED = "canceled", "Canceled"
         INCOMPLETE = "incomplete", "Incomplete"
+        PAST_DUE = "past_due", "Past Due"
 
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="subscriptions")
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="subscriptions")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.INCOMPLETE)
     current_period_start = models.DateTimeField(null=True, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
+    external_customer_id = models.CharField(max_length=96, blank=True)
+    external_subscription_id = models.CharField(max_length=96, blank=True, unique=True)
 
     class Meta:
         unique_together = ("user", "plan")
