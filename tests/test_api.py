@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
+
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.social.models import Timeline
-from apps.social.models import Post
+from apps.mentor.models import MentorMemory
+from apps.social.models import Post, Timeline
 from apps.users.models import User
 
 
@@ -50,6 +52,10 @@ class PostTests(BaseAPITestCase):
 
 
 class MentorTests(BaseAPITestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        os.environ["MENTOR_LLM_ENABLED"] = "false"
+
     def test_mentor_ask_returns_answer(self) -> None:
         self.register_and_login(email="mentor@example.com", handle="seek")
         question = {"text": "I feel anxious today"}
@@ -57,6 +63,15 @@ class MentorTests(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("answer", response.data)
         self.assertIn("sentiment", response.data)
+
+    def test_mentor_memory_persists(self) -> None:
+        user = self.register_and_login(email="memory@example.com", handle="memory")
+        self.client.post("/api/v1/mentor/sessions/ask/", {"text": "Feeling optimistic today"}, format="json")
+        self.client.post("/api/v1/mentor/sessions/ask/", {"text": "A bit tired now"}, format="json")
+        memory = MentorMemory.objects.get(user_id=user["id"])
+        entries = memory.notes.get("entries", [])
+        self.assertGreaterEqual(len(entries), 2)
+        self.assertTrue(memory.last_summary)
 
 
 class FollowTimelineTests(BaseAPITestCase):

@@ -110,3 +110,13 @@ After the stack is running the API is available on `http://localhost:8000`, real
 
 - `python manage.py bootstrap_admin` provisions a superuser (configurable via `--email/--password`) and sets up moderation/support groups along with baseline feature flags.
 - `python manage.py load_fixtures` loads JSON fixtures from `config/fixtures/` (override with `--path`).
+
+### AI Mentor Configuration
+
+- Environment vars:
+  - `MENTOR_LLM_ENABLED` (`true|false`) toggles use of the pluggable LLM client.
+  - `MENTOR_LLM_PROVIDER` (`openai|ollama|mock`) selects the provider; `mock` returns canned replies for local dev.
+  - `MENTOR_LLM_MODEL`, `OPENAI_API_KEY` configure the OpenAI client. `OLLAMA_HOST` points to a local Ollama service (defaults to `http://localhost:11434`).
+  - `MENTOR_LLM_TIMEOUT` controls request timeout (seconds).
+- Mentor sessions persist per-user memory (`apps.mentor.models.MentorMemory`) to inform future responses.
+- To run a local model with [Ollama](https://ollama.com/): install Ollama, run `ollama serve`, pull a model (e.g., `ollama pull llama3`), then set `MENTOR_LLM_PROVIDER=ollama` and restart the backend.

@@ -29,3 +29,13 @@ class DailyTask(BaseModel):
     task = models.CharField(max_length=255)
     due_date = models.DateField()
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+
+
+class MentorMemory(BaseModel):
+    user = models.OneToOneField("users.User", on_delete=models.CASCADE, related_name="mentor_memory")
+    notes = models.JSONField(default=dict, blank=True)
+    last_summary = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Mentor Memory"
+        verbose_name_plural = "Mentor Memories"
