@@ -11,7 +11,7 @@ class Plan(BaseModel):
     interval = models.CharField(max_length=16, default="month")
     features = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
-    external_price_id = models.CharField(max_length=96, blank=True)
+    external_price_id = models.CharField(max_length=96, blank=True, null=True)
 
     class Meta:
         ordering = ["price_cents"]
@@ -29,8 +29,8 @@ class Subscription(BaseModel):
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.INCOMPLETE)
     current_period_start = models.DateTimeField(null=True, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
-    external_customer_id = models.CharField(max_length=96, blank=True)
-    external_subscription_id = models.CharField(max_length=96, blank=True, unique=True)
+    external_customer_id = models.CharField(max_length=96, blank=True, null=True)
+    external_subscription_id = models.CharField(max_length=96, blank=True, null=True)
 
     class Meta:
         unique_together = ("user", "plan")
@@ -39,7 +39,7 @@ class Subscription(BaseModel):
 class Wallet(BaseModel):
     user = models.OneToOneField("users.User", on_delete=models.CASCADE, related_name="wallet")
     balance_cents = models.IntegerField(default=0)
-    external_customer_id = models.CharField(max_length=96, blank=True, unique=True)
+    external_customer_id = models.CharField(max_length=96, blank=True, null=True, unique=True)
 
 
 class GiftType(BaseModel):
