@@ -169,12 +169,13 @@ SIMPLE_JWT = {
     "SIGNING_KEY": os.getenv("JWT_SIGNING_KEY", SECRET_KEY),
 }
 
+_DEFAULT_CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
-    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", ",".join(_DEFAULT_CORS_ORIGINS)).split(",")
     if origin.strip()
 ]
-CORS_ALLOW_ALL_ORIGINS = not CORS_ALLOWED_ORIGINS
+CORS_ALLOW_CREDENTIALS = True
 
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
