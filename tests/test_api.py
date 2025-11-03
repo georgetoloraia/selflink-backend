@@ -58,6 +58,21 @@ class AuthTests(BaseAPITestCase):
         self.assertIn("token", response.data)
         self.assertIn("refreshToken", response.data)
 
+    def test_register_accepts_full_name_and_generates_handle(self) -> None:
+        payload = {
+            "email": "george@example.com",
+            "password": "strongpassword",
+            "fullName": "George Example",
+            "intention": "Just exploring",
+        }
+        response = self.client.post("/api/v1/auth/register", payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = response.data["user"]
+        self.assertEqual(user["email"], payload["email"])
+        self.assertEqual(user["name"], payload["fullName"])
+        self.assertTrue(user["handle"])
+        self.assertNotIn(" ", user["handle"])
+
 
 class HomeHighlightsTests(APITestCase):
     def test_home_highlights_returns_expected_sections(self) -> None:
