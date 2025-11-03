@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.social.models import Follow
 from services.reco.jobs import rebuild_user_timeline
@@ -20,9 +21,27 @@ from .serializers import (
 )
 
 
+def _build_auth_payload(user: User, request: Request, message: str = "") -> dict:
+    refresh = RefreshToken.for_user(user)
+    return {
+        "token": str(refresh.access_token),
+        "refreshToken": str(refresh),
+        "user": UserSerializer(user, context={"request": request}).data,
+        "message": message or "",
+    }
+
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        payload = _build_auth_payload(user, request, message="Registration successful.")
+        headers = self.get_success_headers(serializer.data)
+        return Response(payload, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class LoginView(generics.GenericAPIView):
@@ -33,13 +52,24 @@ class LoginView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
-        refresh = RefreshToken.for_user(user)
-        data = {
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-            "user": UserSerializer(user, context={"request": request}).data,
+        payload = _build_auth_payload(user, request, message="Login successful.")
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class TokenRefreshAPIView(TokenRefreshView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request: Request, *args, **kwargs) -> Response:
+        response = super().post(request, *args, **kwargs)
+        if response.status_code != status.HTTP_200_OK:
+            return response
+        data = response.data or {}
+        payload = {
+            "token": data.get("access"),
+            "refreshToken": data.get("refresh"),
+            "message": "Token refreshed.",
         }
-        return Response(data, status=status.HTTP_200_OK)
+        return Response(payload, status=response.status_code)
 
 
 class UserViewSet(viewsets.ReadOnlyModelViewSet):

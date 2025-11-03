@@ -13,5 +13,5 @@ class PaymentsTests(TestCase):
 
     def test_wallet_external_customer(self):
         user = User.objects.create_user(email="wallet@example.com", handle="wallet", name="Wallet", password="pass12345")
-        wallet = Wallet.objects.create(user=user)
+        wallet, _ = Wallet.objects.get_or_create(user=user)
         self.assertIsNone(wallet.external_customer_id or None)

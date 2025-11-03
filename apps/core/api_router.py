@@ -1,6 +1,9 @@
-from django.urls import include, path
+from django.urls import include, path, re_path
+
+from .views import HomeHighlightsView
 
 urlpatterns = [
+    re_path(r"^home/highlights/?$", HomeHighlightsView.as_view(), name="home-highlights"),
     path("auth/", include("apps.users.urls")),
     path("", include("apps.users.profile_urls")),
     path("", include("apps.social.urls")),

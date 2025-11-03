@@ -18,16 +18,18 @@ class BaseAPITestCase(APITestCase):
             "name": "Test User",
             "password": "strongpassword",
         }
-        response = self.client.post("/api/v1/auth/register/", register_payload, format="json")
+        response = self.client.post("/api/v1/auth/register", register_payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn("token", response.data)
+        self.assertIn("refreshToken", response.data)
 
         login_response = self.client.post(
-            "/api/v1/auth/login/",
+            "/api/v1/auth/login",
             {"email": email, "password": register_payload["password"]},
             format="json",
         )
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
-        token = login_response.data["access"]
+        token = login_response.data["token"]
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         return login_response.data["user"]
 
@@ -36,6 +38,34 @@ class AuthTests(BaseAPITestCase):
     def test_register_and_login_returns_tokens(self) -> None:
         user = self.register_and_login()
         self.assertEqual(user["handle"], "tester")
+
+    def test_login_payload_contains_tokens_and_user(self) -> None:
+        email = "payload@example.com"
+        handle = "payload"
+        password = "strongpassword"
+        self.client.post(
+            "/api/v1/auth/register",
+            {"email": email, "handle": handle, "name": "Payload User", "password": password},
+            format="json",
+        )
+        response = self.client.post(
+            "/api/v1/auth/login",
+            {"email": email, "password": password},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["email"], email)
+        self.assertIn("token", response.data)
+        self.assertIn("refreshToken", response.data)
+
+
+class HomeHighlightsTests(APITestCase):
+    def test_home_highlights_returns_expected_sections(self) -> None:
+        response = self.client.get("/api/v1/home/highlights")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("hero", response.data)
+        self.assertIn("features", response.data)
+        self.assertIn("celebration", response.data)
 
 
 class PostTests(BaseAPITestCase):
