@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.db import transaction
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import permissions, status, viewsets
@@ -8,7 +9,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from .events import publish_message_event, publish_typing_event
+from .events import publish_member_left_event, publish_message_event, publish_typing_event
 from apps.notifications.consumers import notify_thread_message
 from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
@@ -59,6 +60,26 @@ class ThreadViewSet(viewsets.ModelViewSet):
             stop_typing(request.user.id, thread.id)
         publish_typing_event(thread, request.user.id, is_typing)
         return Response({"is_typing": is_typing})
+
+    @action(detail=True, methods=["post"], url_path="leave")
+    def leave(self, request: Request, pk: str | None = None) -> Response:
+        thread = self.get_object()
+        membership_qs = ThreadMember.objects.filter(thread=thread, user=request.user)
+        if not membership_qs.exists():
+            raise PermissionDenied("Not a member of this thread")
+
+        with transaction.atomic():
+            membership_qs.delete()
+            remaining_member_ids = list(
+                ThreadMember.objects.filter(thread=thread).values_list("user_id", flat=True)
+            )
+            if not remaining_member_ids:
+                thread.delete()
+            else:
+                transaction.on_commit(
+                    lambda: publish_member_left_event(thread.id, request.user.id, remaining_member_ids)
+                )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @method_decorator(ratelimit(key="user", rate="60/min", method="POST", block=True), name="create")

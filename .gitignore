@@ -28,3 +28,6 @@ venv
 # for my self
 tasks.txt
 roadmap.txt
+PROJECT_PLAN.md
+PROJECT_PLAN_v2.md
+.env

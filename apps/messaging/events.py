@@ -34,3 +34,15 @@ def publish_typing_event(thread: Thread, user_id: int, is_typing: bool) -> None:
     channels = [f"user:{uid}" for uid in set(user_ids) if uid != user_id]  # don't echo to sender
     if channels:
         publish_events(channels, payload)
+
+
+def publish_member_left_event(thread_id: int, user_id: int, member_ids: Iterable[int]) -> None:
+    payload = {
+        "type": "member_left",
+        "thread_id": thread_id,
+        "user_id": user_id,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+    channels = [f"user:{uid}" for uid in set(member_ids)]
+    if channels:
+        publish_events(channels, payload)
