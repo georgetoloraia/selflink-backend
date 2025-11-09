@@ -25,6 +25,7 @@ class ThreadViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ["created_at", "updated_at"]
     ordering = "-updated_at"
+    search_fields = ["title", "members__user__handle", "members__user__name"]
 
     def get_queryset(self):  # type: ignore[override]
         last_message_subquery = Message.objects.filter(thread=OuterRef("pk")).order_by("-created_at")
