@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import permissions, status, viewsets
@@ -15,18 +16,26 @@ from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
 from .typing import get_typing_users, start_typing, stop_typing
 from apps.moderation.autoflag import auto_report_message
+from apps.users.serializers import UserSerializer
 
 
 @method_decorator(ratelimit(key="user", rate="20/min", method="POST", block=True), name="create")
 class ThreadViewSet(viewsets.ModelViewSet):
     serializer_class = ThreadSerializer
     permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ["created_at", "updated_at"]
+    ordering = "-updated_at"
 
     def get_queryset(self):  # type: ignore[override]
+        last_message_subquery = Message.objects.filter(thread=OuterRef("pk")).order_by("-created_at")
         return (
             Thread.objects.filter(members__user=self.request.user)
+            .annotate(
+                last_message_body=Subquery(last_message_subquery.values("body")[:1]),
+                last_message_created_at=Subquery(last_message_subquery.values("created_at")[:1]),
+            )
             .select_related("created_by")
-            .prefetch_related("members__user")
+            .prefetch_related("members__user", "members__last_read_message")
             .distinct()
         )
 
@@ -50,15 +59,24 @@ class ThreadViewSet(viewsets.ModelViewSet):
         if not thread.members.filter(user=request.user).exists():
             raise PermissionDenied("Not a member of this thread")
         if request.method.lower() == "get":
-            users = get_typing_users(thread.id)
-            return Response({"typing_user_ids": users})
+            user_ids = get_typing_users(thread.id)
+            member_map = {
+                member.user_id: member
+                for member in thread.members.select_related("user").filter(user_id__in=user_ids)
+            }
+            users = [
+                UserSerializer(member_map[user_id].user, context={"request": request}).data
+                for user_id in user_ids
+                if user_id in member_map
+            ]
+            return Response({"typing_user_ids": user_ids, "users": users})
 
         is_typing = bool(request.data.get("is_typing", True))
         if is_typing:
             start_typing(request.user.id, thread.id)
         else:
             stop_typing(request.user.id, thread.id)
-        publish_typing_event(thread, request.user.id, is_typing)
+        publish_typing_event(thread, request.user, is_typing)
         return Response({"is_typing": is_typing})
 
     @action(detail=True, methods=["post"], url_path="leave")

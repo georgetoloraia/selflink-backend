@@ -5,6 +5,7 @@ from typing import Iterable
 
 from apps.core.pubsub import publish_events
 from .models import Message, Thread
+from apps.users.models import User
 
 
 def publish_message_event(message: Message) -> None:
@@ -22,16 +23,18 @@ def publish_message_event(message: Message) -> None:
         publish_events(channels, payload)
 
 
-def publish_typing_event(thread: Thread, user_id: int, is_typing: bool) -> None:
+def publish_typing_event(thread: Thread, user: User, is_typing: bool) -> None:
     payload = {
         "type": "typing",
         "thread_id": thread.id,
-        "user_id": user_id,
+        "user_id": user.id,
+        "user_name": getattr(user, "name", "") or None,
+        "user_handle": getattr(user, "handle", "") or None,
         "is_typing": is_typing,
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
     user_ids: Iterable[int] = thread.members.values_list("user_id", flat=True)
-    channels = [f"user:{uid}" for uid in set(user_ids) if uid != user_id]  # don't echo to sender
+    channels = [f"user:{uid}" for uid in set(user_ids) if uid != user.id]  # don't echo to sender
     if channels:
         publish_events(channels, payload)
 
