@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import Field
+import os
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -17,6 +19,16 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"
+
+    @field_validator("jwt_secret", mode="before")
+    @classmethod
+    def _fallback_to_django_jwt(cls, value: str | None) -> str:
+        if value and value.strip():
+            return value
+        fallback = os.getenv("JWT_SIGNING_KEY")
+        if fallback and fallback.strip():
+            return fallback
+        return "unsafe-realtime-secret"
 
 
 settings = Settings()

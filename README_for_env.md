@@ -17,7 +17,7 @@
 - `DATABASE_URL` (.env.example (line 4)): full Postgres connection string; swap credentials/host for your DB.
 - `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` (.env.example (lines 5-6)): Redis endpoints used by Celery for task queue and result storage; point to your Redis service.
 - `CORS_ALLOWED_ORIGINS` (.env.example (line 7)): front-end origins permitted to call the API; add deployed frontend URL.
-- `JWT_SIGNING_KEY`, `REALTIME_JWT_SECRET` (.env.example (lines 8-9)): secrets for issuing/verifying authentication tokens; generate strong unique values.
+- `JWT_SIGNING_KEY`, `REALTIME_JWT_SECRET` (.env.example (lines 8-9)): secrets for issuing/verifying authentication tokens; **use the same value for both** so Django-issued JWTs are accepted by the realtime websocket service.
 - `OPENSEARCH_ENABLED`, `OPENSEARCH_HOST`, `OPENSEARCH_PORT`, `OPENSEARCH_USER`, `OPENSEARCH_PASSWORD` (.env.example (lines 10-14)): configure optional OpenSearch integration; disable or supply credentials depending on whether search is deployed.
 `RECO_DEFAULT_LIMIT`, `RECO_MAX_FOLLOWS` (.env.example (lines 15-16)): tuning knobs for recommendation logic; adjust to match product requirements.
 - `MENTOR_LLM_ENABLED`, `MENTOR_LLM_PROVIDER`, `MENTOR_LLM_MODEL`, `MENTOR_LLM_TIMEOUT` (.env.example (lines 17-21)): toggle and configure the mentor AI integration; set provider/model plus timeout for the LLM service you use.
