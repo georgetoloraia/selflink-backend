@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import re
-from secrets import token_hex
-
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 
-from .models import Device, User, UserSettings
+from .models import Device, PersonalMapProfile, User, UserSettings
+from .utils import generate_unique_handle, normalize_handle
 
 
 class DeviceSerializer(serializers.ModelSerializer):
@@ -83,14 +81,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         handle = (attrs.get("handle") or "").strip()
         if handle:
-            normalized = _normalize_handle(handle, max_length)
+            normalized = normalize_handle(handle, max_length)
             if not normalized:
                 raise serializers.ValidationError({"handle": "Handle must contain letters or numbers."})
             if User.objects.filter(handle=normalized).exists():
                 raise serializers.ValidationError({"handle": "Handle is already taken."})
             attrs["handle"] = normalized
         else:
-            attrs["handle"] = _generate_unique_handle(attrs["name"], attrs["email"], max_length)
+            attrs["handle"] = generate_unique_handle(attrs["name"], attrs["email"], max_length)
 
         # The frontend sends intention for contextual onboarding; we simply drop it for now.
         attrs.pop("intention", None)
@@ -103,28 +101,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         return user
 
 
-def _normalize_handle(value: str, max_length: int) -> str:
-    cleaned = re.sub(r"[^a-z0-9_]", "", value.lower())
-    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
-    return cleaned[:max_length]
-
-
-def _generate_unique_handle(name: str, email: str, max_length: int) -> str:
-    candidates = [name, email.split("@", 1)[0], "selflink"]
-    for candidate in candidates:
-        normalized = _normalize_handle(candidate or "", max_length)
-        if normalized and not User.objects.filter(handle=normalized).exists():
-            return normalized
-
-    base = _normalize_handle(name or "selflink", max_length) or "selflink"
-    suffix_length = 4
-    while True:
-        suffix = token_hex(suffix_length // 2)
-        trim_length = max_length - len(suffix)
-        prefix = base[:trim_length] if trim_length > 0 else ""
-        candidate = f"{prefix}{suffix}"
-        if not User.objects.filter(handle=candidate).exists():
-            return candidate
 
 
 class LoginSerializer(serializers.Serializer):
@@ -168,3 +144,83 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
                 setattr(settings, attr, value)
             settings.save()
         return instance
+
+
+class PersonalMapProfileSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source="user.email", read_only=True)
+    is_complete = serializers.SerializerMethodField()
+    birth_date = serializers.DateField(input_formats=["%Y-%m-%d", "%d/%m/%Y"])
+    birth_time = serializers.TimeField(
+        required=False,
+        allow_null=True,
+        input_formats=["%H:%M", "%H:%M:%S"],
+    )
+    avatar_image = serializers.ImageField(required=False, allow_null=True)
+
+    class Meta:
+        model = PersonalMapProfile
+        fields = [
+            "email",
+            "first_name",
+            "last_name",
+            "birth_date",
+            "birth_time",
+            "birth_place_country",
+            "birth_place_city",
+            "avatar_image",
+            "is_complete",
+        ]
+        read_only_fields = ["email", "is_complete"]
+
+    def create(self, validated_data: dict) -> PersonalMapProfile:
+        user = self.context["request"].user
+        profile = PersonalMapProfile.objects.create(user=user, **validated_data)
+        self._sync_user_fields(user, profile)
+        return profile
+
+    def update(self, instance: PersonalMapProfile, validated_data: dict) -> PersonalMapProfile:
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        self._sync_user_fields(instance.user, instance)
+        return instance
+
+    def get_is_complete(self, obj: PersonalMapProfile) -> bool:
+        required = [
+            obj.first_name,
+            obj.last_name,
+            obj.birth_date,
+            obj.birth_place_country,
+            obj.birth_place_city,
+        ]
+        return all(required)
+
+    def _sync_user_fields(self, user: User, profile: PersonalMapProfile) -> None:
+        update_fields: list[str] = []
+        full_name = " ".join(part for part in [profile.first_name, profile.last_name] if part).strip()
+        if full_name and user.name != full_name:
+            user.name = full_name
+            update_fields.append("name")
+
+        if profile.birth_date and user.birth_date != profile.birth_date:
+            user.birth_date = profile.birth_date
+            update_fields.append("birth_date")
+
+        if profile.birth_time != user.birth_time:
+            user.birth_time = profile.birth_time
+            update_fields.append("birth_time")
+
+        place_parts = [part for part in [profile.birth_place_city, profile.birth_place_country] if part]
+        place = ", ".join(place_parts)
+        if place and user.birth_place != place:
+            user.birth_place = place
+            update_fields.append("birth_place")
+
+        if profile.avatar_image and profile.avatar_image.url:
+            photo_url = profile.avatar_image.url
+            if user.photo != photo_url:
+                user.photo = photo_url
+                update_fields.append("photo")
+
+        if update_fields:
+            user.save(update_fields=update_fields)

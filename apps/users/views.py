@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.db.models import Q
+from rest_framework import generics, permissions, status, viewsets
+from allauth.socialaccount.providers.facebook.views import FacebookOAuth2Adapter
+from allauth.socialaccount.providers.github.views import GitHubOAuth2Adapter
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+from dj_rest_auth.registration.views import SocialLoginView
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -11,10 +18,11 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.social.models import Follow
 from services.reco.jobs import rebuild_user_timeline
 
-from .models import Device, User
+from .models import Device, PersonalMapProfile, User
 from .serializers import (
     DeviceSerializer,
     LoginSerializer,
+    PersonalMapProfileSerializer,
     ProfileUpdateSerializer,
     RegisterSerializer,
     UserSerializer,
@@ -144,3 +152,77 @@ class DeviceViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer: DeviceSerializer) -> None:  # type: ignore[override]
         serializer.save(user=self.request.user)
+
+
+class SocialLoginBaseView(SocialLoginView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request: Request, *args, **kwargs) -> Response:
+        response = super().post(request, *args, **kwargs)
+        if response.status_code >= 400:
+            return response
+        user = request.user
+        if not getattr(user, "is_authenticated", False):
+            return response
+        payload = _build_auth_payload(user, request, message="Social login successful.")
+        return Response(payload, status=response.status_code)
+
+
+class GoogleSocialLoginView(SocialLoginBaseView):
+    adapter_class = GoogleOAuth2Adapter
+    client_class = OAuth2Client
+    callback_url = settings.SOCIAL_AUTH_REDIRECT_URIS["google"]
+
+
+class FacebookSocialLoginView(SocialLoginBaseView):
+    adapter_class = FacebookOAuth2Adapter
+    client_class = OAuth2Client
+    callback_url = settings.SOCIAL_AUTH_REDIRECT_URIS["facebook"]
+
+
+class GithubSocialLoginView(SocialLoginBaseView):
+    adapter_class = GitHubOAuth2Adapter
+    client_class = OAuth2Client
+    callback_url = settings.SOCIAL_AUTH_REDIRECT_URIS["github"]
+
+
+class PersonalMapProfileView(generics.GenericAPIView):
+    serializer_class = PersonalMapProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        profile = PersonalMapProfile.objects.filter(user=request.user).first()
+        if not profile:
+            return Response(self._empty_payload(request))
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data)
+
+    def put(self, request: Request, *args, **kwargs) -> Response:
+        return self._write_profile(request, partial=False)
+
+    def patch(self, request: Request, *args, **kwargs) -> Response:
+        return self._write_profile(request, partial=True)
+
+    def _write_profile(self, request: Request, partial: bool) -> Response:
+        profile = PersonalMapProfile.objects.filter(user=request.user).first()
+        serializer = self.get_serializer(
+            profile,
+            data=request.data,
+            partial=partial,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def _empty_payload(self, request: Request) -> dict:
+        return {
+            "email": request.user.email,
+            "first_name": "",
+            "last_name": "",
+            "birth_date": None,
+            "birth_time": None,
+            "birth_place_country": "",
+            "birth_place_city": "",
+            "avatar_image": None,
+            "is_complete": False,
+        }

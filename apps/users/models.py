@@ -112,3 +112,21 @@ class Device(BaseModel):
 
     class Meta:
         unique_together = ("user", "push_token")
+
+
+class PersonalMapProfile(BaseModel):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="personal_map",
+    )
+    first_name = models.CharField(max_length=120)
+    last_name = models.CharField(max_length=120)
+    birth_date = models.DateField()
+    birth_time = models.TimeField(null=True, blank=True)
+    birth_place_country = models.CharField(max_length=120)
+    birth_place_city = models.CharField(max_length=120)
+    avatar_image = models.ImageField(upload_to="avatars/", null=True, blank=True)
+
+    def __str__(self) -> str:  # pragma: no cover - debug helper
+        return f"PersonalMapProfile<{self.user_id}>"

@@ -26,6 +26,7 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
 ]
 
 THIRD_PARTY_APPS = [
@@ -36,6 +37,14 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "ratelimit",
     "django_prometheus",
+    "dj_rest_auth",
+    "dj_rest_auth.registration",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.facebook",
+    "allauth.socialaccount.providers.github",
 ]
 
 LOCAL_APPS = [
@@ -100,6 +109,42 @@ DATABASES: Dict[str, Dict[str, Any]] = {
 }
 
 AUTH_USER_MODEL = "users.User"
+AUTHENTICATION_BACKENDS = (
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+)
+
+REST_USE_JWT = True
+
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_AUTHENTICATION_METHOD = "email"
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_QUERY_EMAIL = True
+SOCIALACCOUNT_ADAPTER = "apps.users.adapters.SelflinkSocialAccountAdapter"
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {"access_type": "offline"},
+    },
+    "facebook": {
+        "SCOPE": ["email", "public_profile"],
+        "METHOD": "oauth2",
+        "VERSION": "v18.0",
+    },
+    "github": {
+        "SCOPE": ["user:email"],
+    },
+}
+
+SOCIAL_AUTH_REDIRECT_URIS = {
+    "google": os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/social/google/callback/"),
+    "facebook": os.getenv("FACEBOOK_REDIRECT_URI", "http://localhost:8000/api/v1/auth/social/facebook/callback/"),
+    "github": os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8000/api/v1/auth/social/github/callback/"),
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {
