@@ -22,7 +22,7 @@ def get_user_id(websocket: WebSocket) -> int:
     if not token:
         raise AuthError("Missing token")
     payload = decode_token(token)
-    user_id = payload.get("sub")
+    user_id = payload.get("sub") or payload.get("user_id")
     if not user_id:
         raise AuthError("Invalid token payload")
     return int(user_id)

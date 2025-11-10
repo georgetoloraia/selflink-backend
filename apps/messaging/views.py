@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import transaction
 from django.db.models import OuterRef, Subquery
+from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import permissions, status, viewsets
@@ -40,6 +41,16 @@ class ThreadViewSet(viewsets.ModelViewSet):
             .distinct()
         )
 
+    def get_object(self):  # type: ignore[override]
+        lookup_value = self.kwargs.get(self.lookup_field or "pk")
+        queryset = Thread.objects.select_related("created_by").prefetch_related(
+            "members__user", "members__last_read_message"
+        )
+        thread = get_object_or_404(queryset, pk=lookup_value)
+        if not thread.members.filter(user=self.request.user).exists():
+            raise PermissionDenied("Not a member of this thread")
+        return thread
+
     def perform_create(self, serializer: ThreadSerializer) -> None:  # type: ignore[override]
         serializer.save()
 
@@ -57,8 +68,6 @@ class ThreadViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get", "post"], url_path="typing")
     def typing(self, request: Request, pk: str | None = None) -> Response:
         thread = self.get_object()
-        if not thread.members.filter(user=request.user).exists():
-            raise PermissionDenied("Not a member of this thread")
         if request.method.lower() == "get":
             user_ids = get_typing_users(thread.id)
             member_map = {
