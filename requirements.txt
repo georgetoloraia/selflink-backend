@@ -16,6 +16,7 @@ click-repl==0.3.0
 distro==1.9.0
 dj-database-url==2.1.0
 dj-rest-auth==5.0.2
+cryptography==46.0.3
 Django==5.0.14
 django-cors-headers==4.3.1
 django-filter==24.3
