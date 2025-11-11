@@ -6,41 +6,47 @@
 selflink-backend/
 │
 ├── apps/
-│   ├── core/               # shared mixins, pagination, API router
-│   ├── users/              # auth, profiles, privacy controls
-│   ├── social/             # posts, comments, likes, follow, feed fan-out
-│   ├── messaging/          # threads, direct messages, read receipts
-│   ├── mentor/             # AI mentor sessions, tasks, profiles
-│   ├── matrix/             # astro + numerology logic
-│   ├── payments/           # plans, subscriptions, wallet, gifts
-│   ├── notifications/      # in-app notifications API
-│   ├── moderation/         # user-generated reports & enforcement
-│   └── feed/               # feed services + Celery tasks
+│   ├── config/             # feature flags + runtime config cache
+│   ├── core/               # shared API router, base models, pagination
+│   ├── feed/               # timelines, ranking, fan-out tasks
+│   ├── matrix/             # astrology + numerology data sources
+│   ├── media/              # uploads, presigned URLs, media policies
+│   ├── mentor/             # AI mentor sessions, prompts, memory store
+│   ├── messaging/          # threads, direct messages, typing state
+│   ├── moderation/         # safety rules, reports, enforcement
+│   ├── notifications/      # in-app/push/email dispatch + preferences
+│   ├── payments/           # plans, wallet, Stripe integrations
+│   ├── reco/               # recommendation features + scoring
+│   ├── search/             # OpenSearch clients, indexing tasks
+│   ├── social/             # posts, comments, reactions, gifting
+│   └── users/              # auth, profiles, privacy controls
 │
 ├── services/
-│   ├── realtime/           # FastAPI WebSocket gateway
-│   └── reco/               # recommendation workers (placeholder)
+│   ├── realtime/           # FastAPI WebSocket gateway w/ Redis pub-sub
+│   └── reco/               # worker processes for advanced ranking
 │
-├── core/
-│   ├── settings/
-│   │   ├── base.py
-│   │   ├── dev.py
-│   │   └── prod.py
+├── core/                   # Django project: settings, ASGI/WSGI, Celery
+│   ├── settings/           # base.py, dev.py, prod.py
 │   ├── urls.py
 │   ├── asgi.py
 │   ├── wsgi.py
 │   └── celery.py
 │
-├── infra/
+├── config/                 # fixtures + seed data consumed by manage.py
+│   └── fixtures/
+│
+├── infra/                  # Docker/K8s definitions + dev Make targets
 │   ├── docker/
-│   │   ├── Dockerfile.api
-│   │   └── Dockerfile.realtime
 │   ├── compose.yaml
 │   ├── k8s/
 │   └── Makefile
 │
-├── libs/                   # shared libraries (Snowflake ID generator)
-├── tests/
+├── libs/                   # shared helpers (ID generator, LLM adapters)
+│   ├── idgen.py
+│   ├── llm/
+│   └── utils/
+│
+├── tests/                  # API + service regression suites
 ├── manage.py
 ├── requirements.txt
 ├── .env.example
@@ -155,3 +161,9 @@ After the stack is running the API is available on `http://localhost:8000`, real
 
 - Prometheus metrics exposed at `/metrics` via `django-prometheus`; run a Prometheus instance or forward metrics from that endpoint.
 - Structured JSON logging enabled by default (env `APP_LOG_LEVEL` to adjust app logger verbosity).
+
+## Documentation Index
+
+- `backand.md` — End-to-end product blueprint dated 2025-10-29 covering vision, differentiators, architecture, and data models.
+- `contrinutors.md` — Contribution guide with project values, workflow expectations, upgrade checklists, and coding/testing standards.
+- `README_for_env.md` — How-to for `.env` management plus line-by-line explanations of every environment variable the stack consumes.
