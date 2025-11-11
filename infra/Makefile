@@ -1,18 +1,19 @@
-COMPOSE = docker compose -f infra/compose.yaml
+COMPOSE ?= docker compose
+COMPOSE_FILE ?= compose.yaml
 
 .PHONY: up down logs migrate createsuperuser
 
 up:
-	$(COMPOSE) up -d --build
+	$(COMPOSE) -f $(COMPOSE_FILE) up -d --build
 
 logs:
-	$(COMPOSE) logs -f
+	$(COMPOSE) -f $(COMPOSE_FILE) logs -f
 
 down:
-	$(COMPOSE) down --remove-orphans
+	$(COMPOSE) -f $(COMPOSE_FILE) down --remove-orphans
 
 migrate:
-	$(COMPOSE) exec api python manage.py migrate
+	$(COMPOSE) -f $(COMPOSE_FILE) exec api python manage.py migrate
 
 createsuperuser:
-	$(COMPOSE) exec api python manage.py createsuperuser
+	$(COMPOSE) -f $(COMPOSE_FILE) exec api python manage.py createsuperuser
