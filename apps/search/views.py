@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import List
 
 from django.db.models import Q
@@ -14,7 +15,10 @@ from apps.search.client import POSTS_INDEX, USERS_INDEX, get_client
 from apps.social.models import Post
 from apps.social.serializers import PostSerializer
 from apps.users.models import User
+from apps.users.querysets import with_user_relationship_meta
 from apps.users.serializers import UserSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class BaseSearchView(APIView):
@@ -42,35 +46,45 @@ class UserSearchView(BaseSearchView):
         limit = self.get_page_size(request)
         client = get_client()
         if client:
-            response = client.search(
-                index=self.index_name,
-                body={
-                    "size": limit,
-                    "query": {
-                        "multi_match": {
-                            "query": query,
-                            "fields": ["name^2", "handle", "bio"],
-                        }
+            try:
+                response = client.search(
+                    index=self.index_name,
+                    body={
+                        "size": limit,
+                        "query": {
+                            "multi_match": {
+                                "query": query,
+                                "fields": ["name^2", "handle", "bio"],
+                            }
+                        },
                     },
-                },
-            )
-            ids = [int(hit["_id"]) for hit in response["hits"]["hits"]]
-            queryset = list(User.objects.filter(id__in=ids).select_related("settings"))
-            # preserve order from OpenSearch
-            user_map = {user.id: user for user in queryset}
-            ordered = [user_map[user_id] for user_id in ids if user_id in user_map]
-        else:
-            ordered = list(
-                User.objects.filter(
-                    Q(name__icontains=query)
-                    | Q(handle__icontains=query)
-                    | Q(bio__icontains=query)
                 )
-                .select_related("settings")
-                .order_by("-created_at")[:limit]
-            )
+                ids = [int(hit["_id"]) for hit in response["hits"]["hits"]]
+                queryset = with_user_relationship_meta(
+                    User.objects.filter(id__in=ids).select_related("settings"),
+                    request.user,
+                )
+                # preserve order from OpenSearch
+                user_map = {user.id: user for user in queryset}
+                ordered = [user_map[user_id] for user_id in ids if user_id in user_map]
+            except Exception:  # pragma: no cover - OpenSearch issues fallback
+                logger.exception("User search failed via OpenSearch; falling back to DB query")
+                ordered = self._db_search(query, limit, request)
+        else:
+            ordered = self._db_search(query, limit, request)
         serializer = UserSerializer(ordered, many=True, context={"request": request})
         return Response(serializer.data)
+
+    def _db_search(self, query: str, limit: int, request: Request) -> List[User]:
+        queryset = with_user_relationship_meta(
+            User.objects.filter(
+                Q(name__icontains=query)
+                | Q(handle__icontains=query)
+                | Q(bio__icontains=query)
+            ).select_related("settings"),
+            request.user,
+        )
+        return list(queryset.order_by("-created_at")[:limit])
 
 
 class PostSearchView(BaseSearchView):

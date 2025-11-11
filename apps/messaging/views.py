@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django.db import transaction
-from django.db.models import OuterRef, Subquery
+from django.db.models import Count, OuterRef, Subquery
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
@@ -17,6 +17,7 @@ from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
 from .typing import get_typing_users, start_typing, stop_typing
 from apps.moderation.autoflag import auto_report_message
+from apps.users.models import User
 from apps.users.serializers import UserSerializer
 
 
@@ -108,6 +109,41 @@ class ThreadViewSet(viewsets.ModelViewSet):
                     lambda: publish_member_left_event(thread.id, request.user.id, remaining_member_ids)
                 )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["post"], url_path="direct")
+    def direct(self, request: Request) -> Response:
+        user_id = request.data.get("user_id")
+        if not user_id:
+            return Response({"detail": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            target = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "Target user not found"}, status=status.HTTP_404_NOT_FOUND)
+        if target == request.user:
+            return Response({"detail": "Cannot start a direct thread with yourself"}, status=status.HTTP_400_BAD_REQUEST)
+
+        thread = (
+            Thread.objects.filter(is_group=False, members__user=request.user)
+            .filter(members__user=target)
+            .distinct()
+            .annotate(member_total=Count("members", distinct=True))
+            .filter(member_total=2)
+            .select_related("created_by")
+            .prefetch_related("members__user", "members__last_read_message")
+            .first()
+        )
+        if thread:
+            serializer = self.get_serializer(thread)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        payload = {"participant_ids": [target.id]}
+        initial_message = request.data.get("initial_message")
+        if isinstance(initial_message, str) and initial_message.strip():
+            payload["initial_message"] = initial_message.strip()
+        serializer = self.get_serializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        thread = serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 @method_decorator(ratelimit(key="user", rate="60/min", method="POST", block=True), name="create")

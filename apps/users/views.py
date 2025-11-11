@@ -19,6 +19,7 @@ from apps.social.models import Follow
 from services.reco.jobs import rebuild_user_timeline
 
 from .models import Device, PersonalMapProfile, User
+from .querysets import with_user_relationship_meta
 from .serializers import (
     DeviceSerializer,
     LoginSerializer,
@@ -89,6 +90,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):  # type: ignore[override]
         queryset = super().get_queryset()
+        queryset = with_user_relationship_meta(queryset, getattr(self.request, "user", None))
         search = self.request.query_params.get("q")
         if search:
             queryset = queryset.filter(

@@ -3,6 +3,8 @@ from __future__ import annotations
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 
+from apps.social.models import Follow
+
 from .models import Device, PersonalMapProfile, User, UserSettings
 from .utils import generate_unique_handle, normalize_handle
 
@@ -30,6 +32,10 @@ class UserSettingsSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     settings = UserSettingsSerializer(read_only=True)
+    followers_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
+    posts_count = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -45,11 +51,44 @@ class UserSerializer(serializers.ModelSerializer):
             "birth_place",
             "locale",
             "flags",
+            "followers_count",
+            "following_count",
+            "posts_count",
+            "is_following",
             "created_at",
             "updated_at",
             "settings",
         ]
         read_only_fields = ["email", "created_at", "updated_at", "flags"]
+
+    def _get_count_from_attr(self, obj: User, attr_name: str, related_name: str) -> int:
+        value = getattr(obj, attr_name, None)
+        if value is not None:
+            return int(value)
+        related_manager = getattr(obj, related_name, None)
+        if related_manager is None:
+            return 0
+        return related_manager.count()
+
+    def get_followers_count(self, obj: User) -> int:
+        return self._get_count_from_attr(obj, "followers_count", "followers")
+
+    def get_following_count(self, obj: User) -> int:
+        return self._get_count_from_attr(obj, "following_count", "following")
+
+    def get_posts_count(self, obj: User) -> int:
+        return self._get_count_from_attr(obj, "posts_count", "posts")
+
+    def get_is_following(self, obj: User) -> bool:
+        annotated_value = getattr(obj, "is_following", None)
+        if annotated_value is not None:
+            return bool(annotated_value)
+        request = self.context.get("request")
+        if not request or request.user.is_anonymous:
+            return False
+        if request.user == obj:
+            return False
+        return Follow.objects.filter(follower=request.user, followee=obj).exists()
 
 
 class RegisterSerializer(serializers.ModelSerializer):

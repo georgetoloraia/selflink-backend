@@ -19,6 +19,7 @@ services:
       OPENSEARCH_ENABLED: "true"
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: 9200
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY_ID: selflink
       S3_SECRET_ACCESS_KEY: selflinkpass
