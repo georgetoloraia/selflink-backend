@@ -241,12 +241,22 @@ CELERY_BEAT_SCHEDULE = {
     }
 }
 
+# --- Pub/Sub (realtime fanout) ---
+# Prefer explicit PUBSUB_REDIS_URL; fallback to a non-localhost broker to avoid 111 on docker
+PUBSUB_REDIS_URL = os.getenv(
+    "PUBSUB_REDIS_URL",
+    os.getenv("REALTIME_REDIS_URL", os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")),
+)
+
+# --- OpenSearch (align env names) ---
 OPENSEARCH_ENABLED = os.getenv("OPENSEARCH_ENABLED", "true").lower() == "true"
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
 OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
-OPENSEARCH_USER = os.getenv("OPENSEARCH_USER", "admin")
+# accept both OPENSEARCH_USERNAME and OPENSEARCH_USER for safety
+OPENSEARCH_USERNAME = os.getenv("OPENSEARCH_USERNAME", os.getenv("OPENSEARCH_USER", "admin"))
 OPENSEARCH_PASSWORD = os.getenv("OPENSEARCH_PASSWORD", "admin")
 OPENSEARCH_SCHEME = os.getenv("OPENSEARCH_SCHEME", "http")
+
 
 FEATURE_FLAGS = {
     "mentor_llm": True,

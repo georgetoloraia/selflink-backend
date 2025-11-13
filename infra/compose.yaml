@@ -9,16 +9,19 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ../.env
+      - ./.env
     environment:
-      DJANGO_SETTINGS_MODULE: core.settings.dev
+      DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL}
       REALTIME_JWT_SECRET: ${REALTIME_JWT_SECRET}
       OPENSEARCH_ENABLED: "true"
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: 9200
+      OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME}
+      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY_ID: selflink
@@ -36,12 +39,13 @@ services:
     volumes:
       - ..:/app
     env_file:
-      - ../.env
+      - ./.env
     environment:
-      DJANGO_SETTINGS_MODULE: core.settings.dev
+      DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL}
       OPENSEARCH_ENABLED: "true"
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: 9200
@@ -61,12 +65,13 @@ services:
     volumes:
       - ..:/app
     env_file:
-      - ../.env
+      - ./.env
     environment:
-      DJANGO_SETTINGS_MODULE: core.settings.dev
+      DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL}
       OPENSEARCH_ENABLED: "true"
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: 9200
@@ -83,7 +88,7 @@ services:
       context: ..
       dockerfile: infra/docker/Dockerfile.realtime
     env_file:
-      - ../.env
+      - ./.env
     ports:
       - "8001:8001"
     environment:
@@ -115,10 +120,17 @@ services:
     environment:
       discovery.type: single-node
       OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
     ports:
       - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -u admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD} http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     volumes:
       - opensearch-data:/usr/share/opensearch/data
+
 
   minio:
     image: minio/minio:RELEASE.2024-01-18T22-51-28Z
