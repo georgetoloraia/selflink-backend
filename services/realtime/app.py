@@ -38,7 +38,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_us
     token_sub = getattr(websocket.state, "token_sub", None)
     logger.info("Realtime websocket connected user_id=%s token_sub=%s", user_id, token_sub)
     await manager.connect(user_id, websocket)
-    await manager.send_personal_message(user_id, AckEvent(message="connected").model_dump_json())
+    ack = AckEvent(message="connected")
+    logger.debug("realtime: sending event", extra={"type": ack.type, "target": "personal"})
+    await manager.send_personal_message(user_id, ack.model_dump_json())
 
     redis = get_async_redis()
     pubsub = redis.pubsub()
@@ -54,12 +56,14 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_us
             if event_type == "presence":
                 payload = PresenceEvent(**event)
                 response = payload.model_copy(update={"timestamp": datetime.utcnow()})
+                logger.debug("realtime: sending event", extra={"type": response.type, "target": "broadcast"})
                 await manager.broadcast(response.model_dump_json())
                 with suppress(RedisError):
                     await publish("broadcast", response.model_dump())
             elif event_type == "message":
                 payload = MessageEvent(**event)
                 response = payload.model_copy(update={"created_at": datetime.utcnow()})
+                logger.debug("realtime: sending event", extra={"type": response.type, "target": "broadcast"})
                 await manager.broadcast(response.model_dump_json())
                 with suppress(RedisError):
                     await publish(f"user:{payload.sender_id}", response.model_dump())
@@ -110,6 +114,7 @@ async def _publish_presence(user_id: int, status: str) -> None:
         status=status,
         timestamp=datetime.utcnow(),
     )
+    logger.debug("realtime: sending event", extra={"type": event.type, "target": "broadcast"})
     await manager.broadcast(event.model_dump_json())
     try:
         await publish("broadcast", event.model_dump())
