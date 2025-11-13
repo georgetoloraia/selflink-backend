@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
-
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -12,7 +10,8 @@ class Settings(BaseSettings):
     host: str = Field("0.0.0.0", alias="REALTIME_HOST")
     port: int = Field(8001, alias="REALTIME_PORT")
     redis_url: str = Field("redis://localhost:6379/1", alias="REALTIME_REDIS_URL")
-    jwt_secret: str = Field("unsafe-realtime-secret", alias="REALTIME_JWT_SECRET")
+    jwt_signing_key: str | None = Field(None, alias="JWT_SIGNING_KEY")
+    realtime_jwt_secret: str | None = Field(None, alias="REALTIME_JWT_SECRET")
 
     class Config:
         env_file = ".env"
@@ -20,14 +19,12 @@ class Settings(BaseSettings):
         case_sensitive = False
         extra = "ignore"
 
-    @field_validator("jwt_secret", mode="before")
-    @classmethod
-    def _fallback_to_django_jwt(cls, value: str | None) -> str:
-        if value and value.strip():
-            return value
-        fallback = os.getenv("JWT_SIGNING_KEY")
-        if fallback and fallback.strip():
-            return fallback
+    @property
+    def jwt_secret(self) -> str:
+        if self.jwt_signing_key and self.jwt_signing_key.strip():
+            return self.jwt_signing_key
+        if self.realtime_jwt_secret and self.realtime_jwt_secret.strip():
+            return self.realtime_jwt_secret
         return "unsafe-realtime-secret"
 
 

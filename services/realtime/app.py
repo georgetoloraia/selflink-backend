@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from contextlib import suppress
 from datetime import datetime
 
@@ -14,22 +15,28 @@ from .manager import manager
 from .redis_client import get_async_redis, publish
 from .schemas import AckEvent, MessageEvent, PresenceEvent
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title=settings.app_name)
 
 
 def get_user_id(websocket: WebSocket) -> int:
     token = websocket.query_params.get("token")
     if not token:
+        logger.warning("Realtime auth failed: missing token from %s", getattr(websocket.client, "host", "unknown"))
         raise AuthError("Missing token")
     payload = decode_token(token)
     user_id = payload.get("sub") or payload.get("user_id")
     if not user_id:
         raise AuthError("Invalid token payload")
+    websocket.state.token_sub = payload.get("sub") or payload.get("user_id")
     return int(user_id)
 
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_user_id)) -> None:
+    token_sub = getattr(websocket.state, "token_sub", None)
+    logger.info("Realtime websocket connected user_id=%s token_sub=%s", user_id, token_sub)
     await manager.connect(user_id, websocket)
     await manager.send_personal_message(user_id, AckEvent(message="connected").model_dump_json())
 
@@ -58,7 +65,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_us
                     await publish(f"user:{payload.sender_id}", response.model_dump())
             else:
                 await websocket.send_text(AckEvent(message="ignored").model_dump_json())
-    except (WebSocketDisconnect, AuthError):
+    except AuthError as exc:
+        logger.warning("WebSocket auth error for user_id=%s: %s", user_id, exc)
+        manager.disconnect(user_id, websocket)
+        await websocket.close()
+        await _publish_presence(user_id, "offline")
+        return
+    except WebSocketDisconnect:
         manager.disconnect(user_id, websocket)
         await _publish_presence(user_id, "offline")
     except json.JSONDecodeError:
