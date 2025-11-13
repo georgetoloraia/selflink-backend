@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
 def get_redis_client() -> Redis:
-    url = getattr(settings, "REALTIME_REDIS_URL", "redis://localhost:6379/1")
+    url = getattr(settings, "PUBSUB_REDIS_URL", "redis://redis:6379/1")
     return Redis.from_url(url)
 
 

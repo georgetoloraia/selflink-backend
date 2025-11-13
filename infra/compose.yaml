@@ -15,7 +15,6 @@ services:
       DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL}
       REALTIME_JWT_SECRET: ${REALTIME_JWT_SECRET}
       OPENSEARCH_ENABLED: "true"
       OPENSEARCH_HOST: opensearch

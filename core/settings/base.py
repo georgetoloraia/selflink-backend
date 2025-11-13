@@ -242,11 +242,8 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # --- Pub/Sub (realtime fanout) ---
-# Prefer explicit PUBSUB_REDIS_URL; fallback to a non-localhost broker to avoid 111 on docker
-PUBSUB_REDIS_URL = os.getenv(
-    "PUBSUB_REDIS_URL",
-    os.getenv("REALTIME_REDIS_URL", os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")),
-)
+# Prefer explicit PUBSUB_REDIS_URL; default to docker redis hostname to avoid localhost lookups
+PUBSUB_REDIS_URL = os.getenv("PUBSUB_REDIS_URL", "redis://redis:6379/1")
 
 # --- OpenSearch (align env names) ---
 OPENSEARCH_ENABLED = os.getenv("OPENSEARCH_ENABLED", "true").lower() == "true"
