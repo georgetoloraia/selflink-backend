@@ -8,14 +8,17 @@ from .models import Message, Thread
 from apps.users.models import User
 
 
+def _serialize_message(message: Message) -> dict:
+    from .serializers import MessageSerializer
+
+    serializer = MessageSerializer(message)
+    return dict(serializer.data)
+
+
 def publish_message_event(message: Message) -> None:
     payload = {
-        "type": "message",
-        "thread_id": message.thread_id,
-        "message_id": message.id,
-        "sender_id": message.sender_id,
-        "body": message.body,
-        "created_at": message.created_at.isoformat() if message.created_at else None,
+        "type": "message:new",
+        "payload": _serialize_message(message),
     }
     user_ids: Iterable[int] = message.thread.members.values_list("user_id", flat=True)
     channels = [f"user:{user_id}" for user_id in set(user_ids)]
