@@ -12,7 +12,14 @@ def _serialize_message(message: Message) -> dict:
     from .serializers import MessageSerializer
 
     serializer = MessageSerializer(message)
-    return dict(serializer.data)
+    data = dict(serializer.data)
+    message_id = data.get("id")
+    thread_id = data.get("thread")
+    if message_id is not None:
+        data["id"] = str(message_id)
+    if thread_id is not None:
+        data["thread"] = str(thread_id)
+    return data
 
 
 def publish_message_event(message: Message) -> None:
