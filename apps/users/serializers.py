@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
 from django.contrib.auth import authenticate
 from rest_framework import serializers
 
@@ -7,6 +10,8 @@ from apps.social.models import Follow
 
 from .models import Device, PersonalMapProfile, User, UserSettings
 from .utils import generate_unique_handle, normalize_handle
+
+logger = logging.getLogger(__name__)
 
 
 class DeviceSerializer(serializers.ModelSerializer):
@@ -254,6 +259,20 @@ class PersonalMapProfileSerializer(serializers.ModelSerializer):
         if place and user.birth_place != place:
             user.birth_place = place
             update_fields.append("birth_place")
+
+        if profile.avatar_image:
+            try:
+                avatar_path = Path(profile.avatar_image.path)
+                exists = avatar_path.exists()
+                logger.info(
+                    "PersonalMapProfile avatar saved",
+                    extra={
+                        "path": str(avatar_path),
+                        "exists": exists,
+                    },
+                )
+            except Exception as exc:  # pragma: no cover - safety log
+                logger.warning("Failed to inspect avatar image path: %s", exc)
 
         if profile.avatar_image and profile.avatar_image.url:
             photo_url = profile.avatar_image.url
