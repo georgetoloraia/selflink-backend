@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
+from django.http import QueryDict
 from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.utils import timezone
@@ -11,7 +12,7 @@ from apps.media.serializers import MediaAssetSerializer
 from apps.media.models import MediaAsset
 from apps.users.serializers import UserSerializer
 
-from .models import Comment, Follow, Gift, Like, Post, Timeline
+from .models import Comment, CommentImage, Follow, Gift, Like, Post, Timeline
 
 
 class PostSerializer(serializers.ModelSerializer):
@@ -73,15 +74,77 @@ class PostSerializer(serializers.ModelSerializer):
         return post
 
 
+class CommentImageSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CommentImage
+        fields = ["id", "url", "order"]
+        read_only_fields = ["id", "url", "order"]
+
+    def get_url(self, obj: CommentImage) -> str | None:
+        if not obj.image:
+            return None
+        request = self.context.get("request")
+        url = obj.image.url
+        if request:
+            return request.build_absolute_uri(url)
+        return url
+
+
 class CommentSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
+    images = CommentImageSerializer(read_only=True, many=True)
+    image_urls = serializers.SerializerMethodField()
+    images_upload = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+    )
 
     class Meta:
         model = Comment
-        fields = ["id", "post", "author", "text", "parent", "created_at"]
-        read_only_fields = ["id", "author", "created_at"]
+        fields = [
+            "id",
+            "post",
+            "author",
+            "text",
+            "parent",
+            "images",
+            "image_urls",
+            "images_upload",
+            "created_at",
+        ]
+        read_only_fields = ["id", "author", "images", "image_urls", "created_at"]
+
+    def to_internal_value(self, data):
+        if isinstance(data, QueryDict):
+            mutable = data.copy()
+            if "images_upload" not in mutable and "images" in mutable:
+                mutable.setlist("images_upload", mutable.getlist("images"))
+                del mutable["images"]
+            data = mutable
+        elif isinstance(data, dict) and "images" in data and "images_upload" not in data:
+            copied = data.copy()
+            copied["images_upload"] = copied.pop("images")
+            data = copied
+        return super().to_internal_value(data)
+
+    def get_image_urls(self, obj: Comment) -> list[str]:
+        urls: list[str] = []
+        request = self.context.get("request")
+        for image in obj.images.all():
+            if not image.image:
+                continue
+            url = image.image.url
+            if request:
+                url = request.build_absolute_uri(url)
+            urls.append(url)
+        return urls
 
     def create(self, validated_data: dict) -> Comment:
+        images = validated_data.pop("images_upload", [])
         request = self.context.get("request")
         user = request.user if request else None
         if user is None or user.is_anonymous:
@@ -90,10 +153,23 @@ class CommentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Parent comment must belong to the same post")
         with transaction.atomic():
             comment = Comment.objects.create(author=user, **validated_data)
+            for order, image in enumerate(images):
+                CommentImage.objects.create(comment=comment, image=image, order=order)
             Post.objects.filter(pk=comment.post_id).update(
                 comment_count=models.F("comment_count") + 1
             )
         return comment
+
+    def validate(self, attrs: dict) -> dict:
+        images = attrs.get("images_upload") or []
+        text = (attrs.get("text") or "").strip()
+        if not text and not images:
+            raise serializers.ValidationError("Write a comment or attach a photo.")
+        if len(images) > 4:
+            raise serializers.ValidationError({"images": "You can upload up to 4 images."})
+        attrs["text"] = text
+        attrs["images_upload"] = images
+        return attrs
 
 
 class FollowSerializer(serializers.ModelSerializer):

@@ -28,13 +28,25 @@ class Post(BaseModel):
 class Comment(BaseModel):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="comments")
-    text = models.TextField()
+    text = models.TextField(blank=True, default="")
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, related_name="replies", null=True, blank=True
     )
 
     class Meta:
         ordering = ["created_at"]
+
+
+class CommentImage(BaseModel):
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="comment_images/")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"CommentImage<{self.id}>"
 
 
 class Like(BaseModel):

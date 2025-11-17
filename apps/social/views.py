@@ -67,7 +67,7 @@ class PostViewSet(viewsets.ModelViewSet):
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    queryset = Comment.objects.select_related("author", "post", "parent").all()
+    queryset = Comment.objects.select_related("author", "post", "parent").prefetch_related("images").all()
 
     def perform_create(self, serializer: CommentSerializer) -> None:  # type: ignore[override]
         serializer.save()
