@@ -88,6 +88,16 @@ The infra bundle under `infra/` provisions Postgres, Redis, OpenSearch, MinIO, D
 make -C infra up       # build & start services
 make -C infra logs     # follow logs
 make -C infra down     # stop stack
+make -C infra migrate  # run python manage.py migrate inside the api container
+```
+
+Manual equivalent with `docker-compose` (run from repo root):
+
+```bash
+sudo docker-compose -f infra/compose.yaml down
+sudo docker-compose -f infra/compose.yaml up -d --build
+sudo docker-compose -f infra/compose.yaml logs -f api
+sudo docker-compose -f infra/compose.yaml exec api python manage.py migrate
 ```
 
 After the stack is running the API is available on `http://localhost:8000`, realtime gateway on `ws://localhost:8001/ws`, Postgres on `localhost:5432`, Redis on `localhost:6379`, OpenSearch on `localhost:9200`, and MinIO console on `http://localhost:9001`.

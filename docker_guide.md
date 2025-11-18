@@ -132,6 +132,24 @@ docker compose -f infra/compose.yaml up -d --build
   sudo apt-get install docker-compose-plugin
   ```
 
+- **`KeyError: 'ContainerConfig'` when running `docker-compose`**
+
+  Docker Engine 25+ removed a legacy field that the standalone `docker-compose` 1.x binary still expects, so `docker-compose up` now crashes with `KeyError: 'ContainerConfig'`. Fix it by switching to the V2 plugin:
+
+  ```bash
+  sudo apt-get update
+  sudo apt-get install docker-compose-plugin
+  make -C infra up  # uses `docker compose` automatically
+  ```
+
+  If you must keep using the standalone binary, install the Compose V2 CLI release (not the legacy 1.x build):
+
+  ```bash
+  sudo curl -L "https://github.com/docker/compose/releases/download/v2.27.1/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
+  sudo chmod +x /usr/local/bin/docker-compose
+  COMPOSE=docker-compose make -C infra up
+  ```
+
 ---
 
 ## ✅ Common Commands
@@ -155,4 +173,3 @@ docker compose -f infra/compose.yaml up -d --build
 - OpenSearch → <http://localhost:9200>
 
 © 2025 SelfLink Project — Maintainer: @georgetoloraia
-

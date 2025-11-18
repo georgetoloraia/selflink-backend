@@ -39,7 +39,7 @@ class Comment(BaseModel):
 
 class CommentImage(BaseModel):
     comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name="images")
-    image = models.ImageField(upload_to="comment_images/")
+    image = models.ImageField(upload_to="posts/images/")
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
