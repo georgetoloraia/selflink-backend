@@ -12,14 +12,40 @@ from apps.media.serializers import MediaAssetSerializer
 from apps.media.models import MediaAsset
 from apps.users.serializers import UserSerializer
 
-from .models import Comment, CommentImage, Follow, Gift, Like, Post, Timeline
+from .models import Comment, CommentImage, Follow, Gift, Like, Post, PostImage, Timeline
+
+
+class PostImageSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PostImage
+        fields = ["id", "url", "order"]
+        read_only_fields = ["id", "url", "order"]
+
+    def get_url(self, obj: PostImage) -> str | None:
+        if not obj.image:
+            return None
+        request = self.context.get("request")
+        url = obj.image.url
+        if request:
+            return request.build_absolute_uri(url)
+        return url
 
 
 class PostSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     media = MediaAssetSerializer(read_only=True, many=True)
+    images = PostImageSerializer(read_only=True, many=True)
+    image_urls = serializers.SerializerMethodField()
     media_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1), required=False, write_only=True
+    )
+    images_upload = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False,
+        allow_empty=True,
     )
     liked = serializers.SerializerMethodField()
 
@@ -33,6 +59,9 @@ class PostSerializer(serializers.ModelSerializer):
             "language",
             "media",
             "media_ids",
+            "images",
+            "image_urls",
+            "images_upload",
             "like_count",
             "comment_count",
             "liked",
@@ -42,6 +71,8 @@ class PostSerializer(serializers.ModelSerializer):
             "id",
             "author",
             "media",
+            "images",
+            "image_urls",
             "like_count",
             "comment_count",
             "liked",
@@ -60,6 +91,7 @@ class PostSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data: dict) -> Post:
         media_ids: List[int] = validated_data.pop("media_ids", [])
+        images_upload = validated_data.pop("images_upload", [])
         request = self.context.get("request")
         user = request.user if request else None
         if user is None or user.is_anonymous:
@@ -71,7 +103,41 @@ class PostSerializer(serializers.ModelSerializer):
                     MediaAsset.objects.filter(id__in=media_ids, owner=user)
                 )
                 post.media.set(assets)
+            for order, image in enumerate(images_upload):
+                PostImage.objects.create(post=post, image=image, order=order)
         return post
+
+    def to_internal_value(self, data):
+        if isinstance(data, QueryDict):
+            mutable = data.copy()
+            if "images_upload" not in mutable and "images" in mutable:
+                mutable.setlist("images_upload", mutable.getlist("images"))
+                del mutable["images"]
+            data = mutable
+        elif isinstance(data, dict) and "images" in data and "images_upload" not in data:
+            copied = data.copy()
+            copied["images_upload"] = copied.pop("images")
+            data = copied
+        return super().to_internal_value(data)
+
+    def get_image_urls(self, obj: Post) -> list[str]:
+        urls: list[str] = []
+        request = self.context.get("request")
+        for image in obj.images.all():
+            if not image.image:
+                continue
+            url = image.image.url
+            if request:
+                url = request.build_absolute_uri(url)
+            urls.append(url)
+        return urls
+
+    def validate(self, attrs: dict) -> dict:
+        images = attrs.get("images_upload") or []
+        if len(images) > 4:
+            raise serializers.ValidationError({"images": "You can upload up to 4 images."})
+        attrs["images_upload"] = images
+        return attrs
 
 
 class CommentImageSerializer(serializers.ModelSerializer):

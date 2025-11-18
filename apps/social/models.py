@@ -25,6 +25,18 @@ class Post(BaseModel):
         ordering = ["-created_at"]
 
 
+class PostImage(BaseModel):
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="posts/images/")
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"PostImage<{self.id}>"
+
+
 class Comment(BaseModel):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="comments")

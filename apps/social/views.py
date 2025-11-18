@@ -26,7 +26,7 @@ class PostViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     queryset = (
         Post.objects.select_related("author", "author__settings")
-        .prefetch_related("media")
+        .prefetch_related("media", "images")
         .all()
     )
 
