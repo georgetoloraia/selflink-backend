@@ -9,7 +9,19 @@ from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from apps.ai.services.llama_client import AIMentorError, generate_llama_response
+from apps.ai.services.mentor import (
+    DAILY_MENTOR_SYSTEM_PROMPT,
+    NATAL_MENTOR_SYSTEM_PROMPT,
+    SOULMATCH_MENTOR_SYSTEM_PROMPT,
+    build_daily_prompt,
+    build_natal_prompt,
+    build_soulmatch_prompt,
+)
+from apps.matching.services.soulmatch import calculate_soulmatch
+from apps.users.models import User
 from .models import DailyTask, MentorProfile, MentorSession
 from .serializers import DailyTaskSerializer, MentorAskSerializer, MentorProfileSerializer, MentorSessionSerializer
 from .services import generate_mentor_reply
@@ -76,3 +88,68 @@ class MentorProfileViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer: MentorProfileSerializer) -> None:  # type: ignore[override]
         serializer.save(user=self.request.user)
+
+
+class NatalMentorView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request: Request) -> Response:
+        user = request.user
+        chart = getattr(user, "natal_chart", None)
+        if chart is None:
+            return Response(
+                {"detail": "No natal chart found. Create your chart via /api/v1/astro/natal/ first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        prompt = build_natal_prompt(user, chart)
+        try:
+            mentor_text = generate_llama_response(NATAL_MENTOR_SYSTEM_PROMPT, prompt)
+        except AIMentorError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        return Response({"mentor_text": mentor_text, "generated_at": timezone.now()}, status=status.HTTP_200_OK)
+
+
+class SoulmatchMentorView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request, user_id: int) -> Response:
+        user: User = request.user
+        if user.id == user_id:
+            return Response({"detail": "Cannot mentor match against yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            target = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        results = calculate_soulmatch(user, target)
+        prompt = build_soulmatch_prompt(user, target, results)
+        try:
+            mentor_text = generate_llama_response(SOULMATCH_MENTOR_SYSTEM_PROMPT, prompt)
+        except AIMentorError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        payload = {**results, "mentor_text": mentor_text, "user": {"id": target.id, "handle": target.handle, "name": target.name}}
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class DailyMentorView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        user: User = request.user
+        chart = getattr(user, "natal_chart", None)
+        if chart is None:
+            return Response(
+                {"detail": "No natal chart found. Create your chart via /api/v1/astro/natal/ first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        prompt = build_daily_prompt(user, chart)
+        try:
+            mentor_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt)
+        except AIMentorError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+        return Response({"date": timezone.localdate(), "messages": mentor_text.split("\n")})
