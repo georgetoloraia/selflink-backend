@@ -149,6 +149,7 @@ def calculate_soulmatch(user_a: User, user_b: User) -> Dict[str, object]:
     )
 
     result = {
+        "user_id": user_b.id,
         "score": scores.total,
         "components": {
             "astro": scores.astro,

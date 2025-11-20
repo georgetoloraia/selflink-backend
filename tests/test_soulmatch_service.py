@@ -60,6 +60,7 @@ class SoulmatchServiceTests(TestCase):
         self.assertGreaterEqual(result["components"]["astro"], 30)
         self.assertGreaterEqual(result["components"]["psychology"], 15)
         self.assertIn("soulmate_like", result["tags"])
+        self.assertEqual(result["user_id"], self.user_b.id)
 
     def test_missing_charts_returns_neutral_matrix_and_low_astro(self) -> None:
         result = calculate_soulmatch(self.user_a, self.user_b)

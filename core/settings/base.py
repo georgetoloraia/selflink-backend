@@ -55,6 +55,7 @@ LOCAL_APPS = [
     "apps.mentor",
     "apps.astro",
     "apps.profile",
+    "apps.matching",
     "apps.matrix",
     "apps.payments",
     "apps.notifications",
