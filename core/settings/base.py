@@ -53,6 +53,9 @@ LOCAL_APPS = [
     "apps.social",
     "apps.messaging",
     "apps.mentor",
+    "apps.astro",
+    "apps.profile",
+    "apps.matching",
     "apps.matrix",
     "apps.payments",
     "apps.notifications",
@@ -253,6 +256,8 @@ OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 OPENSEARCH_USERNAME = os.getenv("OPENSEARCH_USERNAME", os.getenv("OPENSEARCH_USER", "admin"))
 OPENSEARCH_PASSWORD = os.getenv("OPENSEARCH_PASSWORD", "admin")
 OPENSEARCH_SCHEME = os.getenv("OPENSEARCH_SCHEME", "http")
+
+SWISSEPH_DATA_PATH = os.getenv("SWISSEPH_DATA_PATH", str(BASE_DIR / "astro_data"))
 
 
 FEATURE_FLAGS = {
