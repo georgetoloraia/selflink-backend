@@ -63,9 +63,12 @@ class MentorAIApiTests(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @mock.patch("apps.mentor.views.generate_llama_response", return_value="Point one\nPoint two")
-    def test_daily_mentor(self, mock_llm) -> None:
+    @mock.patch("apps.mentor.views.get_today_transits")
+    def test_daily_mentor(self, mock_transits, mock_llm) -> None:
+        mock_transits.return_value = {"sun_today": {"lon": 10, "sign": "Aries"}, "moon_today": {"lon": 20, "sign": "Aries"}}
         _seed_chart(User.objects.get(id=self.user["id"]))
         response = self.client.get("/api/v1/mentor/daily/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("messages", response.data)
         mock_llm.assert_called()
+        mock_transits.assert_called()

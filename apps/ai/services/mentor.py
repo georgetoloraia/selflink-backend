@@ -4,7 +4,6 @@ from datetime import date
 from typing import Dict
 
 from apps.astro.models import NatalChart
-from apps.matching.services.soulmatch import calculate_soulmatch
 from apps.users.models import User
 
 NATAL_MENTOR_SYSTEM_PROMPT = (
@@ -67,7 +66,7 @@ def build_soulmatch_prompt(user_a: User, user_b: User, soulmatch_result: Dict[st
     )
 
 
-def build_daily_prompt(user: User, natal_chart: NatalChart | None) -> str:
+def build_daily_prompt(user: User, natal_chart: NatalChart | None, transits: Dict[str, Dict[str, float]] | None = None) -> str:
     placements_text = ""
     if natal_chart and natal_chart.planets:
         sun = _format_placement(natal_chart.planets.get("sun"))
@@ -77,10 +76,17 @@ def build_daily_prompt(user: User, natal_chart: NatalChart | None) -> str:
         placements_text = "\n".join(filter(None, parts))
 
     today_str = date.today().isoformat()
+    transit_text = ""
+    if transits:
+        sun_t = _format_placement(transits.get("sun_today"))
+        moon_t = _format_placement(transits.get("moon_today"))
+        transit_parts = [f"Sun today: {sun_t}" if sun_t else None, f"Moon today: {moon_t}" if moon_t else None]
+        transit_text = "\n".join(filter(None, transit_parts))
     return (
         f"User: {user.name or user.handle}\n"
         f"Date: {today_str}\n"
-        f"Natal snapshot:\n{placements_text or 'Not provided'}\n\n"
+        f"Natal snapshot:\n{placements_text or 'Not provided'}\n"
+        f"Today transits:\n{transit_text or 'Not provided'}\n\n"
         "Provide 3-5 bullet points with short, practical suggestions for today. "
         "Include mindset, one action, one relationship tip, and one thing to avoid."
     )

@@ -146,7 +146,16 @@ class DailyMentorView(APIView):
                 {"detail": "No natal chart found. Create your chart via /api/v1/astro/natal/ first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        prompt = build_daily_prompt(user, chart)
+        birth_data = getattr(chart, "birth_data", None)
+        transits = None
+        if birth_data:
+            try:
+                from apps.astro.services.transits import get_today_transits
+
+                transits = get_today_transits(birth_data.latitude, birth_data.longitude)
+            except Exception:
+                transits = None
+        prompt = build_daily_prompt(user, chart, transits)
         try:
             mentor_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt)
         except AIMentorError as exc:
