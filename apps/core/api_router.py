@@ -10,6 +10,7 @@ urlpatterns = [
     path("", include("apps.messaging.urls")),
     path("", include("apps.mentor.urls")),
     path("", include("apps.astro.urls")),
+    path("", include("apps.profile.urls")),
     path("", include("apps.matrix.urls")),
     path("", include("apps.media.urls")),
     path("", include("apps.search.urls")),
