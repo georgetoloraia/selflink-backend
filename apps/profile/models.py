@@ -41,7 +41,7 @@ ATTACHMENT_CHOICES = (
 
 class UserProfile(BaseModel):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
-    gender = models.CharField(max_length=16, choices=GENDER_CHOICES, blank=True)
+    gender = models.CharField(max_length=32, choices=GENDER_CHOICES, blank=True)
     orientation = models.CharField(max_length=32, choices=ORIENTATION_CHOICES, blank=True)
     relationship_goal = models.CharField(max_length=32, choices=REL_GOAL_CHOICES, default="unsure")
     values = models.JSONField(default=list, blank=True)
