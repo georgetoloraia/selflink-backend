@@ -9,7 +9,8 @@ from rest_framework.views import APIView
 
 from apps.astro.models import NatalChart
 from apps.astro.serializers import BirthDataSerializer, NatalChartSerializer
-from apps.astro.services import chart_calculator, ephemeris
+from apps.astro.services import birthdata_service, chart_calculator, ephemeris
+from apps.astro.services.location_resolver import LocationResolutionError
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +20,29 @@ class NatalChartView(APIView):
 
     def post(self, request) -> Response:
         user = request.user
-        serializer = BirthDataSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-
-        created = not hasattr(user, "birth_data")
-        birth_data = serializer.save()
+        if request.data.get("source") == "profile":
+            try:
+                birth_data = birthdata_service.create_or_update_birth_data_from_profile(user)
+            except birthdata_service.BirthDataIncompleteError:
+                return Response(
+                    {
+                        "detail": "No complete birth data stored in profile. Please provide or correct your birth information."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            except LocationResolutionError:
+                return Response(
+                    {
+                        "detail": "Unable to resolve location for your birth place. Please update your city and country or contact support."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            created = not hasattr(user, "birth_data")
+        else:
+            serializer = BirthDataSerializer(data=request.data, context={"request": request})
+            serializer.is_valid(raise_exception=True)
+            created = not hasattr(user, "birth_data")
+            birth_data = serializer.save()
 
         try:
             chart = chart_calculator.calculate_natal_chart(birth_data)

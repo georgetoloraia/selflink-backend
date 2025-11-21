@@ -48,6 +48,13 @@ class UserProfile(BaseModel):
     preferred_lifestyle = models.JSONField(default=list, blank=True)
     attachment_style = models.CharField(max_length=32, choices=ATTACHMENT_CHOICES, blank=True)
     love_language = models.JSONField(default=list, blank=True)
+    birth_date = models.DateField(null=True, blank=True)
+    birth_time = models.TimeField(null=True, blank=True)
+    birth_city = models.CharField(max_length=128, blank=True)
+    birth_country = models.CharField(max_length=128, blank=True)
+    birth_timezone = models.CharField(max_length=64, blank=True)
+    birth_latitude = models.FloatField(null=True, blank=True)
+    birth_longitude = models.FloatField(null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -62,6 +69,10 @@ class UserProfile(BaseModel):
                 continue
             if not isinstance(field_value, list) or not all(isinstance(v, str) for v in field_value):
                 errors[field_name] = ValidationError("Must be a list of strings.")
+        if self.birth_latitude is not None and not -90 <= self.birth_latitude <= 90:
+            errors["birth_latitude"] = ValidationError("Latitude must be between -90 and 90.")
+        if self.birth_longitude is not None and not -180 <= self.birth_longitude <= 180:
+            errors["birth_longitude"] = ValidationError("Longitude must be between -180 and 180.")
         if errors:
             raise ValidationError(errors)
 
