@@ -22,7 +22,23 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "preferred_lifestyle",
             "attachment_style",
             "love_language",
+            "birth_date",
+            "birth_time",
+            "birth_city",
+            "birth_country",
+            "birth_timezone",
+            "birth_latitude",
+            "birth_longitude",
         ]
+        extra_kwargs = {
+            "birth_timezone": {"required": False, "allow_blank": True},
+            "birth_latitude": {"required": False},
+            "birth_longitude": {"required": False},
+            "birth_date": {"required": False},
+            "birth_time": {"required": False},
+            "birth_city": {"required": False, "allow_blank": True},
+            "birth_country": {"required": False, "allow_blank": True},
+        }
 
     def validate_values(self, value):
         return self._validate_list(value, "values")

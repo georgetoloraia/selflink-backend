@@ -20,7 +20,7 @@ class NatalChartView(APIView):
 
     def post(self, request) -> Response:
         user = request.user
-        if request.data.get("source") == "profile":
+        if request.data.get("source", "profile") == "profile":
             try:
                 birth_data = birthdata_service.create_or_update_birth_data_from_profile(user)
             except birthdata_service.BirthDataIncompleteError:

@@ -72,3 +72,17 @@ def resolve_location_from_profile(profile: UserProfile) -> ResolvedLocation:
     _validate_timezone(default_timezone)
     _validate_coords(default_lat, default_lon)
     return ResolvedLocation(timezone=default_timezone, latitude=default_lat, longitude=default_lon)
+
+
+def resolve_location(city: str, country: str) -> ResolvedLocation:
+    """
+    Resolve timezone/coords from city and country.
+    Currently a thin wrapper reusing fallback logic.
+    """
+    if not city or not country:
+        raise LocationResolutionError("Missing city or country for location resolution.")
+    default_timezone = "Asia/Tbilisi"
+    default_lat, default_lon = 41.7167, 44.7833
+    _validate_timezone(default_timezone)
+    _validate_coords(default_lat, default_lon)
+    return ResolvedLocation(timezone=default_timezone, latitude=default_lat, longitude=default_lon)
