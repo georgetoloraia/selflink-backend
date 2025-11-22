@@ -90,11 +90,17 @@ def get_planet_positions(julian_day: float, latitude: float, longitude: float) -
     logger.debug("Calculating planet positions", extra={"ephe_path": ephe_path})
 
     try:
-        swisseph_flag = swe.FLG_SPEED | swe.FLG_SWIEPH
+        swisseph_flag = swe.FLG_SWIEPH | swe.FLG_SPEED
         positions: Dict[str, Dict[str, float]] = {}
 
         for name, planet_id in PLANET_MAP.items():
-            lon, lat, dist, lon_speed, lat_speed, dist_speed = swe.calc_ut(julian_day, planet_id, swisseph_flag)
+            result = swe.calc_ut(julian_day, planet_id, swisseph_flag)
+            if isinstance(result, (list, tuple)) and len(result) >= 3:
+                # some builds return (lon, lat, dist) when speed is unavailable; some return 6 values
+                lon = result[0]
+                lon_speed = result[3] if len(result) >= 4 else 0.0
+            else:
+                raise AstroCalculationError("Unexpected response from swisseph calc_ut")
             positions[name] = {
                 "lon": float(lon),
                 "speed": float(lon_speed),
