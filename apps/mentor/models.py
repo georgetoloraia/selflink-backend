@@ -17,6 +17,25 @@ class MentorSession(BaseModel):
     question = models.TextField()
     answer = models.TextField()
     sentiment = models.CharField(max_length=32, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    mode = models.CharField(max_length=32, default="default")
+    language = models.CharField(max_length=8, blank=True, null=True)
+    active = models.BooleanField(default=True)
+
+
+class MentorMessage(BaseModel):
+    class Role(models.TextChoices):
+        USER = "user", "User"
+        MENTOR = "mentor", "Mentor"
+
+    session = models.ForeignKey(
+        MentorSession,
+        related_name="messages",
+        on_delete=models.CASCADE,
+    )
+    role = models.CharField(max_length=16, choices=Role.choices)
+    content = models.TextField()
+    meta = models.JSONField(blank=True, null=True)
 
 
 class DailyTask(BaseModel):

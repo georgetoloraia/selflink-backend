@@ -3,12 +3,11 @@ from __future__ import annotations
 import os
 from typing import Tuple
 
-from django.conf import settings
 from django.utils import timezone
 
 from apps.users.models import User
 from libs.llm import get_llm_client
-from .models import MentorMemory
+from ..models import MentorMemory
 
 POSITIVE_KEYWORDS = {"grateful", "happy", "excited", "energized"}
 NEGATIVE_KEYWORDS = {"sad", "tired", "lonely", "anxious", "stressed"}

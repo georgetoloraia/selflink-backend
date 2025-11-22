@@ -1,6 +1,7 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
+from .api.views import MentorChatView, MentorHistoryView
 from .views import (
     DailyMentorView,
     DailyTaskViewSet,
@@ -19,4 +20,6 @@ urlpatterns = router.urls + [
     path("mentor/natal/", NatalMentorView.as_view(), name="mentor-natal"),
     path("mentor/soulmatch/<int:user_id>/", SoulmatchMentorView.as_view(), name="mentor-soulmatch"),
     path("mentor/daily/", DailyMentorView.as_view(), name="mentor-daily"),
+    path("mentor/chat/", MentorChatView.as_view(), name="mentor-chat"),
+    path("mentor/history/", MentorHistoryView.as_view(), name="mentor-history"),
 ]
