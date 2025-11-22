@@ -20,7 +20,7 @@ SOULMATCH_MENTOR_SYSTEM_PROMPT = (
 
 DAILY_MENTOR_SYSTEM_PROMPT = (
     "You are a daily life mentor. Using this person's personality profile and optional symbolic 'today' energies, "
-    "give 3–5 short, practical suggestions for today: mindset, actions, relationships, and what to avoid. "
+    "give 3-5 short, practical suggestions for today: mindset, actions, relationships, and what to avoid. "
     "Be grounded, not fatalistic."
 )
 
