@@ -18,7 +18,7 @@ class MentorSession(BaseModel):
     question = models.TextField()
     answer = models.TextField()
     sentiment = models.CharField(max_length=32, blank=True)
-    started_at = models.DateTimeField(auto_now_add=True, default=timezone.now)
+    started_at = models.DateTimeField(default=timezone.now)
     mode = models.CharField(max_length=32, default="default")
     language = models.CharField(max_length=8, blank=True, null=True)
     active = models.BooleanField(default=True)
