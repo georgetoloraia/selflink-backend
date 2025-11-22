@@ -1,5 +1,7 @@
 # selflink-backend
 
+SelfLink is a social OS backend built with Django and Django REST Framework, providing auth, social graph, messaging, astro/matrix services, AI Mentor, payments, and more.
+
 ## Project Layout
 
 ```
@@ -53,7 +55,38 @@ selflink-backend/
 └── README.md
 ```
 
+## Overview
+
+- Users: registration, auth (email + social), profiles, privacy controls.
+- Social: posts, comments, reactions, gifting, timelines/feed, recommendations.
+- Messaging & realtime: threads, DMs, typing indicators, WebSocket gateway.
+- Astro & matrix: natal charts, transits, matrix data, matching (SoulMatch).
+- AI Mentor: LLM-powered personal guide with chat/history endpoints.
+- Payments & monetization: Stripe checkout, plans, wallets.
+- Moderation & safety: reports, enforcement, rate limits, banned words.
+- Search & discovery: OpenSearch-backed indexing and queries.
+- Notifications: in-app/push/email delivery with preferences.
+
+## Tech Stack & Architecture
+
+- Python, Django, Django REST Framework.
+- PostgreSQL (via `DATABASE_URL`), SQLite fallback for local quickstart.
+- Redis for Celery broker + pub/sub.
+- Celery workers/beat for async tasks.
+- OpenSearch (optional, feature-flagged).
+- Docker + docker-compose (`infra/compose.yaml`) for reproducible dev stack.
+- Key apps: users, social, messaging, mentor, astro, matrix, media, payments, notifications, moderation, reco, search, profile, config, core.
+
+## Requirements & Prerequisites
+
+- Python 3.x (match project runtime).
+- pip + virtualenv.
+- PostgreSQL & Redis if running services locally without Docker.
+- Docker and docker-compose for containerized workflow.
+
 ## Getting Started
+
+### Local setup
 
 1. Create a virtualenv and install dependencies:
 
@@ -101,6 +134,61 @@ sudo docker-compose -f infra/compose.yaml exec api python manage.py migrate
 ```
 
 After the stack is running the API is available on `http://localhost:8000`, realtime gateway on `ws://localhost:8001/ws`, Postgres on `localhost:5432`, Redis on `localhost:6379`, OpenSearch on `localhost:9200`, and MinIO console on `http://localhost:9001`.
+
+### Environment configuration (.env)
+
+Common variables (set in `.env` or host env):
+
+- `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`
+- `DATABASE_URL` (e.g., `postgres://user:pass@localhost:5432/selflink`)
+- `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` (usually Redis)
+- `OPENSEARCH_ENABLED`, `OPENSEARCH_HOST`, `OPENSEARCH_USER`, `OPENSEARCH_PASSWORD`
+- `FEATURE_FLAGS` (e.g., `mentor_llm`, `soulmatch`, `payments`)
+- `SWISSEPH_DATA_PATH` for astro data
+- Mentor LLM: `MENTOR_LLM_BASE_URL`, `MENTOR_LLM_MODEL`
+
+Example snippet:
+
+```env
+DJANGO_DEBUG=true
+DJANGO_SECRET_KEY=changeme
+DATABASE_URL=postgres://selflink:selflink@localhost:5432/selflink
+CELERY_BROKER_URL=redis://localhost:6379/0
+OPENSEARCH_ENABLED=false
+MENTOR_LLM_BASE_URL=http://localhost:11434
+MENTOR_LLM_MODEL=llama3
+```
+
+## Database & Migrations
+
+- Create new migrations: `python manage.py makemigrations` or `python manage.py makemigrations <app>`
+- Apply migrations: `python manage.py migrate`
+- Docker users: run the commands inside the `api` container (`docker compose -f infra/compose.yaml exec api python manage.py migrate`).
+- Default DB is SQLite if `DATABASE_URL` is not set; prefer Postgres for real environments.
+
+## API Overview
+
+- Base path: `/api/v1/`
+- OpenAPI schema: `/api/schema/`
+- Docs: `/api/docs/`
+- Routers (via `apps/core/api_router.py`): auth/users, social, messaging, mentor, astro, matrix, media, payments, notifications, moderation, feed, reco, profile, search.
+- Auth: JWT via dj-rest-auth/SimpleJWT; typical login/register flows under `/api/v1/auth/` (see users app).
+
+## AI Mentor Feature
+
+- Endpoints: `POST /api/v1/mentor/chat/`, `GET /api/v1/mentor/history/` (auth required).
+- Behavior: returns a placeholder reply if no LLM is configured; persists `MentorSession` and `MentorMessage`.
+- LLM configuration:
+  - `MENTOR_LLM_BASE_URL` (OpenAI-compatible `/v1/chat/completions`)
+  - `MENTOR_LLM_MODEL` (e.g., `llama3`, `Qwen/Qwen2.5-14B-Instruct`)
+- Persona prompts are loaded from text files in `apps/mentor/persona/` (e.g., `base_en.txt`, `base_ka.txt`, `base_ru.txt`) so you can tweak prompts without code changes.
+- Admin visibility: `apps/mentor/admin.py` registers MentorSession/MentorMessage for inspection.
+
+## Running the backend (dev)
+
+- Local: `python manage.py runserver` (after env + migrate).
+- Docker: `docker compose -f infra/compose.yaml up -d` then exec into `api` for commands.
+- Celery: `celery -A core worker -l info` and `celery -A core beat -l info` (or via compose).
 
 ### Search Service
 
@@ -172,8 +260,33 @@ After the stack is running the API is available on `http://localhost:8000`, real
 - Prometheus metrics exposed at `/metrics` via `django-prometheus`; run a Prometheus instance or forward metrics from that endpoint.
 - Structured JSON logging enabled by default (env `APP_LOG_LEVEL` to adjust app logger verbosity).
 
+## Tests & Quality
+
+- Pytest (preferred): `pytest`
+- Django test runner: `python manage.py test`
+- Mentor API coverage: `apps/mentor/tests/test_api.py`
+- Add tests for new features before opening a PR.
+
+## Contributing
+
+1. Fork the repo.
+2. Create a feature branch: `git checkout -b feature/my-change`
+3. Make focused changes and add tests.
+4. Run tests locally (`pytest` or `python manage.py test`).
+5. Open a Pull Request with a clear description and impact.
+
+Guidelines:
+- Follow existing Django/DRF patterns and app boundaries.
+- Keep secrets/API keys out of code; rely on environment variables.
+- For mentor work, keep prompts/configs in `apps/mentor/persona/` or services instead of hardcoding.
+- Small, scoped PRs are easier to review.
+
 ## Documentation Index
 
 - `backand.md` — End-to-end product blueprint dated 2025-10-29 covering vision, differentiators, architecture, and data models.
 - `contrinutors.md` — Contribution guide with project values, workflow expectations, upgrade checklists, and coding/testing standards.
 - `README_for_env.md` — How-to for `.env` management plus line-by-line explanations of every environment variable the stack consumes.
+
+## License
+
+License: TBD
