@@ -94,13 +94,21 @@ def get_planet_positions(julian_day: float, latitude: float, longitude: float) -
         positions: Dict[str, Dict[str, float]] = {}
 
         for name, planet_id in PLANET_MAP.items():
-            result = swe.calc_ut(julian_day, planet_id, swisseph_flag)
-            if isinstance(result, (list, tuple)) and len(result) >= 3:
-                # some builds return (lon, lat, dist) when speed is unavailable; some return 6 values
-                lon = result[0]
-                lon_speed = result[3] if len(result) >= 4 else 0.0
-            else:
+            raw = swe.calc_ut(julian_day, planet_id, swisseph_flag)
+            # pyswisseph typically returns (res, retflag) where res is a sequence of 6 floats
+            res = raw
+            retflag = None
+            if isinstance(raw, (list, tuple)) and len(raw) == 2 and isinstance(raw[1], int):
+                res, retflag = raw
+            if not isinstance(res, (list, tuple)) or len(res) < 3:
+                logger.error(
+                    "Unexpected response from swisseph calc_ut",
+                    extra={"raw": raw, "planet_id": planet_id, "retflag": retflag},
+                )
                 raise AstroCalculationError("Unexpected response from swisseph calc_ut")
+
+            lon = res[0]
+            lon_speed = res[3] if len(res) >= 4 else 0.0
             positions[name] = {
                 "lon": float(lon),
                 "speed": float(lon_speed),
