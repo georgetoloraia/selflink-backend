@@ -29,12 +29,33 @@ def _validate_profile_birth_fields(profile: UserProfile) -> None:
 
 
 def create_or_update_birth_data_from_profile(user: User) -> BirthData:
-    try:
-        profile = user.profile
-    except UserProfile.DoesNotExist as exc:
-        raise BirthDataIncompleteError("Profile missing for user.") from exc
+    profile = getattr(user, "profile", None)
+    personal_map = getattr(user, "personal_map", None)
 
-    _validate_profile_birth_fields(profile)
+    # Gather birth fields from profile, personal map, or user fields
+    birth_date = getattr(profile, "birth_date", None) or getattr(personal_map, "birth_date", None) or getattr(user, "birth_date", None)
+    birth_time = getattr(profile, "birth_time", None) or getattr(personal_map, "birth_time", None) or getattr(user, "birth_time", None)
+    birth_city = getattr(profile, "birth_city", None) or getattr(personal_map, "birth_place_city", None) or ""
+    birth_country = getattr(profile, "birth_country", None) or getattr(personal_map, "birth_place_country", None) or ""
+
+    if not birth_date or birth_time is None or not birth_city or not birth_country:
+        raise BirthDataIncompleteError("birth_date, birth_time, birth_city, birth_country")
+
+    # Ensure we have a profile instance to store resolved location
+    if profile is None:
+        # lazily create a minimal profile to hold resolved fields
+        profile = UserProfile.objects.create(
+            user=user,
+            birth_date=birth_date,
+            birth_time=birth_time,
+            birth_city=birth_city,
+            birth_country=birth_country,
+        )
+
+    profile.birth_date = profile.birth_date or birth_date
+    profile.birth_time = profile.birth_time or birth_time
+    profile.birth_city = profile.birth_city or birth_city
+    profile.birth_country = profile.birth_country or birth_country
 
     try:
         resolved = resolve_location_from_profile(profile)
@@ -44,22 +65,30 @@ def create_or_update_birth_data_from_profile(user: User) -> BirthData:
         logger.exception("Unexpected error resolving location", extra={"user_id": user.id})
         raise
 
-    # Persist resolved fields on profile
     profile.birth_timezone = resolved.timezone
     profile.birth_latitude = resolved.latitude
     profile.birth_longitude = resolved.longitude
     profile.save(
-        update_fields=["birth_timezone", "birth_latitude", "birth_longitude", "updated_at"],
+        update_fields=[
+            "birth_timezone",
+            "birth_latitude",
+            "birth_longitude",
+            "birth_date",
+            "birth_time",
+            "birth_city",
+            "birth_country",
+            "updated_at",
+        ],
     )
 
     birth_data, _ = BirthData.objects.update_or_create(
         user=user,
         defaults={
-            "date_of_birth": profile.birth_date,
-            "time_of_birth": profile.birth_time,
+            "date_of_birth": birth_date,
+            "time_of_birth": birth_time,
             "timezone": resolved.timezone,
-            "city": profile.birth_city,
-            "country": profile.birth_country,
+            "city": birth_city,
+            "country": birth_country,
             "latitude": resolved.latitude,
             "longitude": resolved.longitude,
         },

@@ -55,17 +55,38 @@ class BirthDataSerializer(serializers.ModelSerializer):
     def create(self, validated_data: dict) -> BirthData:
         user = self.context["request"].user
         profile = getattr(user, "profile", None)
+        personal_map = getattr(user, "personal_map", None)
 
-        date_of_birth = validated_data.get("date_of_birth") or getattr(profile, "birth_date", None)
-        time_of_birth = validated_data.get("time_of_birth") or getattr(profile, "birth_time", None)
+        date_of_birth = (
+            validated_data.get("date_of_birth")
+            or getattr(profile, "birth_date", None)
+            or getattr(personal_map, "birth_date", None)
+            or getattr(user, "birth_date", None)
+        )
+        time_of_birth = (
+            validated_data.get("time_of_birth")
+            or getattr(profile, "birth_time", None)
+            or getattr(personal_map, "birth_time", None)
+            or getattr(user, "birth_time", None)
+        )
         if not date_of_birth or time_of_birth is None:
             raise serializers.ValidationError(
                 {"detail": "Birth date and time are not set. Please complete your Personal Map."}
             )
 
-        timezone = validated_data.get("timezone") or getattr(profile, "birth_timezone", "")
-        city = validated_data.get("city") or getattr(profile, "birth_city", "")
-        country = validated_data.get("country") or getattr(profile, "birth_country", "")
+        city = (
+            validated_data.get("city")
+            or getattr(profile, "birth_city", None)
+            or getattr(personal_map, "birth_place_city", None)
+            or ""
+        )
+        country = (
+            validated_data.get("country")
+            or getattr(profile, "birth_country", None)
+            or getattr(personal_map, "birth_place_country", None)
+            or ""
+        )
+        timezone = validated_data.get("timezone") or getattr(profile, "birth_timezone", "") or ""
         latitude = (
             validated_data.get("latitude")
             if validated_data.get("latitude") is not None
