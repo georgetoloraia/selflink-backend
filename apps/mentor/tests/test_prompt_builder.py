@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from apps.mentor.models import MentorSession
 from apps.mentor.services import prompt_builder
 
 
@@ -21,6 +22,7 @@ def test_build_messages_includes_system_context_and_history():
     messages = prompt_builder.build_messages(
         user=user,
         language="en",
+        mode=MentorSession.MODE_CHAT,
         history=history,
         user_text="New message",
     )
@@ -44,6 +46,7 @@ def test_build_messages_handles_missing_fields():
     messages = prompt_builder.build_messages(
         user=user,
         language="en",
+        mode=MentorSession.MODE_CHAT,
         history=[],
         user_text="Hello",
     )

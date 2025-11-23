@@ -39,7 +39,7 @@ class DailyTaskSerializer(serializers.ModelSerializer):
 
 class MentorChatRequestSerializer(serializers.Serializer):
     message = serializers.CharField(max_length=4096)
-    mode = serializers.CharField(max_length=32, required=False, default="default")
+    mode = serializers.CharField(max_length=32, required=False, default="chat")
     language = serializers.CharField(max_length=8, required=False, allow_blank=True)
 
 
@@ -50,3 +50,13 @@ class MentorMessageSerializer(serializers.ModelSerializer):
         model = MentorMessage
         fields = ["id", "session_id", "role", "content", "meta", "created_at"]
         read_only_fields = fields
+
+
+class DailyEntryRequestSerializer(serializers.Serializer):
+    text = serializers.CharField(max_length=4096)
+    date = serializers.DateField(required=False)
+    language = serializers.CharField(max_length=8, required=False, allow_blank=True)
+
+
+class DailyHistoryParamsSerializer(serializers.Serializer):
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=30, default=7)

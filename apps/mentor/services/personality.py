@@ -33,8 +33,27 @@ def get_base_persona_prompt(language: str | None = None) -> str:
     return _load_persona_file(filename)
 
 
-def get_prompt(language: str | None = None) -> str:
+def _get_daily_persona_prompt(language: str | None = None) -> str:
+    if language and language.startswith("ka"):
+        filename = "daily_ka.txt"
+    elif language and language.startswith("ru"):
+        filename = "daily_ru.txt"
+    else:
+        filename = "daily_en.txt"
+    return _load_persona_file(filename)
+
+
+def get_prompt(language: str | None = None, mode: str | None = None) -> str:
     """
     Public helper for fetching the SelfLink mentor persona.
+    mode:
+      - "daily": daily mentor persona
+      - anything else: base persona
     """
+    if mode == "daily":
+        try:
+            return _get_daily_persona_prompt(language)
+        except FileNotFoundError:
+            # Fallback to base persona if daily file missing
+            pass
     return get_base_persona_prompt(language)

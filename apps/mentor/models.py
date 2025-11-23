@@ -14,14 +14,19 @@ class MentorProfile(BaseModel):
 
 
 class MentorSession(BaseModel):
+    MODE_DEFAULT = "default"
+    MODE_CHAT = "chat"
+    MODE_DAILY = "daily"
+
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="mentor_sessions")
     question = models.TextField()
     answer = models.TextField()
     sentiment = models.CharField(max_length=32, blank=True)
     started_at = models.DateTimeField(default=timezone.now)
-    mode = models.CharField(max_length=32, default="default")
+    mode = models.CharField(max_length=32, default=MODE_DEFAULT)
     language = models.CharField(max_length=8, blank=True, null=True)
     active = models.BooleanField(default=True)
+    date = models.DateField(blank=True, null=True)
 
 
 class MentorMessage(BaseModel):
