@@ -31,3 +31,10 @@ def get_base_persona_prompt(language: str | None = None) -> str:
     else:
         filename = "base_en.txt"
     return _load_persona_file(filename)
+
+
+def get_prompt(language: str | None = None) -> str:
+    """
+    Public helper for fetching the SelfLink mentor persona.
+    """
+    return get_base_persona_prompt(language)

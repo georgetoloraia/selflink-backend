@@ -1,16 +1,26 @@
 from __future__ import annotations
 
-from . import personality
+from typing import Any, Dict, List
+
+from apps.mentor.services.context import build_user_astro_context
+from apps.mentor.services import personality
 
 
-def build_messages(user, user_message: str, mode: str, language: str | None) -> list[dict]:
+def build_messages(user: Any, language: str | None, history: List[Dict[str, str]], user_text: str) -> List[Dict[str, str]]:
     """
-    Build a minimal messages list for the LLM.
-    For V1 we use a simple base persona followed by the user message.
+    Build the full message list for the mentor LLM:
+    - system persona prompt
+    - system user astro/matrix context
+    - chat history
+    - new user message
     """
-    base_system_prompt = personality.get_base_persona_prompt(language=language)
-    messages = [
-        {"role": "system", "content": base_system_prompt},
-        {"role": "user", "content": user_message},
+    system_prompt = personality.get_prompt(language)
+    user_context = build_user_astro_context(user)
+
+    messages: List[Dict[str, str]] = [
+        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": user_context},
     ]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_text})
     return messages

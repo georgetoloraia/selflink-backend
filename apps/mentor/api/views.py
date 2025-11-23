@@ -42,7 +42,13 @@ class MentorChatView(APIView):
                 "Mentor chat is temporarily unavailable. Please try again soon."
             )
         else:
-            messages = prompt_builder.build_messages(user, user_message, mode, language)
+            history = memory_manager.load_conversation_history(user)
+            messages = prompt_builder.build_messages(
+                user=user,
+                language=language,
+                history=history,
+                user_text=user_message,
+            )
             mentor_reply_raw = llm_client.chat(messages)
 
         mentor_reply, post_flags = safety.postprocess_mentor_reply(mentor_reply_raw)
