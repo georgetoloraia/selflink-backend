@@ -47,6 +47,36 @@ class NatalChartAPITests(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_calc.assert_called()
 
+    @mock.patch("apps.astro.services.location_resolver.resolve_timezone_from_coordinates", return_value="Etc/GMT")
+    @mock.patch("apps.astro.views.chart_calculator.calculate_natal_chart")
+    def test_coordinates_override_city_country(self, mock_calc: mock.Mock, mock_tz: mock.Mock) -> None:
+        mock_calc.return_value = self._fake_chart_response()
+
+        payload = dict(POST_PAYLOAD)
+        payload["city"] = "Nowhere"
+        payload["country"] = "Nowhere"
+        payload.pop("timezone", None)
+
+        response = self.client.post("/api/v1/astro/natal/", payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        from apps.astro.models import BirthData
+
+        birth = BirthData.objects.get(user__email="astro@example.com")
+        self.assertEqual(birth.latitude, payload["latitude"])
+        self.assertEqual(birth.longitude, payload["longitude"])
+        self.assertEqual(birth.timezone, "Etc/GMT")
+        mock_tz.assert_called_once()
+
+    def test_invalid_coordinates_return_400(self) -> None:
+        bad_payload = dict(POST_PAYLOAD)
+        bad_payload["latitude"] = 123.0
+
+        response = self.client.post("/api/v1/astro/natal/", bad_payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("latitude", response.data)
+
     def test_get_missing_chart_returns_404(self) -> None:
         response = self.client.get("/api/v1/astro/natal/me/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

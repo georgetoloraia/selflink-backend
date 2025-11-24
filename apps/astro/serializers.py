@@ -9,6 +9,7 @@ from apps.astro.services.location_resolver import (
     LocationResolutionError,
     resolve_location,
     resolve_location_from_profile,
+    resolve_timezone_from_coordinates,
 )
 
 
@@ -108,6 +109,13 @@ class BirthDataSerializer(serializers.ModelSerializer):
             else getattr(profile, "birth_longitude", None)
         )
 
+        # If coordinates provided, they are source of truth; resolve timezone if missing.
+        if latitude is not None and longitude is not None and not timezone:
+            try:
+                timezone = resolve_timezone_from_coordinates(latitude, longitude)
+            except LocationResolutionError:
+                timezone = ""
+
         # Resolve missing location fields from profile + personal map
         if (latitude is None or longitude is None or not timezone) and profile:
             try:
@@ -118,11 +126,11 @@ class BirthDataSerializer(serializers.ModelSerializer):
             except LocationResolutionError:
                 pass
 
-        # Resolve missing location fields from city/country fallback
+        # Resolve missing location fields from city/country fallback (coordinates may still override city/country)
         if latitude is None or longitude is None or not timezone:
             if city and country:
                 try:
-                    resolved = resolve_location(city, country)
+                    resolved = resolve_location(city, country, latitude=latitude, longitude=longitude)
                     timezone = timezone or resolved.timezone
                     latitude = resolved.latitude if latitude is None else latitude
                     longitude = resolved.longitude if longitude is None else longitude
@@ -170,6 +178,16 @@ class BirthDataSerializer(serializers.ModelSerializer):
         return instance
 
     def update(self, instance: BirthData, validated_data: dict) -> BirthData:
+        latitude = validated_data.get("latitude")
+        longitude = validated_data.get("longitude")
+        timezone = validated_data.get("timezone")
+
+        if latitude is not None and longitude is not None and not timezone:
+            try:
+                validated_data["timezone"] = resolve_timezone_from_coordinates(latitude, longitude)
+            except LocationResolutionError:
+                pass
+
         for field, value in validated_data.items():
             setattr(instance, field, value)
         instance.save(update_fields=list(validated_data.keys()))
