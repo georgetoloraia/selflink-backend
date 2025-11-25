@@ -180,6 +180,22 @@ class FeedResponseTests(BaseAPITestCase):
         post_items = [item for item in items if item.get("type") == "post"]
         self.assertEqual(len(post_items), 6)
         self.assertTrue(all("post" in item for item in post_items))
+
+        mentor_items = [item for item in items if item.get("type") == "mentor_insight"]
+        matrix_items = [item for item in items if item.get("type") == "matrix_insight"]
+        self.assertTrue(mentor_items)
+        self.assertTrue(matrix_items)
+        for m_item in mentor_items:
+            mentor = m_item.get("mentor") or {}
+            self.assertIn("title", mentor)
+            self.assertIn("subtitle", mentor)
+            self.assertIn("cta", mentor)
+        for mx_item in matrix_items:
+            matrix = mx_item.get("matrix") or {}
+            self.assertIn("title", matrix)
+            self.assertIn("subtitle", matrix)
+            self.assertIn("cta", matrix)
+
         self.assertIsNone(response.data["next"])
 
     def test_feed_paginates_and_returns_cursor(self) -> None:

@@ -5,11 +5,12 @@ from django.db import models
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import generics, permissions, status, viewsets
+
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.feed.services.composer import compose_home_feed_items, extract_cursor_from_url
+from apps.feed.composer import compose_home_feed_items, extract_cursor_from_url
 from .models import Comment, Follow, Gift, Like, Post, Timeline
 from apps.moderation.autoflag import auto_report_post
 from .serializers import (
@@ -125,6 +126,7 @@ class FeedView(generics.ListAPIView):
         items = compose_home_feed_items(
             entries,
             serializer_context=self.get_serializer_context(),
+            user=request.user,
         )
 
         next_cursor = None
