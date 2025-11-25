@@ -134,8 +134,13 @@ class FollowTimelineTests(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         feed = self.client.get("/api/v1/feed/home/")
         self.assertEqual(feed.status_code, status.HTTP_200_OK)
-        results = feed.data.get("results") if isinstance(feed.data, dict) else feed.data
-        self.assertTrue(results)
+        self.assertIn("items", feed.data)
+        self.assertIn("next", feed.data)
+        items = feed.data["items"]
+        self.assertTrue(items)
+        post_items = [item for item in items if item.get("type") == "post"]
+        self.assertTrue(post_items)
+        self.assertTrue(all("post" in item for item in post_items))
 
     def test_unfollow_clears_timeline(self) -> None:
         follower = self.register_and_login(email="unfollow@example.com", handle="unfollow")
@@ -151,6 +156,45 @@ class FollowTimelineTests(BaseAPITestCase):
 
         feed = self.client.get("/api/v1/feed/home/")
         self.assertEqual(feed.status_code, status.HTTP_200_OK)
-        results = feed.data.get("results") if isinstance(feed.data, dict) else feed.data
-        self.assertFalse(results)
+        self.assertIn("items", feed.data)
+        self.assertEqual(feed.data["items"], [])
+        self.assertIsNone(feed.data["next"])
         self.assertFalse(Timeline.objects.filter(user_id=follower["id"], post=post).exists())
+
+
+class FeedResponseTests(BaseAPITestCase):
+    def test_feed_returns_typed_items_and_insights(self) -> None:
+        user_data = self.register_and_login(email="feed@example.com", handle="feed")
+        user = User.objects.get(id=user_data["id"])
+        for i in range(6):
+            Post.objects.create(author=user, text=f"Post {i}")
+
+        response = self.client.get("/api/v1/feed/home/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        items = response.data["items"]
+        item_types = {item.get("type") for item in items}
+        self.assertIn("post", item_types)
+        self.assertIn("mentor_insight", item_types)
+        self.assertIn("matrix_insight", item_types)
+
+        post_items = [item for item in items if item.get("type") == "post"]
+        self.assertEqual(len(post_items), 6)
+        self.assertTrue(all("post" in item for item in post_items))
+        self.assertIsNone(response.data["next"])
+
+    def test_feed_paginates_and_returns_cursor(self) -> None:
+        user_data = self.register_and_login(email="paginate@example.com", handle="paginate")
+        user = User.objects.get(id=user_data["id"])
+        for i in range(5):
+            Post.objects.create(author=user, text=f"Pageable {i}")
+
+        first_page = self.client.get("/api/v1/feed/home/?page_size=2")
+        self.assertEqual(first_page.status_code, status.HTTP_200_OK)
+        self.assertIn("items", first_page.data)
+        cursor = first_page.data["next"]
+        self.assertTrue(cursor)
+
+        second_page = self.client.get(f"/api/v1/feed/home/?page_size=2&cursor={cursor}")
+        self.assertEqual(second_page.status_code, status.HTTP_200_OK)
+        self.assertIn("items", second_page.data)
+        self.assertTrue(second_page.data["items"])

@@ -9,6 +9,7 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.feed.services.composer import compose_home_feed_items, extract_cursor_from_url
 from .models import Comment, Follow, Gift, Like, Post, Timeline
 from apps.moderation.autoflag import auto_report_post
 from .serializers import (
@@ -116,3 +117,21 @@ class FeedView(generics.ListAPIView):
         if since:
             queryset = queryset.filter(created_at__gte=since)
         return queryset
+
+    def list(self, request: Request, *args, **kwargs) -> Response:  # type: ignore[override]
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        entries = page if page is not None else queryset
+        items = compose_home_feed_items(
+            entries,
+            serializer_context=self.get_serializer_context(),
+        )
+
+        next_cursor = None
+        if page is not None and getattr(self, "paginator", None):
+            next_cursor = extract_cursor_from_url(
+                self.paginator.get_next_link(),
+                cursor_param=self.paginator.cursor_query_param,
+            )
+
+        return Response({"items": items, "next": next_cursor})
