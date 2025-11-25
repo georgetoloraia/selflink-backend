@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 from django.utils import timezone
 
 from apps.matching.services.feed_insights import get_daily_feed_recommendations
-from apps.matrix.services.feed_insights import get_daily_feed_insight as get_matrix_feed_insight
+from apps.matrix.feed_insights import get_daily_feed_insight as get_matrix_feed_insight
 from apps.mentor.services.feed_insights import get_daily_feed_insight as get_mentor_feed_insight
 from apps.social.models import Timeline
 from apps.social.serializers import PostSerializer
