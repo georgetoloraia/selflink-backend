@@ -10,7 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from apps.feed.services.cache import FeedCache
+from apps.feed.cache import FeedCache
 from apps.feed.composer import compose_home_feed_items, extract_cursor_from_url
 from .models import Comment, Follow, Gift, Like, Post, Timeline
 from apps.moderation.autoflag import auto_report_post

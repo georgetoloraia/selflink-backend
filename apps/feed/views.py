@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.feed.composer import compose_for_you_feed, compose_following_feed
-from apps.feed.services.cache import FeedCache
+from apps.feed.cache import FeedCache
 
 logger = logging.getLogger(__name__)
 
