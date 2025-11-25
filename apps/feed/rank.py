@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import math
 from datetime import datetime, timezone as dt_timezone
 
-from apps.users.models import Follow
+from apps.social.models import Follow
 
 # Tunable weights for simple ranking model
 W_RECENCY = 60.0
