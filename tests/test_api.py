@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import os
 
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -223,3 +226,70 @@ class FeedResponseTests(BaseAPITestCase):
         self.assertEqual(second_page.status_code, status.HTTP_200_OK)
         self.assertIn("items", second_page.data)
         self.assertTrue(second_page.data["items"])
+
+
+class FeedModeTests(BaseAPITestCase):
+    def test_for_you_ranks_followed_and_engaged_posts(self) -> None:
+        user = self.register_and_login(email="foryou@example.com", handle="foryou")
+        followee = User.objects.create_user(
+            email="followee@example.com",
+            handle="followee",
+            name="Followee",
+            password="strongpassword",
+        )
+        other = User.objects.create_user(
+            email="other@example.com",
+            handle="otheruser",
+            name="Other",
+            password="strongpassword",
+        )
+        post_followee = Post.objects.create(author=followee, text="Followee post")
+        post_other = Post.objects.create(author=other, text="Other post")
+
+        Post.objects.filter(id=post_followee.id).update(
+            like_count=10,
+            comment_count=3,
+            created_at=timezone.now() - timedelta(hours=2),
+        )
+        Post.objects.filter(id=post_other.id).update(
+            like_count=0,
+            comment_count=0,
+            created_at=timezone.now() - timedelta(hours=1),
+        )
+
+        # follow followee to boost relationship signal
+        self.client.post(f"/api/v1/users/{followee.id}/follow/")
+
+        response = self.client.get("/api/v1/feed/for_you/?limit=2")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        items = response.data["items"]
+        post_items = [item for item in items if item.get("type") == "post"]
+        self.assertTrue(post_items)
+        top_post_id = post_items[0]["post"]["id"]
+        self.assertEqual(top_post_id, post_followee.id)
+
+    def test_following_feed_shows_only_followed_posts(self) -> None:
+        user = self.register_and_login(email="followmode@example.com", handle="followmode")
+        followee = User.objects.create_user(
+            email="followee2@example.com",
+            handle="followee2",
+            name="Followee2",
+            password="strongpassword",
+        )
+        other = User.objects.create_user(
+            email="other2@example.com",
+            handle="other2",
+            name="Other2",
+            password="strongpassword",
+        )
+        post_followee = Post.objects.create(author=followee, text="Followee timeline post")
+        Post.objects.create(author=other, text="Other timeline post")
+
+        self.client.post(f"/api/v1/users/{followee.id}/follow/")
+
+        response = self.client.get("/api/v1/feed/following/?limit=5")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        items = response.data["items"]
+        post_items = [item for item in items if item.get("type") == "post"]
+        self.assertTrue(post_items)
+        self.assertTrue(all(p["post"]["id"] == post_followee.id for p in post_items))

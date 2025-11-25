@@ -6,11 +6,14 @@ from urllib.parse import parse_qs, urlparse
 
 from django.utils import timezone
 
+from django.db.models import Q
+
 from apps.matching.services.feed_insights import get_daily_feed_recommendations
 from apps.matrix.feed_insights import get_daily_feed_insight as get_matrix_feed_insight
 from apps.mentor.services.feed_insights import get_daily_feed_insight as get_mentor_feed_insight
-from apps.social.models import Timeline
+from apps.social.models import Follow, Post, Timeline
 from apps.social.serializers import PostSerializer
+from apps.feed.rank import score_post_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +24,23 @@ def compose_home_feed_items(
     user=None,
 ) -> list[dict]:
     """
-    Build the typed feed item list from timeline entries, wrapping posts and
-    inserting mentor/matrix insight cards derived from real services.
+    Build the typed feed item list from timeline entries or post iterables, wrapping posts and
+    inserting mentor/matrix/soulmatch insight cards derived from real services.
     """
-    entries: List[Timeline] = list(timeline_entries)
+    entries: List = list(timeline_entries)
     if not entries:
         return []
 
+    posts = [
+        getattr(entry, "post", entry)
+        for entry in entries
+        if getattr(entry, "post", entry) is not None
+    ]
+    if not posts:
+        return []
+
     post_data = PostSerializer(
-        [entry.post for entry in entries],
+        posts,
         many=True,
         context=serializer_context or {},
     ).data
@@ -127,3 +138,74 @@ def _insert_insights(post_items: Sequence[dict], user=None) -> list[dict]:
         composed.insert(target_index, soulmatch_item)
 
     return composed
+
+
+def compose_following_feed(user, cursor: str | None = None, limit: int = 20, serializer_context: dict | None = None):
+    """
+    Chronological feed for followed users (and user's own posts) using timeline entries.
+    """
+    queryset = (
+        Timeline.objects.filter(user=user)
+        .select_related("post", "post__author", "post__author__settings")
+        .prefetch_related("post__media", "post__images")
+        .order_by("-created_at")
+    )
+    entries, next_cursor = _slice_with_cursor(queryset, cursor=cursor, limit=limit)
+    items = compose_home_feed_items(entries, serializer_context=serializer_context, user=user)
+    return items, next_cursor
+
+
+def compose_for_you_feed(user, cursor: str | None = None, limit: int = 20, serializer_context: dict | None = None):
+    """
+    Ranked feed using simple scoring over recent posts.
+    """
+    # candidate pool: recent posts visible to the user
+    followee_ids = set(
+        Follow.objects.filter(follower=user).values_list("followee_id", flat=True)
+    )
+    visibility_filter = (
+        Q(visibility=Post.Visibility.PUBLIC)
+        | Q(author=user)
+        | (Q(visibility=Post.Visibility.FOLLOWERS) & Q(author_id__in=followee_ids))
+    )
+    candidate_limit = max(limit * 3, limit + 10)
+    candidates = list(
+        Post.objects.filter(visibility_filter)
+        .select_related("author", "author__settings")
+        .prefetch_related("media", "images")
+        .order_by("-created_at")[:candidate_limit]
+    )
+
+    scored = [
+        (post, score_post_for_user(user, post, followee_ids=followee_ids))
+        for post in candidates
+    ]
+    scored.sort(key=lambda pair: pair[1], reverse=True)
+
+    offset = _parse_cursor(cursor)
+    page_slice = scored[offset : offset + limit + 1]
+    has_next = len(page_slice) > limit
+    if has_next:
+        page_slice = page_slice[:limit]
+    posts_page = [pair[0] for pair in page_slice]
+    items = compose_home_feed_items(posts_page, serializer_context=serializer_context, user=user)
+    next_cursor = str(offset + limit) if has_next else None
+    return items, next_cursor
+
+
+def _parse_cursor(cursor: str | None) -> int:
+    if not cursor:
+        return 0
+    try:
+        return max(0, int(cursor))
+    except ValueError:
+        return 0
+
+
+def _slice_with_cursor(queryset, cursor: str | None, limit: int):
+    offset = _parse_cursor(cursor)
+    slice_qs = list(queryset[offset : offset + limit + 1])
+    has_next = len(slice_qs) > limit
+    entries = slice_qs[:limit]
+    next_cursor = str(offset + limit) if has_next else None
+    return entries, next_cursor
