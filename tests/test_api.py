@@ -4,10 +4,12 @@ import os
 
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from apps.feed.services.cache import FeedCache
 from apps.mentor.models import MentorMemory
 from apps.social.models import Post, Timeline
 from apps.users.models import User
@@ -293,3 +295,50 @@ class FeedModeTests(BaseAPITestCase):
         post_items = [item for item in items if item.get("type") == "post"]
         self.assertTrue(post_items)
         self.assertTrue(all(p["post"]["id"] == post_followee.id for p in post_items))
+
+
+class FeedCacheTests(BaseAPITestCase):
+    def test_feed_cache_hit_returns_cached_payload(self) -> None:
+        user = self.register_and_login(email="cache@example.com", handle="cache")
+        payload = {"items": [{"type": "post", "id": 123, "post": {"id": 123}}], "next": None}
+        FeedCache.set(user["id"], "for_you", None, payload)
+
+        response = self.client.get("/api/v1/feed/for_you/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, payload)
+
+    def test_like_invalidation_clears_first_page_cache(self) -> None:
+        liker = self.register_and_login(email="liker@example.com", handle="liker")
+        author = User.objects.create_user(
+            email="author@example.com",
+            handle="author",
+            name="Author",
+            password="strongpassword",
+        )
+        post = Post.objects.create(author=author, text="like me")
+
+        payload = {"items": [], "next": None}
+        FeedCache.set(liker["id"], "for_you", None, payload)
+        FeedCache.set(author.id, "for_you", None, payload)
+
+        response = self.client.post(f"/api/v1/posts/{post.id}/like/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(FeedCache.get(liker["id"], "for_you", None))
+        self.assertIsNone(FeedCache.get(author.id, "for_you", None))
+
+    def test_insight_uses_precomputed_cache(self) -> None:
+        user = self.register_and_login(email="insightcache@example.com", handle="insightcache")
+        today = timezone.localdate().isoformat()
+        cached_payload = {
+            "title": "Cached mentor",
+            "subtitle": "Precomputed mentor insight",
+            "cta": "Open mentor",
+        }
+        cache.set(f"mentor_insight:{user['id']}:{today}", cached_payload, 300)
+
+        response = self.client.get("/api/v1/feed/for_you/?limit=1")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        items = response.data["items"]
+        mentor_items = [item for item in items if item.get("type") == "mentor_insight"]
+        self.assertTrue(mentor_items)
+        self.assertEqual(mentor_items[0]["mentor"], cached_payload)

@@ -124,9 +124,15 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         if request.method.lower() == "post":
             follow, _ = Follow.objects.get_or_create(follower=request.user, followee=target)
             rebuild_user_timeline(request.user.id)
+            from apps.feed.services.cache import FeedCache
+
+            FeedCache.invalidate_first_page(request.user.id)
             return Response({"following": True})
         Follow.objects.filter(follower=request.user, followee=target).delete()
         rebuild_user_timeline(request.user.id)
+        from apps.feed.services.cache import FeedCache
+
+        FeedCache.invalidate_first_page(request.user.id)
         return Response({"following": False})
 
     @action(detail=True, methods=["get"], url_path="followers")

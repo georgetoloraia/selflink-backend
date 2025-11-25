@@ -30,16 +30,33 @@ def _placeholder_payload() -> dict:
 def get_daily_feed_recommendations(user: User, limit_profiles: int = 3) -> dict:
     """
     Return a small SoulMatch feed card payload for the given user.
-    - Uses compatibility scoring against a limited candidate set.
-    - Cached per-user-per-day to avoid expensive recomputation.
-    - Falls back to an educational card if no matches or data issues.
+    - First tries to read precomputed cache written by Celery.
+    - Falls back to a lightweight placeholder to avoid heavy compute on request path.
     """
-    today = timezone.localdate()
-    cache_key = f"soulmatch:feed:{user.id}:{today.isoformat()}"
+    today = timezone.localdate().isoformat()
+    cache_keys = [
+        f"soulmatch_insight:{user.id}:{today}",
+        f"soulmatch:feed:{user.id}:{today}",  # legacy key
+    ]
+    for key in cache_keys:
+        cached = cache.get(key)
+        if cached:
+            return cached
 
-    cached = cache.get(cache_key)
-    if cached:
-        return cached
+    # On cache miss, return a safe placeholder (heavy scoring handled by Celery)
+    payload = _placeholder_payload()
+    cache.set(cache_keys[0], payload, timeout=_CACHE_TTL_SECONDS)
+    return payload
+
+
+def compute_soulmatch_payload(user_id: int, limit_profiles: int = 3) -> dict:
+    """
+    Heavy-path computation used by Celery to precompute and store insights.
+    """
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return _placeholder_payload()
 
     try:
         candidates = list(
@@ -81,18 +98,12 @@ def get_daily_feed_recommendations(user: User, limit_profiles: int = 3) -> dict:
             else:
                 subtitle_raw = "You have high compatibility matches today."
             subtitle = shorten(subtitle_raw, width=180, placeholder="…")
-            payload = _build_payload(
+            return _build_payload(
                 "New SoulMatch connections",
                 subtitle,
                 profiles=top_profiles,
                 cta="View matches",
             )
-        else:
-            payload = _placeholder_payload()
-
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Failed to build soulmatch feed insight for user %s: %s", user.id, exc, exc_info=True)
-        payload = _placeholder_payload()
-
-    cache.set(cache_key, payload, timeout=_CACHE_TTL_SECONDS)
-    return payload
+        logger.warning("Failed to compute soulmatch payload for user %s: %s", user_id, exc, exc_info=True)
+    return _placeholder_payload()

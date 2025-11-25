@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from apps.feed.services.cache import FeedCache
 from apps.feed.composer import compose_home_feed_items, extract_cursor_from_url
 from .models import Comment, Follow, Gift, Like, Post, Timeline
 from apps.moderation.autoflag import auto_report_post
@@ -35,6 +36,7 @@ class PostViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer: PostSerializer) -> None:  # type: ignore[override]
         post = serializer.save()
         auto_report_post(post)
+        FeedCache.invalidate_first_page(post.author_id)
 
     @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated])
     def like(self, request: Request, pk: str | None = None) -> Response:
@@ -47,6 +49,8 @@ class PostViewSet(viewsets.ModelViewSet):
         )
         if created:
             Post.objects.filter(pk=post.pk).update(like_count=models.F("like_count") + 1)
+            FeedCache.invalidate_first_page(request.user.id)
+            FeedCache.invalidate_first_page(post.author_id)
         return Response({"liked": True})
 
     @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated])
@@ -62,6 +66,8 @@ class PostViewSet(viewsets.ModelViewSet):
             Post.objects.filter(pk=post.pk, like_count__gt=0).update(
                 like_count=models.F("like_count") - 1
             )
+            FeedCache.invalidate_first_page(request.user.id)
+            FeedCache.invalidate_first_page(post.author_id)
         return Response({"liked": False})
 
 
@@ -83,7 +89,9 @@ class CommentViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer: CommentSerializer) -> None:  # type: ignore[override]
-        serializer.save()
+        comment = serializer.save()
+        FeedCache.invalidate_first_page(comment.author_id)
+        FeedCache.invalidate_first_page(comment.post.author_id)
 
 
 class GiftViewSet(viewsets.ModelViewSet):

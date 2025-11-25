@@ -21,21 +21,33 @@ def _build_payload(title: str, subtitle: str, cta: str = "View matrix") -> dict:
 def get_daily_feed_insight(user) -> dict:
     """
     Return a short per-user matrix insight for the feed.
-    - Uses stored matrix data or computes life path from birth date.
-    - Falls back to a gentle prompt to add birth data when unavailable.
-    The result is cached per-user-per-day for efficiency.
+    - First tries to read precomputed cache written by Celery.
+    - Falls back to a lightweight compute from stored birth/matrix data.
     """
-    today = timezone.localdate()
-    cache_key = f"matrix:feed_insight:{user.id}:{today.isoformat()}"
+    today = timezone.localdate().isoformat()
+    cache_keys = [
+        f"matrix_insight:{user.id}:{today}",
+        f"matrix:feed_insight:{user.id}:{today}",  # legacy key
+    ]
+    for key in cache_keys:
+        cached = cache.get(key)
+        if cached:
+            return cached
 
-    cached = cache.get(cache_key)
-    if cached:
-        return cached
+    payload = compute_matrix_payload(user.id)
+    cache.set(cache_keys[0], payload, timeout=_CACHE_TTL_SECONDS)
+    return payload
 
+
+def compute_matrix_payload(user_id: int) -> dict:
     try:
-        matrix, _ = MatrixData.objects.get_or_create(user=user)
+        matrix, _ = MatrixData.objects.get_or_create(user_id=user_id)
         life_path = matrix.life_path
         traits = matrix.traits or {}
+
+        from apps.users.models import User  # local import to avoid cycles
+
+        user = User.objects.get(id=user_id)
 
         if not life_path and user.birth_date:
             life_path, traits = compute_life_path(user.birth_date)
@@ -48,16 +60,10 @@ def get_daily_feed_insight(user) -> dict:
             trait_text = f" - {primary_trait}" if primary_trait else ""
             subtitle_raw = f"Your life path {life_path}{trait_text}. Lean into this energy today."
             subtitle = shorten(subtitle_raw, width=180, placeholder="…")
-            payload = _build_payload("Today's matrix insight", subtitle)
-        else:
-            payload = _placeholder_payload()
-
+            return _build_payload("Today's matrix insight", subtitle)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Failed to build matrix feed insight for user %s: %s", user.id, exc, exc_info=True)
-        payload = _placeholder_payload()
-
-    cache.set(cache_key, payload, timeout=_CACHE_TTL_SECONDS)
-    return payload
+        logger.warning("Failed to compute matrix payload for user %s: %s", user_id, exc, exc_info=True)
+    return _placeholder_payload()
 
 
 def _placeholder_payload() -> dict:
