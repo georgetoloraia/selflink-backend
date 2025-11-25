@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlparse
 
 from django.utils import timezone
 
+from apps.matching.services.feed_insights import get_daily_feed_recommendations
 from apps.matrix.services.feed_insights import get_daily_feed_insight as get_matrix_feed_insight
 from apps.mentor.services.feed_insights import get_daily_feed_insight as get_mentor_feed_insight
 from apps.social.models import Timeline
@@ -57,6 +58,7 @@ def _insert_insights(post_items: Sequence[dict], user=None) -> list[dict]:
     today_iso = timezone.localdate().isoformat()
     mentor_payload = None
     matrix_payload = None
+    soulmatch_payload = None
 
     if user:
         try:
@@ -67,6 +69,10 @@ def _insert_insights(post_items: Sequence[dict], user=None) -> list[dict]:
             matrix_payload = get_matrix_feed_insight(user)
         except Exception as exc:  # pragma: no cover - defensive
             logger.warning("Matrix insight unavailable for user %s: %s", getattr(user, "id", None), exc, exc_info=True)
+        try:
+            soulmatch_payload = get_daily_feed_recommendations(user)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("SoulMatch insight unavailable for user %s: %s", getattr(user, "id", None), exc, exc_info=True)
 
     mentor_item = (
         {
@@ -86,18 +92,38 @@ def _insert_insights(post_items: Sequence[dict], user=None) -> list[dict]:
         if matrix_payload
         else None
     )
+    soulmatch_item = (
+        {
+            "type": "soulmatch_reco",
+            "id": f"soulmatch_{today_iso}",
+            "soulmatch": soulmatch_payload,
+        }
+        if soulmatch_payload
+        else None
+    )
 
     composed = list(base_items)
-    mentor_index = min(2, len(composed))
+    mentor_index = None
+    matrix_index = None
     if mentor_item:
+        mentor_index = min(2, len(composed))
         composed.insert(mentor_index, mentor_item)
 
     base_count = len(base_items)
     if base_count >= 6 and matrix_item:
         matrix_index = min(6, base_count)
-        if mentor_item and mentor_index <= matrix_index:
+        if mentor_item and mentor_index is not None and mentor_index <= matrix_index:
             matrix_index += 1
         matrix_index = min(matrix_index, len(composed))
         composed.insert(matrix_index, matrix_item)
+
+    if soulmatch_item:
+        target_index = min(4, len(composed))
+        if mentor_index is not None and mentor_index <= target_index:
+            target_index += 1
+        if matrix_index is not None and matrix_index <= target_index:
+            target_index += 1
+        target_index = min(target_index, len(composed))
+        composed.insert(target_index, soulmatch_item)
 
     return composed

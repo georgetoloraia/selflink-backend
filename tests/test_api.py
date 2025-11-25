@@ -176,6 +176,7 @@ class FeedResponseTests(BaseAPITestCase):
         self.assertIn("post", item_types)
         self.assertIn("mentor_insight", item_types)
         self.assertIn("matrix_insight", item_types)
+        self.assertIn("soulmatch_reco", item_types)
 
         post_items = [item for item in items if item.get("type") == "post"]
         self.assertEqual(len(post_items), 6)
@@ -195,6 +196,14 @@ class FeedResponseTests(BaseAPITestCase):
             self.assertIn("title", matrix)
             self.assertIn("subtitle", matrix)
             self.assertIn("cta", matrix)
+        soulmatch_items = [item for item in items if item.get("type") == "soulmatch_reco"]
+        self.assertTrue(soulmatch_items)
+        for sm_item in soulmatch_items:
+            soulmatch = sm_item.get("soulmatch") or {}
+            self.assertIn("title", soulmatch)
+            self.assertIn("subtitle", soulmatch)
+            self.assertIn("cta", soulmatch)
+            self.assertIn("profiles", soulmatch)
 
         self.assertIsNone(response.data["next"])
 
