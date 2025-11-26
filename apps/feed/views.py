@@ -11,7 +11,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.feed.composer import compose_for_you_feed, compose_following_feed
+from apps.feed.composer import compose_for_you_feed, compose_for_you_videos_feed, compose_following_feed
 from apps.feed.cache import FeedCache
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,39 @@ class FollowingFeedView(BaseFeedView):
             extra={
                 "user_id": request.user.id,
                 "mode": "following",
+                "cursor": cursor,
+                "elapsed_ms": int(elapsed * 1000),
+            },
+        )
+        return Response(payload)
+
+
+class ForYouVideosFeedView(BaseFeedView):
+    def get(self, request: Request, *args, **kwargs) -> Response:  # type: ignore[override]
+        limit, cursor = self._pagination_params(request)
+        cache_hit = FeedCache.get(request.user.id, "for_you_videos", cursor)
+        if cache_hit is not None:
+            logger.info(
+                "feed cache hit",
+                extra={"user_id": request.user.id, "mode": "for_you_videos", "cursor": cursor},
+            )
+            return Response(cache_hit)
+
+        start = time.monotonic()
+        items, next_cursor = compose_for_you_videos_feed(
+            request.user,
+            cursor=cursor,
+            limit=limit,
+            serializer_context=self._serializer_context(request),
+        )
+        elapsed = time.monotonic() - start
+        payload = {"items": items, "next": next_cursor}
+        FeedCache.set(request.user.id, "for_you_videos", cursor, payload)
+        logger.info(
+            "feed cache miss composed",
+            extra={
+                "user_id": request.user.id,
+                "mode": "for_you_videos",
                 "cursor": cursor,
                 "elapsed_ms": int(elapsed * 1000),
             },

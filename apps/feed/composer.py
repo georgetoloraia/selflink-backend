@@ -194,6 +194,62 @@ def compose_for_you_feed(user, cursor: str | None = None, limit: int = 20, seria
     return items, next_cursor
 
 
+def compose_for_you_videos_feed(
+    user,
+    cursor: str | None = None,
+    limit: int = 20,
+    serializer_context: dict | None = None,
+):
+    """
+    Compose a video-only "For You" feed.
+    - Filters posts to those that have an attached PostVideo.
+    - Applies existing ranking but excludes insight insertions.
+    - Returns typed items with type="post" only.
+    """
+    followee_ids = set(
+        Follow.objects.filter(follower=user).values_list("followee_id", flat=True)
+    )
+    visibility_filter = (
+        Q(video__isnull=False)
+        & (
+            Q(visibility=Post.Visibility.PUBLIC)
+            | Q(author=user)
+            | (Q(visibility=Post.Visibility.FOLLOWERS) & Q(author_id__in=followee_ids))
+        )
+    )
+    candidate_limit = max(limit * 3, limit + 10)
+    candidates = list(
+        Post.objects.filter(visibility_filter)
+        .select_related("author", "author__settings", "video")
+        .prefetch_related("media", "images")
+        .order_by("-created_at")[:candidate_limit]
+    )
+
+    scored = [
+        (post, score_post_for_user(user, post, followee_ids=followee_ids))
+        for post in candidates
+    ]
+    scored.sort(key=lambda pair: pair[1], reverse=True)
+
+    offset = _parse_cursor(cursor)
+    page_slice = scored[offset : offset + limit + 1]
+    has_next = len(page_slice) > limit
+    if has_next:
+        page_slice = page_slice[:limit]
+    posts_page = [pair[0] for pair in page_slice]
+    post_data = PostSerializer(
+        posts_page,
+        many=True,
+        context=serializer_context or {},
+    ).data
+    items = [
+        {"type": "post", "id": post["id"], "post": post}
+        for post in post_data
+    ]
+    next_cursor = str(offset + limit) if has_next else None
+    return items, next_cursor
+
+
 def _parse_cursor(cursor: str | None) -> int:
     if not cursor:
         return 0

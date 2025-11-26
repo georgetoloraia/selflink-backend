@@ -337,6 +337,67 @@ class FeedModeTests(BaseAPITestCase):
         self.assertTrue(all(p["post"]["id"] == post_followee.id for p in post_items))
 
 
+class ForYouVideosFeedTests(BaseAPITestCase):
+    def test_requires_authentication(self) -> None:
+        response = self.client.get("/api/v1/feed/for_you_videos/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_video_feed_returns_only_video_posts(self) -> None:
+        user = self.register_and_login(email="videomode@example.com", handle="videomode")
+        # create one video post
+        video_file = SimpleUploadedFile(
+            "videomode.mp4",
+            b"video content",
+            content_type="video/mp4",
+        )
+        video_response = self.client.post(
+            "/api/v1/posts/",
+            {"text": "Video only", "video": video_file},
+            format="multipart",
+        )
+        self.assertEqual(video_response.status_code, status.HTTP_201_CREATED)
+        video_post_id = video_response.data["id"]
+
+        # create a non-video post that should not appear
+        non_video = self.client.post("/api/v1/posts/", {"text": "No video here"}, format="json")
+        self.assertEqual(non_video.status_code, status.HTTP_201_CREATED)
+
+        feed = self.client.get("/api/v1/feed/for_you_videos/")
+        self.assertEqual(feed.status_code, status.HTTP_200_OK)
+        items = feed.data.get("items", [])
+        self.assertTrue(items)
+        self.assertTrue(all(item.get("type") == "post" for item in items))
+        self.assertTrue(all(item["post"].get("video") for item in items))
+        ids = {item["post"]["id"] for item in items}
+        self.assertIn(video_post_id, ids)
+        self.assertNotIn(non_video.data["id"], ids)
+
+    def test_video_feed_paginates_with_cursor(self) -> None:
+        user = self.register_and_login(email="videopage@example.com", handle="videopage")
+        for i in range(3):
+            clip = SimpleUploadedFile(
+                f"paginated_{i}.mp4",
+                b"content",
+                content_type="video/mp4",
+            )
+            response = self.client.post(
+                "/api/v1/posts/",
+                {"text": f"Video {i}", "video": clip},
+                format="multipart",
+            )
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        first_page = self.client.get("/api/v1/feed/for_you_videos/?limit=1")
+        self.assertEqual(first_page.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(first_page.data.get("items", [])), 1)
+        cursor = first_page.data.get("next")
+        self.assertIsNotNone(cursor)
+
+        second_page = self.client.get(f"/api/v1/feed/for_you_videos/?limit=1&cursor={cursor}")
+        self.assertEqual(second_page.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(second_page.data.get("items", [])), 1)
+
+
 class FeedCacheTests(BaseAPITestCase):
     def test_feed_cache_hit_returns_cached_payload(self) -> None:
         user = self.register_and_login(email="cache@example.com", handle="cache")

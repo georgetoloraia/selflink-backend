@@ -37,6 +37,6 @@ class FeedCache:
         Remove cache keys where cursor=None for both 'for_you' and 'following'.
         Only page 1 should be invalidated for performance.
         """
-        for mode in ("for_you", "following"):
+        for mode in ("for_you", "for_you_videos", "following"):
             key = FeedCache.make_key(user_id, mode, None)
             cache.delete(key)
