@@ -115,16 +115,16 @@ class PostSearchView(BaseSearchView):
             ids = [int(hit["_id"]) for hit in response["hits"]["hits"]]
             posts = list(
                 Post.objects.filter(id__in=ids)
-                .select_related("author", "author__settings")
-                .prefetch_related("media")
+                .select_related("author", "author__settings", "video")
+                .prefetch_related("media", "images")
             )
             post_map = {post.id: post for post in posts}
             ordered = [post_map[post_id] for post_id in ids if post_id in post_map]
         else:
             ordered = list(
                 Post.objects.filter(text__icontains=query)
-                .select_related("author", "author__settings")
-                .prefetch_related("media")
+                .select_related("author", "author__settings", "video")
+                .prefetch_related("media", "images")
                 .order_by("-created_at")[:limit]
             )
         serializer = PostSerializer(ordered, many=True, context={"request": request})

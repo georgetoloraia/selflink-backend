@@ -29,6 +29,7 @@ class PostViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     queryset = (
         Post.objects.select_related("author", "author__settings")
+        .select_related("video")
         .prefetch_related("media", "images")
         .all()
     )
@@ -119,8 +120,8 @@ class FeedView(generics.ListAPIView):
         params.is_valid(raise_exception=True)
         queryset = (
             Timeline.objects.filter(user=self.request.user)
-            .select_related("post", "post__author", "post__author__settings")
-            .prefetch_related("post__media")
+            .select_related("post", "post__author", "post__author__settings", "post__video")
+            .prefetch_related("post__media", "post__images")
         )
         since = params.validated_data.get("since")
         if since:

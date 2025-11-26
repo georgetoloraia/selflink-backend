@@ -12,7 +12,17 @@ from apps.media.serializers import MediaAssetSerializer
 from apps.media.models import MediaAsset
 from apps.users.serializers import UserSerializer
 
-from .models import Comment, CommentImage, Follow, Gift, Like, Post, PostImage, Timeline
+from .models import (
+    Comment,
+    CommentImage,
+    Follow,
+    Gift,
+    Like,
+    Post,
+    PostImage,
+    PostVideo,
+    Timeline,
+)
 
 
 class PostImageSerializer(serializers.ModelSerializer):
@@ -33,10 +43,48 @@ class PostImageSerializer(serializers.ModelSerializer):
         return url
 
 
+class PostVideoSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
+    duration = serializers.FloatField(source="duration_seconds", read_only=True)
+
+    class Meta:
+        model = PostVideo
+        fields = [
+            "id",
+            "url",
+            "thumbnail_url",
+            "duration",
+            "width",
+            "height",
+            "mime_type",
+        ]
+        read_only_fields = fields
+
+    def get_url(self, obj: PostVideo) -> str | None:
+        if not obj.file:
+            return None
+        request = self.context.get("request")
+        url = obj.file.url
+        if request:
+            return request.build_absolute_uri(url)
+        return url
+
+    def get_thumbnail_url(self, obj: PostVideo) -> str | None:
+        if not obj.thumbnail:
+            return None
+        request = self.context.get("request")
+        url = obj.thumbnail.url
+        if request:
+            return request.build_absolute_uri(url)
+        return url
+
+
 class PostSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
     media = MediaAssetSerializer(read_only=True, many=True)
     images = PostImageSerializer(read_only=True, many=True)
+    video = PostVideoSerializer(read_only=True)
     image_urls = serializers.SerializerMethodField()
     media_ids = serializers.ListField(
         child=serializers.IntegerField(min_value=1), required=False, write_only=True
@@ -46,6 +94,11 @@ class PostSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False,
         allow_empty=True,
+    )
+    video_upload = serializers.FileField(
+        write_only=True,
+        required=False,
+        allow_null=True,
     )
     liked = serializers.SerializerMethodField()
 
@@ -62,6 +115,8 @@ class PostSerializer(serializers.ModelSerializer):
             "images",
             "image_urls",
             "images_upload",
+            "video",
+            "video_upload",
             "like_count",
             "comment_count",
             "liked",
@@ -73,6 +128,7 @@ class PostSerializer(serializers.ModelSerializer):
             "media",
             "images",
             "image_urls",
+            "video",
             "like_count",
             "comment_count",
             "liked",
@@ -92,6 +148,7 @@ class PostSerializer(serializers.ModelSerializer):
     def create(self, validated_data: dict) -> Post:
         media_ids: List[int] = validated_data.pop("media_ids", [])
         images_upload = validated_data.pop("images_upload", [])
+        video_upload = validated_data.pop("video_upload", None)
         request = self.context.get("request")
         user = request.user if request else None
         if user is None or user.is_anonymous:
@@ -105,18 +162,33 @@ class PostSerializer(serializers.ModelSerializer):
                 post.media.set(assets)
             for order, image in enumerate(images_upload):
                 PostImage.objects.create(post=post, image=image, order=order)
+            if video_upload:
+                PostVideo.objects.create(
+                    post=post,
+                    file=video_upload,
+                    duration_seconds=None,
+                    width=None,
+                    height=None,
+                    mime_type=getattr(video_upload, "content_type", None) or "",
+                )
         return post
 
     def to_internal_value(self, data):
         if isinstance(data, QueryDict):
-            mutable = data.copy()
+            mutable = QueryDict(mutable=True)
+            for key, values in data.lists():
+                mutable.setlist(key, values)
             if "images_upload" not in mutable and "images" in mutable:
                 mutable.setlist("images_upload", mutable.getlist("images"))
                 del mutable["images"]
+            if "video_upload" not in mutable and "video" in mutable:
+                mutable["video_upload"] = mutable["video"]
             data = mutable
         elif isinstance(data, dict) and "images" in data and "images_upload" not in data:
             copied = data.copy()
             copied["images_upload"] = copied.pop("images")
+            if "video" in copied and "video_upload" not in copied:
+                copied["video_upload"] = copied.pop("video")
             data = copied
         return super().to_internal_value(data)
 
@@ -134,9 +206,23 @@ class PostSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs: dict) -> dict:
         images = attrs.get("images_upload") or []
+        video = attrs.get("video_upload")
+        if images and video:
+            raise serializers.ValidationError(
+                {"video": "Choose either a video or images for a post in this version."}
+            )
         if len(images) > 4:
             raise serializers.ValidationError({"images": "You can upload up to 4 images."})
         attrs["images_upload"] = images
+        if video:
+            allowed_mime = {"video/mp4", "video/quicktime"}
+            mime = getattr(video, "content_type", None)
+            if mime and mime not in allowed_mime:
+                raise serializers.ValidationError({"video": "Unsupported video format."})
+            max_size = 50 * 1024 * 1024  # 50 MB guardrail for v1 uploads
+            if hasattr(video, "size") and video.size and video.size > max_size:
+                raise serializers.ValidationError({"video": "Video file is too large."})
+        attrs["video_upload"] = video
         return attrs
 
 

@@ -37,6 +37,19 @@ class PostImage(BaseModel):
         return f"PostImage<{self.id}>"
 
 
+class PostVideo(BaseModel):
+    post = models.OneToOneField(Post, on_delete=models.CASCADE, related_name="video")
+    file = models.FileField(upload_to="posts/videos/")
+    thumbnail = models.ImageField(upload_to="posts/videos/thumbnails/", null=True, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    mime_type = models.CharField(max_length=64, default="video/mp4")
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"PostVideo<{self.id}>"
+
+
 class Comment(BaseModel):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="comments")

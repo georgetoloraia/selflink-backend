@@ -5,6 +5,7 @@ import os
 from datetime import timedelta
 
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -99,6 +100,45 @@ class PostTests(BaseAPITestCase):
         like_response = self.client.post(f"/api/v1/posts/{post_id}/like/")
         self.assertEqual(like_response.status_code, status.HTTP_200_OK)
         self.assertTrue(like_response.data["liked"])
+
+    def test_create_post_with_video(self) -> None:
+        self.register_and_login(email="videoposter@example.com", handle="videoposter")
+        video_file = SimpleUploadedFile(
+            "clip.mp4",
+            b"fake video content",
+            content_type="video/mp4",
+        )
+        payload = {"text": "Video upload", "video": video_file}
+        response = self.client.post("/api/v1/posts/", payload, format="multipart")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        video = response.data.get("video")
+        self.assertIsNotNone(video)
+        self.assertTrue(video.get("url"))
+        self.assertEqual(video.get("mime_type"), "video/mp4")
+        self.assertIsNone(video.get("thumbnail_url"))
+
+    def test_feed_includes_video_metadata(self) -> None:
+        user_data = self.register_and_login(email="videofeed@example.com", handle="videofeed")
+        video_file = SimpleUploadedFile(
+            "feedclip.mp4",
+            b"fake video content",
+            content_type="video/mp4",
+        )
+        create_response = self.client.post(
+            "/api/v1/posts/",
+            {"text": "Video in feed", "video": video_file},
+            format="multipart",
+        )
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+
+        feed = self.client.get("/api/v1/feed/home/")
+        self.assertEqual(feed.status_code, status.HTTP_200_OK)
+        items = feed.data.get("items", [])
+        video_posts = [item for item in items if item.get("type") == "post" and item["post"].get("video")]
+        self.assertTrue(video_posts)
+        video = video_posts[0]["post"]["video"]
+        self.assertTrue(video.get("url"))
+        self.assertIsNone(video.get("thumbnail_url"))
 
 
 class MentorTests(BaseAPITestCase):

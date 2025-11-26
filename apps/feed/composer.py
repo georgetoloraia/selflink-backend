@@ -147,6 +147,7 @@ def compose_following_feed(user, cursor: str | None = None, limit: int = 20, ser
     queryset = (
         Timeline.objects.filter(user=user)
         .select_related("post", "post__author", "post__author__settings")
+        .select_related("post__video")
         .prefetch_related("post__media", "post__images")
         .order_by("-created_at")
     )
@@ -171,7 +172,7 @@ def compose_for_you_feed(user, cursor: str | None = None, limit: int = 20, seria
     candidate_limit = max(limit * 3, limit + 10)
     candidates = list(
         Post.objects.filter(visibility_filter)
-        .select_related("author", "author__settings")
+        .select_related("author", "author__settings", "video")
         .prefetch_related("media", "images")
         .order_by("-created_at")[:candidate_limit]
     )
