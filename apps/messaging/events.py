@@ -33,6 +33,24 @@ def publish_message_event(message: Message) -> None:
         publish_events(channels, payload)
 
 
+def publish_message_status_event(message: Message) -> None:
+    payload = {
+        "type": "message:status",
+        "payload": {
+            "id": str(message.id),
+            "thread": str(message.thread_id),
+            "status": message.status,
+            "delivered_at": message.delivered_at.isoformat() if message.delivered_at else None,
+            "read_at": message.read_at.isoformat() if message.read_at else None,
+            "client_uuid": message.client_uuid,
+        },
+    }
+    user_ids: Iterable[int] = message.thread.members.values_list("user_id", flat=True)
+    channels = [f"user:{user_id}" for user_id in set(user_ids)]
+    if channels:
+        publish_events(channels, payload)
+
+
 def publish_typing_event(thread: Thread, user: User, is_typing: bool) -> None:
     payload = {
         "type": "typing",

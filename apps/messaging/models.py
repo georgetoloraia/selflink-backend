@@ -35,12 +35,22 @@ class Message(BaseModel):
         TEXT = "text", "Text"
         IMAGE = "image", "Image"
         SYSTEM = "system", "System"
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SENT = "sent", "Sent"
+        DELIVERED = "delivered", "Delivered"
+        READ = "read", "Read"
 
     thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="sent_messages")
     body = models.TextField(blank=True)
     type = models.CharField(max_length=16, choices=Type.choices, default=Type.TEXT)
     meta = models.JSONField(default=dict, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.SENT)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    client_uuid = models.CharField(max_length=64, null=True, blank=True)
 
     class Meta:
         ordering = ["created_at"]
+        unique_together = ("thread", "client_uuid")

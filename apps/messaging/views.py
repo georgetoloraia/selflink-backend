@@ -4,6 +4,8 @@ from django.db import transaction
 from django.db.models import Count, OuterRef, Subquery
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django_ratelimit.decorators import ratelimit
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
@@ -11,7 +13,12 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from .events import publish_member_left_event, publish_message_event, publish_typing_event
+from .events import (
+    publish_member_left_event,
+    publish_message_event,
+    publish_message_status_event,
+    publish_typing_event,
+)
 from apps.notifications.consumers import notify_thread_message
 from .models import Message, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
@@ -61,6 +68,19 @@ class ThreadViewSet(viewsets.ModelViewSet):
         last_message = thread.messages.order_by("-created_at").first()
         if not last_message:
             return Response(status=status.HTTP_204_NO_CONTENT)
+        now = timezone.now()
+        unread_messages = list(
+            thread.messages.filter(created_at__lte=last_message.created_at)
+            .exclude(sender=request.user)
+            .exclude(status=Message.Status.READ)
+        )
+        for msg in unread_messages:
+            msg.status = Message.Status.READ
+            msg.read_at = now
+            if not msg.delivered_at:
+                msg.delivered_at = now
+            msg.save(update_fields=["status", "delivered_at", "read_at", "updated_at"])
+            publish_message_status_event(msg)
         ThreadMember.objects.filter(thread=thread, user=request.user).update(
             last_read_message=last_message
         )
@@ -145,6 +165,24 @@ class ThreadViewSet(viewsets.ModelViewSet):
         thread = serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["get"], url_path="sync")
+    def sync(self, request: Request, pk: str | None = None) -> Response:
+        thread = self.get_object()
+        since = request.query_params.get("since")
+        queryset = thread.messages.select_related("sender").order_by("created_at")
+        if since:
+            try:
+                since_id = int(since)
+                queryset = queryset.filter(id__gt=since_id)
+            except (TypeError, ValueError):
+                parsed = parse_datetime(since)
+                if parsed:
+                    if timezone.is_naive(parsed):
+                        parsed = timezone.make_aware(parsed, timezone=timezone.utc)
+                    queryset = queryset.filter(created_at__gt=parsed)
+        serializer = MessageSerializer(queryset, many=True, context={"request": request})
+        return Response({"messages": serializer.data})
+
 
 @method_decorator(ratelimit(key="user", rate="60/min", method="POST", block=True), name="create")
 class MessageViewSet(viewsets.ModelViewSet):
@@ -158,11 +196,39 @@ class MessageViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(thread_id=thread_id)
         return queryset.select_related("sender", "thread")
 
-    def perform_create(self, serializer: MessageSerializer) -> None:  # type: ignore[override]
+    def create(self, request: Request, *args, **kwargs) -> Response:  # type: ignore[override]
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         thread = serializer.validated_data.get("thread")
-        if thread and not thread.members.filter(user=self.request.user).exists():
+        if thread and not thread.members.filter(user=request.user).exists():
             raise PermissionDenied("Not a member of this thread")
+
         message = serializer.save()
-        publish_message_event(message)
-        notify_thread_message(message.thread, message.sender_id)
-        auto_report_message(message)
+        deduped = getattr(serializer, "_deduped", False)
+        if not deduped:
+            publish_message_event(message)
+            notify_thread_message(message.thread, message.sender_id)
+            auto_report_message(message)
+
+        headers = self.get_success_headers(serializer.data)
+        status_code = status.HTTP_200_OK if deduped else status.HTTP_201_CREATED
+        return Response(serializer.data, status=status_code, headers=headers)
+
+    @action(detail=True, methods=["post"], url_path="ack")
+    def ack(self, request: Request, pk: str | None = None) -> Response:
+        message = self.get_object()
+        status_value = request.data.get("status")
+        if status_value != Message.Status.DELIVERED:
+            return Response({"detail": "status must be 'delivered'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if message.status != Message.Status.READ:
+            now = timezone.now()
+            if message.status in (Message.Status.PENDING, Message.Status.SENT):
+                message.status = Message.Status.DELIVERED
+            if not message.delivered_at:
+                message.delivered_at = now
+            message.save(update_fields=["status", "delivered_at", "updated_at"])
+            publish_message_status_event(message)
+
+        serializer = MessageSerializer(message, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)

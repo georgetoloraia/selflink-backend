@@ -144,15 +144,40 @@ class MessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ["id", "thread", "sender", "body", "type", "meta", "created_at"]
-        read_only_fields = ["id", "sender", "created_at"]
+        fields = [
+            "id",
+            "thread",
+            "sender",
+            "body",
+            "type",
+            "meta",
+            "status",
+            "delivered_at",
+            "read_at",
+            "client_uuid",
+            "created_at",
+        ]
+        read_only_fields = ["id", "sender", "created_at", "status", "delivered_at", "read_at"]
 
     def create(self, validated_data: dict) -> Message:
         request = self.context.get("request")
         user = request.user if request else None
         if not user or user.is_anonymous:
             raise serializers.ValidationError("Authentication required")
-        message = Message.objects.create(sender=user, **validated_data)
+
+        client_uuid = validated_data.get("client_uuid")
+        thread = validated_data.get("thread")
+
+        self._deduped = False
+        if client_uuid and thread:
+            existing = Message.objects.filter(
+                thread=thread, sender=user, client_uuid=client_uuid
+            ).first()
+            if existing:
+                self._deduped = True
+                return existing
+
+        message = Message.objects.create(sender=user, status=Message.Status.SENT, **validated_data)
         if message.thread_id:
             message.thread.save(update_fields=["updated_at"])
         return message
