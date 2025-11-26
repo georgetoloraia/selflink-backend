@@ -13,7 +13,11 @@ from apps.matrix.feed_insights import get_daily_feed_insight as get_matrix_feed_
 from apps.mentor.services.feed_insights import get_daily_feed_insight as get_mentor_feed_insight
 from apps.social.models import Follow, Post, Timeline
 from apps.social.serializers import PostSerializer
-from apps.feed.rank import score_post_for_user
+from apps.feed.rank import (
+    FEED_RANKING_CONFIG_FOR_YOU,
+    FEED_RANKING_CONFIG_FOR_YOU_VIDEOS,
+    score_post_for_user,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +182,7 @@ def compose_for_you_feed(user, cursor: str | None = None, limit: int = 20, seria
     )
 
     scored = [
-        (post, score_post_for_user(user, post, followee_ids=followee_ids))
+        (post, score_post_for_user(user, post, FEED_RANKING_CONFIG_FOR_YOU, followee_ids=followee_ids))
         for post in candidates
     ]
     scored.sort(key=lambda pair: pair[1], reverse=True)
@@ -226,7 +230,7 @@ def compose_for_you_videos_feed(
     )
 
     scored = [
-        (post, score_post_for_user(user, post, followee_ids=followee_ids))
+        (post, score_post_for_user(user, post, FEED_RANKING_CONFIG_FOR_YOU_VIDEOS, followee_ids=followee_ids))
         for post in candidates
     ]
     scored.sort(key=lambda pair: pair[1], reverse=True)

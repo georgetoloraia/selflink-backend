@@ -310,6 +310,40 @@ class FeedModeTests(BaseAPITestCase):
         top_post_id = post_items[0]["post"]["id"]
         self.assertEqual(top_post_id, post_followee.id)
 
+    def test_for_you_orders_posts_by_combined_signals(self) -> None:
+        user = self.register_and_login(email="ranked@example.com", handle="ranked")
+        followee = User.objects.create_user(
+            email="rankfollow@example.com",
+            handle="rankfollow",
+            name="Rank Follow",
+            password="strongpassword",
+        )
+        other = User.objects.create_user(
+            email="rankother@example.com",
+            handle="rankother",
+            name="Rank Other",
+            password="strongpassword",
+        )
+        top_post = Post.objects.create(author=followee, text="Followed and engaged")
+        low_post = Post.objects.create(author=other, text="Less engaged")
+        Post.objects.filter(id=top_post.id).update(
+            like_count=20,
+            comment_count=5,
+            created_at=timezone.now() - timedelta(hours=3),
+        )
+        Post.objects.filter(id=low_post.id).update(
+            like_count=0,
+            comment_count=0,
+            created_at=timezone.now() - timedelta(hours=1),
+        )
+        self.client.post(f"/api/v1/users/{followee.id}/follow/")
+
+        response = self.client.get("/api/v1/feed/for_you/?limit=2")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        items = response.data["items"]
+        post_items = [item for item in items if item.get("type") == "post"]
+        self.assertEqual(post_items[0]["post"]["id"], top_post.id)
+
     def test_following_feed_shows_only_followed_posts(self) -> None:
         user = self.register_and_login(email="followmode@example.com", handle="followmode")
         followee = User.objects.create_user(
@@ -396,6 +430,48 @@ class ForYouVideosFeedTests(BaseAPITestCase):
         second_page = self.client.get(f"/api/v1/feed/for_you_videos/?limit=1&cursor={cursor}")
         self.assertEqual(second_page.status_code, status.HTTP_200_OK)
         self.assertEqual(len(second_page.data.get("items", [])), 1)
+
+    def test_video_feed_orders_by_recency_and_engagement(self) -> None:
+        user = self.register_and_login(email="videorank@example.com", handle="videorank")
+        recent_clip = SimpleUploadedFile(
+            "recent_rank.mp4",
+            b"recent video content",
+            content_type="video/mp4",
+        )
+        older_clip = SimpleUploadedFile(
+            "older_rank.mp4",
+            b"older video content",
+            content_type="video/mp4",
+        )
+        recent_resp = self.client.post(
+            "/api/v1/posts/",
+            {"text": "Recent video", "video": recent_clip},
+            format="multipart",
+        )
+        older_resp = self.client.post(
+            "/api/v1/posts/",
+            {"text": "Older video", "video": older_clip},
+            format="multipart",
+        )
+        self.assertEqual(recent_resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(older_resp.status_code, status.HTTP_201_CREATED)
+
+        Post.objects.filter(id=recent_resp.data["id"]).update(
+            like_count=8,
+            comment_count=2,
+            created_at=timezone.now() - timedelta(hours=1),
+        )
+        Post.objects.filter(id=older_resp.data["id"]).update(
+            like_count=0,
+            comment_count=0,
+            created_at=timezone.now() - timedelta(hours=6),
+        )
+
+        feed = self.client.get("/api/v1/feed/for_you_videos/?limit=2")
+        self.assertEqual(feed.status_code, status.HTTP_200_OK)
+        items = feed.data.get("items", [])
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["post"]["id"], recent_resp.data["id"])
 
 
 class FeedCacheTests(BaseAPITestCase):
