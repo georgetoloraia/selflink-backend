@@ -9,7 +9,7 @@ from django.utils.dateparse import parse_datetime
 from django_ratelimit.decorators import ratelimit
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -20,12 +20,82 @@ from .events import (
     publish_typing_event,
 )
 from apps.notifications.consumers import notify_thread_message
-from .models import Message, Thread, ThreadMember
+from .models import Message, MessageAttachment, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer
 from .typing import get_typing_users, start_typing, stop_typing
 from apps.moderation.autoflag import auto_report_message
 from apps.users.models import User
 from apps.users.serializers import UserSerializer
+
+
+def _normalize_message_payload(request: Request, thread: Thread | None = None) -> dict:
+    data = request.data.copy()
+    if thread:
+        data["thread"] = str(thread.id)
+    text_value = data.pop("text", None)
+    if text_value and not data.get("body"):
+        data["body"] = text_value
+    return data
+
+
+def _validate_attachment_files(files) -> list[dict]:
+    if not files:
+        return []
+
+    specs: list[dict] = []
+    for uploaded in files:
+        mime = getattr(uploaded, "content_type", "") or ""
+        if mime.startswith("image/"):
+            attachment_type = MessageAttachment.AttachmentType.IMAGE
+        elif mime.startswith("video/"):
+            attachment_type = MessageAttachment.AttachmentType.VIDEO
+        else:
+            raise ValidationError("Unsupported attachment type.")
+        specs.append({"file": uploaded, "type": attachment_type, "mime_type": mime})
+
+    type_set = {spec["type"] for spec in specs}
+    if len(type_set) > 1:
+        raise ValidationError("Cannot mix images and videos in the same message.")
+    only_type = next(iter(type_set))
+    if only_type == MessageAttachment.AttachmentType.IMAGE and len(specs) > 4:
+        raise ValidationError("You can attach up to 4 images per message.")
+    if only_type == MessageAttachment.AttachmentType.VIDEO and len(specs) > 1:
+        raise ValidationError("Only one video can be attached per message.")
+    return specs
+
+
+def _create_message_with_attachments(request: Request, thread: Thread | None = None) -> tuple[Message, bool]:
+    data = _normalize_message_payload(request, thread=thread)
+    serializer = MessageSerializer(data=data, context={"request": request})
+    serializer.is_valid(raise_exception=True)
+    thread_obj = serializer.validated_data.get("thread")
+    if thread_obj and not thread_obj.members.filter(user=request.user).exists():
+        raise PermissionDenied("Not a member of this thread")
+
+    attachment_files = request.FILES.getlist("attachments")
+    attachment_specs = _validate_attachment_files(attachment_files)
+
+    with transaction.atomic():
+        message = serializer.save()
+        deduped = getattr(serializer, "_deduped", False)
+        if not deduped and attachment_specs:
+            attachments = [
+                MessageAttachment(
+                    message=message,
+                    file=spec["file"],
+                    type=spec["type"],
+                    mime_type=spec["mime_type"],
+                )
+                for spec in attachment_specs
+            ]
+            MessageAttachment.objects.bulk_create(attachments)
+
+    message = (
+        Message.objects.select_related("sender", "thread")
+        .prefetch_related("attachments")
+        .get(pk=message.id)
+    )
+    return message, deduped
 
 
 @method_decorator(ratelimit(key="user", rate="20/min", method="POST", block=True), name="create")
@@ -165,11 +235,27 @@ class ThreadViewSet(viewsets.ModelViewSet):
         thread = serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+    @action(detail=True, methods=["post"], url_path="messages")
+    def create_message(self, request: Request, pk: str | None = None) -> Response:
+        thread = self.get_object()
+        try:
+            message, deduped = _create_message_with_attachments(request, thread=thread)
+        except ValidationError as exc:
+            return Response({"detail": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = MessageSerializer(message, context={"request": request})
+        status_code = status.HTTP_200_OK if deduped else status.HTTP_201_CREATED
+        if not deduped:
+            publish_message_event(message)
+            notify_thread_message(message.thread, message.sender_id)
+            auto_report_message(message)
+        return Response(serializer.data, status=status_code)
+
     @action(detail=True, methods=["get"], url_path="sync")
     def sync(self, request: Request, pk: str | None = None) -> Response:
         thread = self.get_object()
         since = request.query_params.get("since")
-        queryset = thread.messages.select_related("sender").order_by("created_at")
+        queryset = thread.messages.select_related("sender").prefetch_related("attachments").order_by("created_at")
         if since:
             try:
                 since_id = int(since)
@@ -194,25 +280,22 @@ class MessageViewSet(viewsets.ModelViewSet):
         queryset = Message.objects.filter(thread__members__user=self.request.user)
         if thread_id:
             queryset = queryset.filter(thread_id=thread_id)
-        return queryset.select_related("sender", "thread")
+        return queryset.select_related("sender", "thread").prefetch_related("attachments")
 
     def create(self, request: Request, *args, **kwargs) -> Response:  # type: ignore[override]
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        thread = serializer.validated_data.get("thread")
-        if thread and not thread.members.filter(user=request.user).exists():
-            raise PermissionDenied("Not a member of this thread")
+        try:
+            message, deduped = _create_message_with_attachments(request)
+        except ValidationError as exc:
+            return Response({"detail": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
 
-        message = serializer.save()
-        deduped = getattr(serializer, "_deduped", False)
+        serializer = self.get_serializer(message)
         if not deduped:
             publish_message_event(message)
             notify_thread_message(message.thread, message.sender_id)
             auto_report_message(message)
 
-        headers = self.get_success_headers(serializer.data)
         status_code = status.HTTP_200_OK if deduped else status.HTTP_201_CREATED
-        return Response(serializer.data, status=status_code, headers=headers)
+        return Response(serializer.data, status=status_code, headers=self.get_success_headers(serializer.data))
 
     @action(detail=True, methods=["post"], url_path="ack")
     def ack(self, request: Request, pk: str | None = None) -> Response:

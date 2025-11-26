@@ -54,3 +54,20 @@ class Message(BaseModel):
     class Meta:
         ordering = ["created_at"]
         unique_together = ("thread", "client_uuid")
+
+
+class MessageAttachment(BaseModel):
+    class AttachmentType(models.TextChoices):
+        IMAGE = "image", "Image"
+        VIDEO = "video", "Video"
+
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to="messages/attachments/")
+    type = models.CharField(max_length=8, choices=AttachmentType.choices)
+    mime_type = models.CharField(max_length=128)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
+    duration_seconds = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]

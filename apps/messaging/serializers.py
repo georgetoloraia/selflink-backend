@@ -12,7 +12,7 @@ from apps.notifications.consumers import notify_thread_message
 from apps.moderation.autoflag import auto_report_message
 
 from .events import publish_message_event
-from .models import Message, Thread, ThreadMember
+from .models import Message, MessageAttachment, Thread, ThreadMember
 
 
 class ThreadMemberSerializer(serializers.ModelSerializer):
@@ -139,8 +139,25 @@ class ThreadSerializer(serializers.ModelSerializer):
         return message_qs.filter(created_at__gt=last_read.created_at).count()
 
 
+class MessageAttachmentSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    duration = serializers.FloatField(source="duration_seconds", required=False)
+
+    class Meta:
+        model = MessageAttachment
+        fields = ["id", "url", "type", "mime_type", "width", "height", "duration"]
+        read_only_fields = fields
+
+    def get_url(self, obj: MessageAttachment) -> str | None:
+        try:
+            return obj.file.url
+        except Exception:
+            return None
+
+
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
+    attachments = MessageAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Message
@@ -156,6 +173,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "read_at",
             "client_uuid",
             "created_at",
+            "attachments",
         ]
         read_only_fields = ["id", "sender", "created_at", "status", "delivered_at", "read_at"]
 
