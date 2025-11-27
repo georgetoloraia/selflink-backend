@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import time
+
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.messaging.models import Message
+from apps.messaging.models import Message, ThreadMember
 from apps.users.models import User
 
 
@@ -101,3 +103,100 @@ class MessagingReliabilityTests(APITestCase):
         self.assertEqual(returned["status"], Message.Status.READ)
         self.assertIsNotNone(returned.get("delivered_at"))
         self.assertIsNotNone(returned.get("read_at"))
+
+    def test_ack_is_forward_only_and_requires_membership(self) -> None:
+        thread_id = self._create_direct_thread()
+        send_response = self.sender_client.post(
+            "/api/v1/messaging/messages/",
+            {"thread": thread_id, "body": "Hello", "client_uuid": "ack-forward"},
+            format="json",
+        )
+        message_id = int(send_response.data["id"])
+
+        ack_response = self.recipient_client.post(
+            f"/api/v1/messaging/messages/{message_id}/ack/",
+            {"status": "delivered"},
+            format="json",
+        )
+        self.assertEqual(ack_response.status_code, status.HTTP_200_OK)
+        message = Message.objects.get(id=message_id)
+        self.assertEqual(message.status, Message.Status.DELIVERED)
+
+        # Marking read moves status forward; another ack should not regress it.
+        read_response = self.recipient_client.post(f"/api/v1/messaging/threads/{thread_id}/read/")
+        self.assertEqual(read_response.status_code, status.HTTP_200_OK)
+        message.refresh_from_db()
+        self.assertEqual(message.status, Message.Status.READ)
+
+        second_ack = self.recipient_client.post(
+            f"/api/v1/messaging/messages/{message_id}/ack/",
+            {"status": "delivered"},
+            format="json",
+        )
+        self.assertEqual(second_ack.status_code, status.HTTP_200_OK)
+        message.refresh_from_db()
+        self.assertEqual(message.status, Message.Status.READ)
+
+        intruder = APIClient()
+        register_and_login(intruder, "intruder@example.com", "intruder")
+        unauthorized_ack = intruder.post(
+            f"/api/v1/messaging/messages/{message_id}/ack/",
+            {"status": "delivered"},
+            format="json",
+        )
+        self.assertEqual(unauthorized_ack.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_mark_read_updates_last_read_and_unread_math(self) -> None:
+        thread_id = self._create_direct_thread()
+        messages = []
+        for i in range(3):
+            resp = self.sender_client.post(
+                "/api/v1/messaging/messages/",
+                {"thread": thread_id, "body": f"Msg {i}", "client_uuid": f"uuid-{i}"},
+                format="json",
+            )
+            self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+            messages.append(int(resp.data["id"]))
+
+        mark = self.recipient_client.post(
+            f"/api/v1/messaging/threads/{thread_id}/read/",
+            {"last_read_message_id": messages[1]},
+            format="json",
+        )
+        self.assertEqual(mark.status_code, status.HTTP_200_OK)
+        membership = ThreadMember.objects.get(thread_id=int(thread_id), user_id=self.recipient["id"])
+        self.assertEqual(membership.last_read_message_id, messages[1])
+
+        updated_messages = list(Message.objects.filter(thread_id=int(thread_id)).order_by("id"))
+        self.assertEqual(updated_messages[0].status, Message.Status.READ)
+        self.assertEqual(updated_messages[1].status, Message.Status.READ)
+        self.assertEqual(updated_messages[2].status, Message.Status.SENT)
+
+        threads = self.recipient_client.get("/api/v1/messaging/threads/")
+        self.assertEqual(threads.status_code, status.HTTP_200_OK)
+        unread_counts = {str(t["id"]): t["unread_count"] for t in threads.data}
+        self.assertEqual(unread_counts.get(thread_id), 1)
+
+    def test_sync_since_timestamp_returns_newer_messages(self) -> None:
+        thread_id = self._create_direct_thread()
+        first = self.sender_client.post(
+            "/api/v1/messaging/messages/",
+            {"thread": thread_id, "body": "First ts", "client_uuid": "ts-1"},
+            format="json",
+        )
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        since_ts = first.data["created_at"]
+
+        time.sleep(0.01)
+        second = self.sender_client.post(
+            "/api/v1/messaging/messages/",
+            {"thread": thread_id, "body": "Second ts", "client_uuid": "ts-2"},
+            format="json",
+        )
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+
+        sync = self.recipient_client.get(f"/api/v1/messaging/threads/{thread_id}/sync/?since={since_ts}")
+        self.assertEqual(sync.status_code, status.HTTP_200_OK)
+        payload = sync.data.get("messages", [])
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(str(payload[0]["id"]), str(second.data["id"]))

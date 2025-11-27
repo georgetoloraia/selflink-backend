@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import List
+from django.db.models import Count
 
 from django.db import transaction
 from django.utils import timezone
@@ -98,7 +99,7 @@ class ThreadSerializer(serializers.ModelSerializer):
                 thread.updated_at = timezone.now()
                 thread.save(update_fields=["updated_at"])
                 publish_message_event(message)
-                notify_thread_message(message.thread, message.sender_id)
+                notify_thread_message(message)
                 auto_report_message(message)
         return thread
 
@@ -134,9 +135,36 @@ class ThreadSerializer(serializers.ModelSerializer):
             return 0
         last_read = membership.last_read_message
         message_qs = obj.messages.all()
+        # A message is unread for a user if its id is greater than that user's last_read_message_id.
         if not last_read:
             return message_qs.count()
-        return message_qs.filter(created_at__gt=last_read.created_at).count()
+        return message_qs.filter(id__gt=last_read.id).count()
+
+
+def aggregate_reactions(message: Message, current_user_id: int | None = None) -> list[dict]:
+    emoji_counts = list(message.reactions.values("emoji").annotate(count=Count("id")))
+    reacted_emojis: set[str] = set()
+    if current_user_id:
+        reacted_emojis = set(
+            message.reactions.filter(user_id=current_user_id).values_list("emoji", flat=True)
+        )
+    return [
+        {
+            "emoji": entry["emoji"],
+            "count": entry["count"],
+            "reacted_by_current_user": entry["emoji"] in reacted_emojis,
+        }
+        for entry in emoji_counts
+    ]
+
+
+def _preview_text(body: str | None, limit: int = 120) -> str:
+    if not body:
+        return ""
+    text = body.strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3] + "..."
 
 
 class MessageAttachmentSerializer(serializers.ModelSerializer):
@@ -158,6 +186,15 @@ class MessageAttachmentSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender = UserSerializer(read_only=True)
     attachments = MessageAttachmentSerializer(many=True, read_only=True)
+    reactions = serializers.SerializerMethodField()
+    reply_to = serializers.SerializerMethodField()
+    reply_to_message_id = serializers.PrimaryKeyRelatedField(
+        source="reply_to",
+        queryset=Message.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
 
     class Meta:
         model = Message
@@ -165,6 +202,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "id",
             "thread",
             "sender",
+            "reply_to",
+            "reply_to_message_id",
             "body",
             "type",
             "meta",
@@ -174,8 +213,18 @@ class MessageSerializer(serializers.ModelSerializer):
             "client_uuid",
             "created_at",
             "attachments",
+            "reactions",
         ]
-        read_only_fields = ["id", "sender", "created_at", "status", "delivered_at", "read_at"]
+        read_only_fields = [
+            "id",
+            "sender",
+            "created_at",
+            "status",
+            "delivered_at",
+            "read_at",
+            "reply_to",
+            "reactions",
+        ]
 
     def create(self, validated_data: dict) -> Message:
         request = self.context.get("request")
@@ -199,3 +248,28 @@ class MessageSerializer(serializers.ModelSerializer):
         if message.thread_id:
             message.thread.save(update_fields=["updated_at"])
         return message
+
+    def validate(self, attrs: dict) -> dict:
+        attrs = super().validate(attrs)
+        reply_to: Message | None = attrs.get("reply_to")
+        thread: Thread | None = attrs.get("thread") or getattr(self.instance, "thread", None)
+        if reply_to and thread and reply_to.thread_id != thread.id:
+            raise serializers.ValidationError({"reply_to_message_id": "Must reply within the same thread."})
+        return attrs
+
+    def get_reactions(self, obj: Message) -> list[dict]:
+        request = self.context.get("request")
+        user_id = request.user.id if request and request.user.is_authenticated else None
+        return aggregate_reactions(obj, current_user_id=user_id)
+
+    def get_reply_to(self, obj: Message) -> dict | None:
+        target = getattr(obj, "reply_to", None)
+        if not target:
+            return None
+        has_attachments = target.attachments.exists()
+        return {
+            "id": str(target.id),
+            "sender_id": target.sender_id,
+            "text_preview": _preview_text(target.body),
+            "has_attachments": has_attachments,
+        }

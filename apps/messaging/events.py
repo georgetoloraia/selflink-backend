@@ -51,6 +51,23 @@ def publish_message_status_event(message: Message) -> None:
         publish_events(channels, payload)
 
 
+def publish_message_reaction_event(message: Message, emoji: str, user_id: int, action: str) -> None:
+    payload = {
+        "type": "message:reaction",
+        "payload": {
+            "message_id": str(message.id),
+            "thread": str(message.thread_id),
+            "emoji": emoji,
+            "user_id": user_id,
+            "action": action,
+        },
+    }
+    user_ids: Iterable[int] = message.thread.members.values_list("user_id", flat=True)
+    channels = [f"user:{user_id}" for user_id in set(user_ids)]
+    if channels:
+        publish_events(channels, payload)
+
+
 def publish_typing_event(thread: Thread, user: User, is_typing: bool) -> None:
     payload = {
         "type": "typing",

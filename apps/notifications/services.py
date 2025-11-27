@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Set
 
 from django.utils import timezone
 
@@ -49,12 +49,28 @@ def _is_within_quiet_hours(settings: UserSettings | None) -> bool:
     return current_minutes >= start_minutes or current_minutes <= end_minutes
 
 
-def send_push_notification(users: Iterable[User], payload: NotificationPayload) -> None:
+def send_push_notification(
+    users: Iterable[User],
+    payload: NotificationPayload,
+    *,
+    skip_user_ids: Iterable[int] | None = None,
+) -> None:
+    skipped: Set[int] = set(skip_user_ids or [])
     for user in users:
+        if user.id in skipped:
+            continue
         settings = getattr(user, "settings", None)
         if settings and (not settings.push_enabled or _is_within_quiet_hours(settings)):
             continue
-        logger.info("[push] Would send %s to %s", payload.type, user.id)
+        devices = getattr(user, "devices", None)
+        device_list = list(devices.all()) if devices is not None else []
+        for device in device_list:
+            logger.info(
+                "[push] Would send %s to %s via %s",
+                payload.type,
+                device.push_token,
+                device.device_type,
+            )
 
 
 def send_email_notification(users: Iterable[User], payload: NotificationPayload) -> None:
@@ -65,9 +81,16 @@ def send_email_notification(users: Iterable[User], payload: NotificationPayload)
         logger.info("[email] Would send %s to %s", payload.type, user.email)
 
 
-def dispatch_notification(users: Iterable[User], payload: NotificationPayload) -> None:
+def dispatch_notification(
+    users: Iterable[User],
+    payload: NotificationPayload,
+    *,
+    send_push: bool = True,
+    skip_push_user_ids: Iterable[int] | None = None,
+) -> None:
     users = list(users)
     for user in users:
         create_in_app_notification(user, payload)
-    send_push_notification(users, payload)
+    if send_push:
+        send_push_notification(users, payload, skip_user_ids=skip_push_user_ids)
     send_email_notification(users, payload)

@@ -34,6 +34,7 @@ class Message(BaseModel):
     class Type(models.TextChoices):
         TEXT = "text", "Text"
         IMAGE = "image", "Image"
+        VIDEO = "video", "Video"
         SYSTEM = "system", "System"
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -43,6 +44,13 @@ class Message(BaseModel):
 
     thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="sent_messages")
+    reply_to = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="replies",
+    )
     body = models.TextField(blank=True)
     type = models.CharField(max_length=16, choices=Type.choices, default=Type.TEXT)
     meta = models.JSONField(default=dict, blank=True)
@@ -71,3 +79,13 @@ class MessageAttachment(BaseModel):
 
     class Meta:
         ordering = ["created_at"]
+
+
+class MessageReaction(BaseModel):
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="reactions")
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="message_reactions")
+    emoji = models.CharField(max_length=16)
+
+    class Meta:
+        ordering = ["created_at"]
+        unique_together = ("message", "user", "emoji")
