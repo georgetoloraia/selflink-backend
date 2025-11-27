@@ -200,3 +200,23 @@ class MessagingReliabilityTests(APITestCase):
         payload = sync.data.get("messages", [])
         self.assertEqual(len(payload), 1)
         self.assertEqual(str(payload[0]["id"]), str(second.data["id"]))
+
+    def test_mark_read_allows_empty_body(self) -> None:
+        thread_id = self._create_direct_thread()
+        m1 = self.sender_client.post(
+            "/api/v1/messaging/messages/",
+            {"thread": thread_id, "body": "One", "client_uuid": "empty-1"},
+            format="json",
+        )
+        self.assertEqual(m1.status_code, status.HTTP_201_CREATED)
+        m2 = self.sender_client.post(
+            "/api/v1/messaging/messages/",
+            {"thread": thread_id, "body": "Two", "client_uuid": "empty-2"},
+            format="json",
+        )
+        self.assertEqual(m2.status_code, status.HTTP_201_CREATED)
+
+        mark = self.recipient_client.post(f"/api/v1/messaging/threads/{thread_id}/read/")
+        self.assertIn(mark.status_code, (status.HTTP_200_OK, status.HTTP_204_NO_CONTENT))
+        membership = ThreadMember.objects.get(thread_id=int(thread_id), user_id=self.recipient["id"])
+        self.assertEqual(membership.last_read_message_id, int(m2.data["id"]))

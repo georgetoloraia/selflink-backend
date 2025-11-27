@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django.db import transaction
 from django.db.models import Count, OuterRef, Q, Subquery
+from django.http import QueryDict
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.utils import timezone
@@ -30,7 +31,13 @@ from apps.users.serializers import UserSerializer
 
 
 def _normalize_message_payload(request: Request, thread: Thread | None = None) -> dict:
-    data = request.data.copy()
+    raw_data = request.data
+    if isinstance(raw_data, QueryDict):
+        data = raw_data.dict()
+    else:
+        data = dict(raw_data)
+    for file_key in getattr(request, "FILES", {}):
+        data.pop(file_key, None)
     if thread:
         data["thread"] = str(thread.id)
     text_value = data.pop("text", None)
@@ -148,7 +155,10 @@ class ThreadViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="read")
     def mark_read(self, request: Request, pk: str | None = None) -> Response:
         thread = self.get_object()
-        last_read_message_id = request.data.get("last_read_message_id")
+        payload = request.data or {}
+        last_read_message_id = payload.get("last_read_message_id") or payload.get("last_read_id")
+        if isinstance(last_read_message_id, str) and not last_read_message_id.strip():
+            last_read_message_id = None
         target_message = None
         if last_read_message_id:
             try:
