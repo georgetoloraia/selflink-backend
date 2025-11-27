@@ -220,3 +220,36 @@ class MessagingReliabilityTests(APITestCase):
         self.assertIn(mark.status_code, (status.HTTP_200_OK, status.HTTP_204_NO_CONTENT))
         membership = ThreadMember.objects.get(thread_id=int(thread_id), user_id=self.recipient["id"])
         self.assertEqual(membership.last_read_message_id, int(m2.data["id"]))
+
+    def test_mark_read_gracefully_handles_invalid_payload_and_forward_only(self) -> None:
+        thread_id = self._create_direct_thread()
+        m1 = self.sender_client.post(
+            "/api/v1/messaging/messages/",
+            {"thread": thread_id, "body": "First", "client_uuid": "invalid-1"},
+            format="json",
+        )
+        self.assertEqual(m1.status_code, status.HTTP_201_CREATED)
+        m2 = self.sender_client.post(
+            "/api/v1/messaging/messages/",
+            {"thread": thread_id, "body": "Second", "client_uuid": "invalid-2"},
+            format="json",
+        )
+        self.assertEqual(m2.status_code, status.HTTP_201_CREATED)
+
+        bad_mark = self.recipient_client.post(
+            f"/api/v1/messaging/threads/{thread_id}/read/",
+            {"last_read_message_id": "not-a-number"},
+            format="json",
+        )
+        self.assertIn(bad_mark.status_code, (status.HTTP_200_OK, status.HTTP_204_NO_CONTENT))
+        membership = ThreadMember.objects.get(thread_id=int(thread_id), user_id=self.recipient["id"])
+        self.assertEqual(membership.last_read_message_id, int(m2.data["id"]))
+
+        backward_mark = self.recipient_client.post(
+            f"/api/v1/messaging/threads/{thread_id}/read/",
+            {"last_read_message_id": m1.data["id"]},
+            format="json",
+        )
+        self.assertIn(backward_mark.status_code, (status.HTTP_200_OK, status.HTTP_204_NO_CONTENT))
+        membership.refresh_from_db()
+        self.assertEqual(membership.last_read_message_id, int(m2.data["id"]))

@@ -31,19 +31,42 @@ from apps.users.serializers import UserSerializer
 
 
 def _normalize_message_payload(request: Request, thread: Thread | None = None) -> dict:
+    """
+    Build a serializer-ready payload without copying file objects.
+    """
     raw_data = request.data
     if isinstance(raw_data, QueryDict):
+        # QueryDict.dict() copies only non-file values.
         data = raw_data.dict()
     else:
         data = dict(raw_data)
-    for file_key in getattr(request, "FILES", {}):
-        data.pop(file_key, None)
+
+    serializer_data: dict = {}
     if thread:
-        data["thread"] = str(thread.id)
-    text_value = data.pop("text", None)
-    if text_value and not data.get("body"):
-        data["body"] = text_value
-    return data
+        serializer_data["thread"] = str(thread.id)
+    elif data.get("thread") is not None:
+        serializer_data["thread"] = data.get("thread")
+
+    # Accept multiple text keys; prefer an explicit body if provided.
+    body_value = data.get("body") or data.get("text") or data.get("content") or ""
+    serializer_data["body"] = body_value.strip()
+
+    client_uuid = data.get("client_uuid")
+    if client_uuid is not None:
+        serializer_data["client_uuid"] = client_uuid
+
+    reply_to_id = data.get("reply_to_message_id") or data.get("reply_to")
+    if reply_to_id is not None:
+        serializer_data["reply_to_message_id"] = reply_to_id
+
+    files = getattr(request, "FILES", {})
+    attachment_files = list(files.getlist("attachments"))
+    image_files = list(files.getlist("images"))
+    video_files = list(files.getlist("video"))
+    if not attachment_files:
+        attachment_files = [*image_files, *video_files]
+
+    return {"data": serializer_data, "attachment_files": attachment_files}
 
 
 def _validate_attachment_files(files) -> list[dict]:
@@ -79,8 +102,8 @@ def _is_blocked_between(user_id: int, other_user_id: int) -> bool:
 
 
 def _create_message_with_attachments(request: Request, thread: Thread | None = None) -> tuple[Message, bool]:
-    data = _normalize_message_payload(request, thread=thread)
-    serializer = MessageSerializer(data=data, context={"request": request})
+    normalized = _normalize_message_payload(request, thread=thread)
+    serializer = MessageSerializer(data=normalized["data"], context={"request": request})
     serializer.is_valid(raise_exception=True)
     thread_obj = serializer.validated_data.get("thread")
     if thread_obj and not thread_obj.members.filter(user=request.user).exists():
@@ -92,8 +115,7 @@ def _create_message_with_attachments(request: Request, thread: Thread | None = N
         if any(_is_blocked_between(request.user.id, other_id) for other_id in other_ids):
             raise PermissionDenied("Cannot send messages to this user.")
 
-    attachment_files = request.FILES.getlist("attachments")
-    attachment_specs = _validate_attachment_files(attachment_files)
+    attachment_specs = _validate_attachment_files(normalized.get("attachment_files"))
 
     with transaction.atomic():
         message = serializer.save()
@@ -156,15 +178,18 @@ class ThreadViewSet(viewsets.ModelViewSet):
     def mark_read(self, request: Request, pk: str | None = None) -> Response:
         thread = self.get_object()
         payload = request.data or {}
-        last_read_message_id = payload.get("last_read_message_id") or payload.get("last_read_id")
-        if isinstance(last_read_message_id, str) and not last_read_message_id.strip():
+        raw_last_read = payload.get("last_read_message_id") or payload.get("last_read_id")
+        last_read_message_id: int | None
+        if isinstance(raw_last_read, str):
+            raw_last_read = raw_last_read.strip()
+        try:
+            last_read_message_id = int(raw_last_read) if raw_last_read not in (None, "") else None
+        except (TypeError, ValueError):
             last_read_message_id = None
+
         target_message = None
-        if last_read_message_id:
-            try:
-                target_message = thread.messages.get(pk=int(last_read_message_id))
-            except (ValueError, TypeError, Message.DoesNotExist):
-                return Response({"detail": "Invalid last_read_message_id"}, status=status.HTTP_400_BAD_REQUEST)
+        if last_read_message_id is not None:
+            target_message = thread.messages.filter(pk=last_read_message_id).first()
         if target_message is None:
             target_message = thread.messages.order_by("-id").first()
         if not target_message:

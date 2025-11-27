@@ -52,6 +52,7 @@ class MessageAttachmentTests(APITestCase):
         attachments = response.data.get("attachments", [])
         self.assertEqual(len(attachments), 1)
         self.assertEqual(attachments[0]["type"], MessageAttachment.AttachmentType.IMAGE)
+        self.assertTrue(attachments[0]["url"])
 
     def test_send_message_with_multiple_images_limits_to_four(self) -> None:
         thread_id = self._create_thread()
@@ -87,6 +88,7 @@ class MessageAttachmentTests(APITestCase):
         )
         self.assertEqual(video_resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(video_resp.data.get("attachments", [])[0]["type"], MessageAttachment.AttachmentType.VIDEO)
+        self.assertTrue(video_resp.data.get("attachments", [])[0]["url"])
 
         mixed_resp = self.sender_client.post(
             f"/api/v1/messaging/threads/{thread_id}/messages/",
