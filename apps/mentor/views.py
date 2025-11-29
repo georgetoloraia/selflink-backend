@@ -127,7 +127,12 @@ class SoulmatchMentorView(APIView):
         results = calculate_soulmatch(user, target)
         prompt = build_soulmatch_prompt(user, target, results)
         try:
-            mentor_text = generate_llama_response(SOULMATCH_MENTOR_SYSTEM_PROMPT, prompt)
+            mentor_text = generate_llama_response(
+                SOULMATCH_MENTOR_SYSTEM_PROMPT,
+                prompt,
+                max_tokens=256,
+                timeout=30,
+            )
         except AIMentorError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 

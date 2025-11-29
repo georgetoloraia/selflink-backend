@@ -15,7 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.7) -> str:
+    def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> str:
         raise NotImplementedError
 
 
@@ -26,17 +34,33 @@ class MentorLLMClient(LLMClient):
         self.model = model
         self.client = OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"), base_url=base_url)
 
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.7) -> str:
-        response = self.client.responses.create(  # type: ignore[attr-defined]
-            model=self.model,
-            input=[
+    def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,  # noqa: ARG002 - openai client handles its own timeouts
+    ) -> str:
+        kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "input": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=temperature,
-        )
+            "temperature": temperature,
+        }
+        if max_tokens:
+            # Newer OpenAI Responses API uses max_output_tokens; keep safe fallback truncation below.
+            kwargs["max_output_tokens"] = max_tokens
+
+        response = self.client.responses.create(**kwargs)  # type: ignore[attr-defined]
         content = response.output[0].content[0].text  # type: ignore[index]
-        return content.strip()
+        text = content.strip()
+        if max_tokens and len(text.split()) > max_tokens:
+            text = " ".join(text.split()[:max_tokens])
+        return text
 
 
 def get_llm_client(overrides: Optional[Dict[str, Any]] = None) -> LLMClient:
@@ -57,7 +81,15 @@ def get_llm_client(overrides: Optional[Dict[str, Any]] = None) -> LLMClient:
 
 
 class MockLLMClient(LLMClient):
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.7) -> str:  # pragma: no cover
+    def complete(  # pragma: no cover
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> str:
         logger.info("MockLLMClient returning canned response")
         return "I hear you. Let's take a mindful breath together and note one feeling right now."
 
@@ -68,7 +100,15 @@ class OllamaLLMClient(LLMClient):
         self.host = host.rstrip("/")
         self.timeout = timeout
 
-    def complete(self, *, system_prompt: str, user_prompt: str, temperature: float = 0.7) -> str:
+    def complete(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        timeout: Optional[float] = None,
+    ) -> str:
         payload = {
             "model": self.model,
             "system": system_prompt,
@@ -78,10 +118,13 @@ class OllamaLLMClient(LLMClient):
             },
             "stream": False,
         }
+        if max_tokens:
+            payload["options"]["num_predict"] = max_tokens
+
         response = requests.post(
             f"{self.host}/api/generate",
             json=payload,
-            timeout=self.timeout,
+            timeout=timeout or self.timeout,
         )
         response.raise_for_status()
         data = response.json()
