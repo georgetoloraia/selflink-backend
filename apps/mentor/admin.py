@@ -17,8 +17,3 @@ class MentorMessageAdmin(admin.ModelAdmin):
     list_filter = ("role", "created_at")
     search_fields = ("content", "session__id", "session__user__email")
     # autocomplete_fields = ("session",)
-
-    def short_content(self, obj):
-        return (obj.content[:80] + "…") if len(obj.content) > 80 else obj.content
-
-    short_content.short_description = "content"

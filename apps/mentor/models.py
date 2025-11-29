@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from django.db import models
-from django.utils import timezone
-
 from apps.core.models import BaseModel
 
 
@@ -17,22 +15,29 @@ class MentorSession(BaseModel):
     MODE_DEFAULT = "default"
     MODE_CHAT = "chat"
     MODE_DAILY = "daily"
+    MODE_DAILY_MENTOR = "daily_mentor"
+    MODE_NATAL_MENTOR = "natal_mentor"
+    MODE_SOULMATCH = "soulmatch"
+    DEFAULT_MODE = MODE_DAILY_MENTOR
 
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="mentor_sessions")
-    question = models.TextField()
-    answer = models.TextField()
-    sentiment = models.CharField(max_length=32, blank=True)
-    started_at = models.DateTimeField(default=timezone.now)
-    mode = models.CharField(max_length=32, default=MODE_DEFAULT)
-    language = models.CharField(max_length=8, blank=True, null=True)
+    mode = models.CharField(max_length=32, default=DEFAULT_MODE)
+    language = models.CharField(max_length=8, default="en", blank=True, null=True)
     active = models.BooleanField(default=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(blank=True, null=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    question = models.TextField(blank=True)
+    answer = models.TextField(blank=True)
+    sentiment = models.CharField(max_length=32, blank=True)
     date = models.DateField(blank=True, null=True)
 
 
 class MentorMessage(BaseModel):
     class Role(models.TextChoices):
         USER = "user", "User"
-        MENTOR = "mentor", "Mentor"
+        ASSISTANT = "assistant", "Assistant"
+        MENTOR = "mentor", "Mentor"  # legacy alias
 
     session = models.ForeignKey(
         MentorSession,
@@ -42,6 +47,10 @@ class MentorMessage(BaseModel):
     role = models.CharField(max_length=16, choices=Role.choices)
     content = models.TextField()
     meta = models.JSONField(blank=True, null=True)
+
+    def short_content(self) -> str:
+        preview = (self.content or "")[:80]
+        return f"{preview}..." if len(self.content or "") > 80 else preview
 
 
 class DailyTask(BaseModel):

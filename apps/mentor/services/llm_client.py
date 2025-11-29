@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, Generator, List, Optional
 
 import requests
+from requests import RequestException
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +19,101 @@ DEFAULT_TIMEOUT = int(os.getenv("MENTOR_LLM_TIMEOUT", "120"))  # წამებ
 MAX_TOKENS = int(os.getenv("MENTOR_LLM_MAX_TOKENS", "180"))   # პასუხის მაქს. სიგრძე (~საშუალო პასუხი)
 MAX_PROMPT_CHARS = int(os.getenv("MENTOR_LLM_MAX_PROMPT_CHARS", "4000"))  # prompt truncate
 MAX_MESSAGES = int(os.getenv("MENTOR_LLM_MAX_MESSAGES", "12"))  # history-ს მაქს. სიგრძე
+
+
+class LLMError(Exception):
+    """Raised when the LLM backend fails."""
+
+
+def _get_base_url() -> str:
+    return os.getenv("MENTOR_LLM_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+
+
+def _get_model() -> str:
+    return os.getenv("MENTOR_LLM_MODEL", "llama3.2:1b")
+
+
+def build_prompt(
+    system_prompt: str,
+    mode: str,
+    user_profile_summary: str,
+    astro_summary: Optional[str],
+    history: List[Dict[str, str]],
+    user_message: str,
+) -> str:
+    """
+    Compose a single text prompt for the LLM using persona, context, history, and the latest message.
+    """
+    parts: List[str] = [
+        system_prompt.strip(),
+        "",
+        f"Mode: {mode}",
+        f"User profile: {user_profile_summary}",
+    ]
+    if astro_summary:
+        parts.append(f"Astro summary: {astro_summary}")
+
+    if history:
+        parts.append("Conversation so far:")
+        for msg in history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            parts.append(f"{role.capitalize()}: {content}")
+
+    parts.append("")
+    parts.append(f"User: {user_message}")
+    parts.append("Mentor:")
+    return "\n".join(parts)
+
+
+def stream_completion(full_prompt: str) -> Generator[str, None, None]:
+    """
+    Stream tokens from the LLM using Ollama's /api/generate endpoint.
+    """
+    url = f"{_get_base_url()}/api/generate"
+    payload = {
+        "model": _get_model(),
+        "prompt": full_prompt,
+        "stream": True,
+    }
+
+    try:
+        response = requests.post(url, json=payload, stream=True, timeout=None)
+        response.raise_for_status()
+    except RequestException as exc:  # pragma: no cover - network errors are environment-specific
+        logger.exception("Mentor LLM streaming request failed")
+        raise LLMError("LLM streaming request failed") from exc
+
+    for line in response.iter_lines(decode_unicode=True):
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            logger.warning("LLM streaming returned non-JSON line: %s", line)
+            continue
+
+        chunk = data.get("response")
+        if chunk:
+            yield chunk
+
+        if data.get("done"):
+            break
+
+
+def full_completion(full_prompt: str, max_chars: int = 8000) -> str:
+    """
+    Convenience wrapper around stream_completion to return a full string.
+    """
+    parts: List[str] = []
+    total = 0
+    for chunk in stream_completion(full_prompt):
+        if chunk:
+            total += len(chunk)
+            if total > max_chars:
+                break
+            parts.append(chunk)
+    return "".join(parts)
 
 
 def _trim_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

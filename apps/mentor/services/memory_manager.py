@@ -42,7 +42,12 @@ def load_conversation_history(
 
     messages: List[Dict[str, str]] = []
     for msg in reversed(list(qs)):
-        role = "assistant" if msg["role"] == MentorMessage.Role.MENTOR else "user"
+        role_value = msg["role"]
+        role = (
+            "assistant"
+            if role_value in (MentorMessage.Role.MENTOR, MentorMessage.Role.ASSISTANT)
+            else "user"
+        )
         content = msg["content"] or ""
         if not content:
             continue
