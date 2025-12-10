@@ -38,7 +38,6 @@ celerybeat-schedule
 tasts.md
 MASTER-ROADMAP.txt
 continue-roadmap.txt
-docs
 selflink-feed-phase2-backend.txt
 selflink_llama_prompt.txt
 test_llama.py
