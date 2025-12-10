@@ -9,11 +9,13 @@ from rest_framework.views import APIView
 
 from apps.matching.serializers import SoulmatchResultSerializer, SoulmatchUserSerializer
 from apps.matching.services.soulmatch import calculate_soulmatch
+from apps.matching.tasks import calculate_soulmatch_task
 from apps.users.models import User
 
 
 class SoulmatchWithView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "matching"
 
     def get(self, request, user_id: int):
         current_user: User = request.user
@@ -25,13 +27,17 @@ class SoulmatchWithView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        result = calculate_soulmatch(current_user, target)
+        try:
+            result = calculate_soulmatch_task.apply_async(args=[current_user.id, target.id]).get(timeout=30)
+        except Exception:
+            result = calculate_soulmatch(current_user, target)
         payload = {"user": SoulmatchUserSerializer(target).data, **result}
         return Response(payload, status=status.HTTP_200_OK)
 
 
 class SoulmatchRecommendationsView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "matching"
 
     def get(self, request):
         current_user: User = request.user
@@ -40,6 +46,7 @@ class SoulmatchRecommendationsView(APIView):
 
         recommendations = []
         for candidate in candidates:
+            # TODO: batch this via Celery if we keep computing many matches per request.
             result = calculate_soulmatch(current_user, candidate)
             recommendations.append({"user": SoulmatchUserSerializer(candidate).data, **result})
 

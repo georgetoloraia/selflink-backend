@@ -14,6 +14,7 @@ selflink-backend/
 │   ├── matrix/             # astrology + numerology data sources
 │   ├── media/              # uploads, presigned URLs, media policies
 │   ├── mentor/             # AI mentor sessions, prompts, memory store
+│   ├── contrib_rewards/    # contributor reward ledger, snapshots, payouts
 │   ├── messaging/          # threads, direct messages, typing state
 │   ├── moderation/         # safety rules, reports, enforcement
 │   ├── notifications/      # in-app/push/email dispatch + preferences
@@ -62,6 +63,7 @@ selflink-backend/
 - Messaging & realtime: threads, DMs, typing indicators, WebSocket gateway.
 - Astro & matrix: natal charts, transits, matrix data, matching (SoulMatch).
 - AI Mentor: LLM-powered personal guide with chat/history endpoints.
+- Contributor rewards: append-only ledger with monthly snapshots and deterministic payouts.
 - Payments & monetization: Stripe checkout, plans, wallets.
 - Moderation & safety: reports, enforcement, rate limits, banned words.
 - Search & discovery: OpenSearch-backed indexing and queries.
@@ -76,6 +78,7 @@ selflink-backend/
 - OpenSearch (optional, feature-flagged).
 - Docker + docker-compose (`infra/compose.yaml`) for reproducible dev stack.
 - Key apps: users, social, messaging, mentor, astro, matrix, media, payments, notifications, moderation, reco, search, profile, config, core.
+- Domain boundaries + decisions live in `docs/ARCHITECTURE.md`.
 
 ## Requirements & Prerequisites
 
@@ -113,6 +116,8 @@ selflink-backend/
    celery -A core beat -l info
    ```
 
+Shortcuts: `make install`, `make migrate`, and `make runserver` are available from the repo root.
+
 ## Docker Compose (Dev Stack)
 
 The infra bundle under `infra/` provisions Postgres, Redis, OpenSearch, MinIO, Django API, Celery workers, and the realtime gateway.
@@ -142,10 +147,13 @@ Common variables (set in `.env` or host env):
 - `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`
 - `DATABASE_URL` (e.g., `postgres://user:pass@localhost:5432/selflink`)
 - `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` (usually Redis)
+- `REDIS_URL` for cache/rate limits (falls back to locmem if not set)
 - `OPENSEARCH_ENABLED`, `OPENSEARCH_HOST`, `OPENSEARCH_USER`, `OPENSEARCH_PASSWORD`
 - `FEATURE_FLAGS` (e.g., `mentor_llm`, `soulmatch`, `payments`)
 - `SWISSEPH_DATA_PATH` for astro data
 - Mentor LLM: `MENTOR_LLM_BASE_URL`, `MENTOR_LLM_MODEL`
+- Astro cache/rules: `ASTRO_RULES_VERSION`, `ASTRO_CACHE_TTL_SECONDS`
+- Throttles: `THROTTLE_IP_RATE`, `THROTTLE_USER_RATE`, `THROTTLE_ANON_RATE`, `THROTTLE_MENTOR_RATE`, `THROTTLE_ASTRO_RATE`, `THROTTLE_MATCHING_RATE`
 
 Example snippet:
 
@@ -154,6 +162,7 @@ DJANGO_DEBUG=true
 DJANGO_SECRET_KEY=changeme
 DATABASE_URL=postgres://selflink:selflink@localhost:5432/selflink
 CELERY_BROKER_URL=redis://localhost:6379/0
+REDIS_URL=redis://localhost:6379/0
 OPENSEARCH_ENABLED=false
 MENTOR_LLM_BASE_URL=http://localhost:11434
 MENTOR_LLM_MODEL=llama3
@@ -171,7 +180,7 @@ MENTOR_LLM_MODEL=llama3
 - Base path: `/api/v1/`
 - OpenAPI schema: `/api/schema/`
 - Docs: `/api/docs/`
-- Routers (via `apps/core/api_router.py`): auth/users, social, messaging, mentor, astro, matrix, media, payments, notifications, moderation, feed, reco, profile, search.
+- Routers (via `apps/core/api_router.py`): auth/users, social, messaging, mentor, astro, matrix, media, contrib_rewards, payments, notifications, moderation, feed, reco, profile, search.
 - Auth: JWT via dj-rest-auth/SimpleJWT; typical login/register flows under `/api/v1/auth/` (see users app).
 
 ## AI Mentor Feature
@@ -181,6 +190,7 @@ MENTOR_LLM_MODEL=llama3
 - LLM configuration:
   - `MENTOR_LLM_BASE_URL` (OpenAI-compatible `/v1/chat/completions`)
   - `MENTOR_LLM_MODEL` (e.g., `llama3`, `Qwen/Qwen2.5-14B-Instruct`)
+  - BYO keys: send `X-LLM-Key` header to mentor endpoints to use a per-request API key (not stored server-side).
 - Persona prompts are loaded from text files in `apps/mentor/persona/` (e.g., `base_en.txt`, `base_ka.txt`, `base_ru.txt`) so you can tweak prompts without code changes.
 - Admin visibility: `apps/mentor/admin.py` registers MentorSession/MentorMessage for inspection.
 
@@ -198,6 +208,12 @@ MENTOR_LLM_MODEL=llama3
 ### Recommendation Worker
 
 - Lightweight scoring logic lives in `services/reco/engine.py`. Celery task `rebuild_user_timeline_task` rebuilds materialized feeds.
+
+## Contributor Rewards Ledger
+
+- Domain: `apps/contrib_rewards` (append-only `RewardEvent`, `MonthlyRewardSnapshot`, `Payout`).
+- Monthly calculation: `python manage.py calc_monthly_rewards 2025-01 --revenue-cents=100000 --costs-cents=20000 --dry-run` or `make rewards-dry-run PERIOD=2025-01 REVENUE=100000 COSTS=20000`.
+- Audit docs: see `docs/ARCHITECTURE.md` and retention expectations in `docs/DATA_RETENTION.md`.
 - Follow/unfollow actions enqueue rebuilds; schedule periodic refreshes via Celery beat if needed.
 
 ### Tests

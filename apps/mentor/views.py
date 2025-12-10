@@ -21,16 +21,19 @@ from apps.ai.services.mentor import (
     build_soulmatch_prompt,
 )
 from apps.matching.services.soulmatch import calculate_soulmatch
+from apps.matching.tasks import calculate_soulmatch_task
 from apps.users.models import User
 from .models import DailyTask, MentorProfile, MentorSession
 from .serializers import DailyTaskSerializer, MentorAskSerializer, MentorProfileSerializer, MentorSessionSerializer
 from .services import generate_mentor_reply
+from .tasks import generate_mentor_reply_task, llama_generate_task
 
 
 @method_decorator(ratelimit(key="user", rate="30/min", method="POST", block=True), name="ask")
 class MentorSessionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MentorSessionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "mentor"
 
     def get_queryset(self):  # type: ignore[override]
         return MentorSession.objects.filter(user=self.request.user).order_by("-created_at")
@@ -39,10 +42,20 @@ class MentorSessionViewSet(viewsets.ReadOnlyModelViewSet):
     def ask(self, request: Request) -> Response:
         serializer = MentorAskSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        answer, sentiment = generate_mentor_reply(request.user, serializer.validated_data["text"])
+        text = serializer.validated_data["text"]
+        api_key = request.headers.get("X-LLM-Key")
+        try:
+            task_result = generate_mentor_reply_task.apply_async(args=[request.user.id, text], kwargs={"api_key": api_key})
+            payload = task_result.get(timeout=45)
+            answer = payload.get("answer", "")
+            sentiment = payload.get("sentiment", "neutral")
+            if not answer:
+                answer, sentiment = generate_mentor_reply(request.user, text, api_key=api_key)
+        except Exception:
+            answer, sentiment = generate_mentor_reply(request.user, text, api_key=api_key)
         session = MentorSession.objects.create(
             user=request.user,
-            question=serializer.validated_data["text"],
+            question=text,
             answer=answer,
             sentiment=sentiment,
         )
@@ -79,6 +92,7 @@ class DailyTaskViewSet(viewsets.ModelViewSet):
 class MentorProfileViewSet(viewsets.ModelViewSet):
     serializer_class = MentorProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "mentor"
 
     def get_queryset(self):  # type: ignore[override]
         return MentorProfile.objects.filter(user=self.request.user)
@@ -92,6 +106,7 @@ class MentorProfileViewSet(viewsets.ModelViewSet):
 
 class NatalMentorView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "mentor"
 
     def post(self, request: Request) -> Response:
         user = request.user
@@ -103,16 +118,22 @@ class NatalMentorView(APIView):
             )
 
         prompt = build_natal_prompt(user, chart)
+        api_key = request.headers.get("X-LLM-Key")
         try:
-            mentor_text = generate_llama_response(NATAL_MENTOR_SYSTEM_PROMPT, prompt)
-        except AIMentorError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            task_result = llama_generate_task.apply_async(args=[NATAL_MENTOR_SYSTEM_PROMPT, prompt], kwargs={"api_key": api_key})
+            mentor_text = task_result.get(timeout=60)
+        except Exception:
+            try:
+                mentor_text = generate_llama_response(NATAL_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
+            except AIMentorError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
         return Response({"mentor_text": mentor_text, "generated_at": timezone.now()}, status=status.HTTP_200_OK)
 
 
 class SoulmatchMentorView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "mentor"
 
     def get(self, request: Request, user_id: int) -> Response:
         user: User = request.user
@@ -124,17 +145,30 @@ class SoulmatchMentorView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        results = calculate_soulmatch(user, target)
-        prompt = build_soulmatch_prompt(user, target, results)
         try:
-            mentor_text = generate_llama_response(
-                SOULMATCH_MENTOR_SYSTEM_PROMPT,
-                prompt,
-                max_tokens=256,
-                timeout=30,
+            results = calculate_soulmatch_task.apply_async(args=[user.id, target.id]).get(timeout=30)
+        except Exception:
+            results = calculate_soulmatch(user, target)
+
+        prompt = build_soulmatch_prompt(user, target, results)
+        api_key = request.headers.get("X-LLM-Key")
+        try:
+            task_result = llama_generate_task.apply_async(
+                args=[SOULMATCH_MENTOR_SYSTEM_PROMPT, prompt],
+                kwargs={"max_tokens": 256, "timeout": 30, "api_key": api_key},
             )
-        except AIMentorError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            mentor_text = task_result.get(timeout=90)
+        except Exception:
+            try:
+                mentor_text = generate_llama_response(
+                    SOULMATCH_MENTOR_SYSTEM_PROMPT,
+                    prompt,
+                    max_tokens=256,
+                    timeout=30,
+                    api_key=api_key,
+                )
+            except AIMentorError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
         payload = {**results, "mentor_text": mentor_text, "user": {"id": target.id, "handle": target.handle, "name": target.name}}
         return Response(payload, status=status.HTTP_200_OK)
@@ -142,6 +176,7 @@ class SoulmatchMentorView(APIView):
 
 class DailyMentorView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "mentor"
 
     def get(self, request: Request) -> Response:
         user: User = request.user
@@ -161,9 +196,14 @@ class DailyMentorView(APIView):
             except Exception:
                 transits = None
         prompt = build_daily_prompt(user, chart, transits)
+        api_key = request.headers.get("X-LLM-Key")
         try:
-            mentor_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt)
-        except AIMentorError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            task_result = llama_generate_task.apply_async(args=[DAILY_MENTOR_SYSTEM_PROMPT, prompt], kwargs={"api_key": api_key})
+            mentor_text = task_result.get(timeout=60)
+        except Exception:
+            try:
+                mentor_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
+            except AIMentorError as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
         return Response({"date": timezone.localdate(), "messages": mentor_text.split("\n")})

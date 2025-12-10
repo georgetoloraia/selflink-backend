@@ -130,3 +130,28 @@ class PersonalMapProfile(BaseModel):
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"PersonalMapProfile<{self.user_id}>"
+
+
+class UserPII(BaseModel):
+    """
+    Isolated PII container for sensitive attributes.
+
+    This allows future row-level security policies and avoids scattering PII across core tables.
+    """
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="pii")
+    full_name = models.CharField(max_length=255, blank=True)
+    email = models.EmailField(blank=True)
+    phone_number = models.CharField(max_length=32, blank=True)
+    birth_date = models.DateField(null=True, blank=True)
+    birth_time = models.TimeField(null=True, blank=True)
+    birth_place = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["email"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - debug helper
+        return f"UserPII<{self.user_id}>"

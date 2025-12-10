@@ -12,12 +12,14 @@ from rest_framework.views import APIView
 from apps.mentor.models import MentorMessage, MentorSession
 from apps.mentor.services.llm_client import LLMError, build_prompt, full_completion
 from apps.mentor.services.personality import get_persona_prompt
+from apps.mentor.tasks import mentor_full_completion_task
 
 logger = logging.getLogger(__name__)
 
 
 class MentorChatView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "mentor"
 
     def post(self, request, *args, **kwargs) -> Response:  # type: ignore[override]
         payload: Dict[str, Any] = request.data or {}
@@ -78,10 +80,14 @@ class MentorChatView(APIView):
         )
 
         try:
-            reply_text = full_completion(full_prompt)
-        except LLMError as exc:  # pragma: no cover - depends on runtime LLM availability
-            logger.exception("Mentor LLM full completion failed")
-            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            task_result = mentor_full_completion_task.apply_async(args=[full_prompt])
+            reply_text = task_result.get(timeout=120)
+        except Exception:
+            try:
+                reply_text = full_completion(full_prompt)
+            except LLMError as exc:  # pragma: no cover - depends on runtime LLM availability
+                logger.exception("Mentor LLM full completion failed")
+                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
         MentorMessage.objects.create(
             session=session,

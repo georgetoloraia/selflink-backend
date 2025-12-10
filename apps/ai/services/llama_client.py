@@ -26,9 +26,10 @@ def generate_llama_response(
     temperature: float = 0.7,
     max_tokens: Optional[int] = None,
     timeout: Optional[float] = None,
+    api_key: Optional[str] = None,
 ) -> str:
     try:
-        client = get_llm_client()
+        client = get_llm_client(overrides={"api_key": api_key} if api_key else None)
         text = client.complete(
             system_prompt=system_prompt,
             user_prompt=user_prompt,

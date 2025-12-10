@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Tuple
+from typing import Tuple, Optional
 
 from django.utils import timezone
 
@@ -22,12 +22,12 @@ def analyze_sentiment(text: str) -> str:
     return "neutral"
 
 
-def generate_mentor_reply(user: User, question: str) -> Tuple[str, str]:
+def generate_mentor_reply(user: User, question: str, api_key: Optional[str] = None) -> Tuple[str, str]:
     sentiment = analyze_sentiment(question)
     memory = _get_memory(user)
     if _llm_enabled():
         try:
-            llm = get_llm_client()
+            llm = get_llm_client(overrides={"api_key": api_key} if api_key else None)
             system_prompt = _system_prompt(user, memory)
             user_prompt = _user_prompt(question, sentiment, memory)
             answer = llm.complete(system_prompt=system_prompt, user_prompt=user_prompt)

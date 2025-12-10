@@ -65,6 +65,7 @@ LOCAL_APPS = [
     "apps.config",
     "apps.reco",
     "apps.search",
+    "apps.contrib_rewards",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -111,6 +112,24 @@ DATABASES: Dict[str, Dict[str, Any]] = {
         ssl_require=os.getenv("DATABASE_SSL", "false").lower() == "true",
     )
 }
+
+REDIS_CACHE_URL = os.getenv("REDIS_URL", os.getenv("CACHE_URL", ""))
+if REDIS_CACHE_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_CACHE_URL,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "selflink-default",
+        }
+    }
+
+RATELIMIT_USE_CACHE = "default"
 
 AUTH_USER_MODEL = "users.User"
 AUTHENTICATION_BACKENDS = (
@@ -193,12 +212,18 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "apps.core.pagination.CursorPagination",
     "PAGE_SIZE": 20,
     "DEFAULT_THROTTLE_CLASSES": (
+        "apps.core.throttling.IPRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
+        "ip": os.getenv("THROTTLE_IP_RATE", "240/min"),
         "user": os.getenv("THROTTLE_USER_RATE", "120/min"),
         "anon": os.getenv("THROTTLE_ANON_RATE", "60/min"),
+        "mentor": os.getenv("THROTTLE_MENTOR_RATE", "20/min"),
+        "astro": os.getenv("THROTTLE_ASTRO_RATE", "6/min"),
+        "matching": os.getenv("THROTTLE_MATCHING_RATE", "30/min"),
     },
 }
 
@@ -258,6 +283,8 @@ OPENSEARCH_PASSWORD = os.getenv("OPENSEARCH_PASSWORD", "admin")
 OPENSEARCH_SCHEME = os.getenv("OPENSEARCH_SCHEME", "http")
 
 SWISSEPH_DATA_PATH = os.getenv("SWISSEPH_DATA_PATH", str(BASE_DIR / "astro_data"))
+ASTRO_RULES_VERSION = os.getenv("ASTRO_RULES_VERSION", "v1")
+ASTRO_CACHE_TTL_SECONDS = int(os.getenv("ASTRO_CACHE_TTL_SECONDS", str(60 * 60 * 24 * 7)))
 
 
 FEATURE_FLAGS = {
@@ -277,6 +304,11 @@ MODERATION_BANNED_WORDS = [
 LOGGING: Dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "strip_request_body": {
+            "()": "apps.core.logging_filters.StripRequestBodyFilter",
+        }
+    },
     "formatters": {
         "console": {
             "format": "%(levelname)s %(name)s %(message)s",
@@ -290,10 +322,12 @@ LOGGING: Dict[str, Any] = {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "console",
+            "filters": ["strip_request_body"],
         },
         "json": {
             "class": "logging.StreamHandler",
             "formatter": "json",
+            "filters": ["strip_request_body"],
         },
     },
     "root": {
@@ -305,7 +339,12 @@ LOGGING: Dict[str, Any] = {
             "handlers": ["json"],
             "level": os.getenv("APP_LOG_LEVEL", "INFO"),
             "propagate": False,
-        }
+        },
+        "django.request": {
+            "handlers": ["json"],
+            "level": os.getenv("DJANGO_REQUEST_LOG_LEVEL", "WARNING"),
+            "propagate": False,
+        },
     },
 }
 

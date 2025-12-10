@@ -4,6 +4,8 @@ import logging
 from typing import Dict, List
 
 from django.db import transaction
+from django.conf import settings
+from django.core.cache import cache
 
 from apps.astro.models import BirthData, NatalChart
 from apps.astro.services import ephemeris
@@ -31,6 +33,9 @@ ASPECT_ANGLES = {
     "trine": 120,
     "opposition": 180,
 }
+
+_CACHE_TTL = getattr(settings, "ASTRO_CACHE_TTL_SECONDS", 60 * 60 * 24 * 7)
+_RULES_VERSION = getattr(settings, "ASTRO_RULES_VERSION", "v1")
 
 
 def degree_to_sign(degree: float) -> str:
@@ -72,11 +77,28 @@ def _enrich_planets(positions: Dict[str, Dict[str, float]]) -> Dict[str, Dict[st
     return enriched
 
 
+def _cache_key(birth_data: BirthData) -> str:
+    return (
+        f"astro:natal:{birth_data.user_id}:"
+        f"{birth_data.date_of_birth}:{birth_data.time_of_birth}:"
+        f"{birth_data.latitude}:{birth_data.longitude}:{birth_data.timezone}:"
+        f"{_RULES_VERSION}"
+    )
+
+
 @transaction.atomic
 def calculate_natal_chart(birth_data: BirthData) -> NatalChart:
     logger.info("Calculating natal chart", extra={"user_id": birth_data.user_id})
 
     birth_data.full_clean()
+
+    cache_key = _cache_key(birth_data)
+    cached_chart_id = cache.get(cache_key)
+    if cached_chart_id:
+        try:
+            return NatalChart.objects.get(id=cached_chart_id)
+        except NatalChart.DoesNotExist:
+            cache.delete(cache_key)
 
     julian_day = ephemeris.to_julian_day(
         birth_data.date_of_birth,
@@ -107,4 +129,5 @@ def calculate_natal_chart(birth_data: BirthData) -> NatalChart:
             "aspects": chart_data["aspects"],
         },
     )
+    cache.set(cache_key, chart.id, timeout=_CACHE_TTL)
     return chart

@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from apps.astro.models import NatalChart
 from apps.astro.serializers import BirthDataSerializer, NatalChartSerializer
 from apps.astro.services import birthdata_service, chart_calculator, ephemeris
+from apps.astro.tasks import compute_natal_chart_task
 from apps.astro.services.location_resolver import LocationResolutionError
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class NatalChartView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "astro"
 
     def post(self, request) -> Response:
         user = request.user
@@ -45,10 +47,15 @@ class NatalChartView(APIView):
             birth_data = serializer.save()
 
         try:
-            chart = chart_calculator.calculate_natal_chart(birth_data)
-        except ephemeris.AstroCalculationError as exc:
-            logger.exception("Natal chart calculation failed", extra={"user_id": user.id})
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            task_result = compute_natal_chart_task.apply_async(args=[birth_data.id])
+            chart_id = task_result.get(timeout=90)
+            chart = NatalChart.objects.get(id=chart_id)
+        except Exception:
+            try:
+                chart = chart_calculator.calculate_natal_chart(birth_data)
+            except ephemeris.AstroCalculationError as exc:
+                logger.exception("Natal chart calculation failed", extra={"user_id": user.id})
+                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         chart_serializer = NatalChartSerializer(chart)
         return Response(chart_serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
@@ -56,6 +63,7 @@ class NatalChartView(APIView):
 
 class MyNatalChartView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "astro"
 
     def get(self, request) -> Response:
         user = request.user

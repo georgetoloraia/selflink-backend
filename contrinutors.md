@@ -34,6 +34,13 @@ Thanks for your interest in strengthening **selflink-backend**. This document co
    - Use `make -C infra up` to run the full Docker Compose dev stack (Postgres, Redis, OpenSearch, MinIO, realtime gateway).
 5. Verify the API at `http://localhost:8000` and websocket gateway at `ws://localhost:8001/ws`.
 
+### 15-Minute Quickstart
+
+- `make install` (or `pip install -r requirements.txt`)
+- Copy `.env.example` to `.env` and set `DATABASE_URL`, `CELERY_BROKER_URL`, and `REDIS_URL`.
+- `make migrate && make runserver` for a local-only stack, or `make compose-up` for the full Docker Compose stack.
+- Run a dry-run reward payout to see the ledger flow: `make rewards-dry-run PERIOD=$(date +%Y-%m) REVENUE=100000 COSTS=20000`.
+
 ## Upgrade Guide
 
 Follow this checklist whenever you pull a new release, upgrade dependencies, or prepare a production rollout.
@@ -173,6 +180,13 @@ Follow this checklist whenever you pull a new release, upgrade dependencies, or 
 - Rotate secrets that may have leaked; add mitigation steps to the PR description.
 - Harden endpoints with permissions, throttles, and validation. Double-check new APIs for rate limiting and authorization.
 - Run security checks on dependencies (e.g., `pip install pip-audit && pip-audit`) and document remediation plans.
+
+## Contributor Rewards Model
+
+- 50% of monthly net revenue is allocated to contributors; rewards are event-sourced (`RewardEvent`) and snapshotted monthly (`MonthlyRewardSnapshot` + `Payout`).
+- Ledger is append-only; use compensating events for corrections.
+- Recalculate payouts deterministically with `python manage.py calc_monthly_rewards <YYYY-MM> --revenue-cents=... --costs-cents=... --dry-run` (or `make rewards-dry-run`).
+- Publish the CSV + hash produced by the management command for transparent audits.
 
 ## Helpful Commands
 

@@ -16,6 +16,7 @@ urlpatterns = [
     path("", include("apps.media.urls")),
     path("", include("apps.search.urls")),
     path("", include("apps.payments.urls")),
+    path("", include("apps.contrib_rewards.urls")),
     path("", include("apps.notifications.urls")),
     path("", include("apps.moderation.urls")),
     path("", include("apps.feed.urls")),
