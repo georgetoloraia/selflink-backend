@@ -138,6 +138,14 @@ Each contributor receives a Payout record per month when eligible.
 
 - Payout status is tracked (`pending`, `processing`, `paid`).
 
+
+Example:
+> - Revenue: $1,000
+> - Contributor pool (50%): $500
+> - Alice: 13 points → $260
+> - Bob: 8 points → $160
+> - Carol: 4 points → $80
+
 # 7. Dispute window & corrections
 
 After a monthly snapshot is generated:
