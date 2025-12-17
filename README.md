@@ -4,6 +4,7 @@ SelfLink is an open-source backend + mobile app experimenting with a simple idea
 Can we build software where contributors are rewarded transparently, enforced by code instead of promises?
 
 This repository contains the backend.  
+Start here: `START_HERE.md`  
 The mobile app lives here: https://github.com/georgetoloraia/selflink-mobile
 
 ## What exists today
