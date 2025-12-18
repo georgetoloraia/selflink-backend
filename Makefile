@@ -3,6 +3,7 @@ MANAGE := $(PYTHON) manage.py
 PERIOD ?= $(shell date +%Y-%m)
 REVENUE ?= 0
 COSTS ?= 0
+OUT ?= ./tmp/payout.csv
 
 .PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down test lint rewards-dry-run
 

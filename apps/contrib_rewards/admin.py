@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.contrib import admin
 
-from apps.contrib_rewards.models import ContributorProfile, MonthlyRewardSnapshot, Payout, RewardEvent
+from apps.contrib_rewards.models import ContributorProfile, LedgerEntry, MonthlyRewardSnapshot, Payout, RewardEvent
 
 
 @admin.register(ContributorProfile)
@@ -50,6 +50,23 @@ class PayoutAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):  # type: ignore[override]
         # Status transitions should be handled through dedicated flows.
+        return False
+
+    def has_delete_permission(self, request, obj=None):  # type: ignore[override]
+        return False
+
+
+@admin.register(LedgerEntry)
+class LedgerEntryAdmin(admin.ModelAdmin):
+    list_display = ("id", "tx_id", "event", "account", "direction", "amount", "currency", "created_at")
+    list_filter = ("direction", "currency")
+    search_fields = ("account", "event__reference", "tx_id")
+    readonly_fields = ("tx_id", "event", "account", "direction", "amount", "currency", "created_at", "updated_at")
+
+    def has_add_permission(self, request):  # type: ignore[override]
+        return False
+
+    def has_change_permission(self, request, obj=None):  # type: ignore[override]
         return False
 
     def has_delete_permission(self, request, obj=None):  # type: ignore[override]

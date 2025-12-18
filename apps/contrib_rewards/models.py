@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -75,6 +77,44 @@ class RewardEvent(BaseModel):
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"RewardEvent<{self.event_type} {self.points}>"
+
+
+class LedgerEntry(BaseModel):
+    class Direction(models.TextChoices):
+        DEBIT = "DEBIT", "Debit"
+        CREDIT = "CREDIT", "Credit"
+
+    tx_id = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
+    event = models.ForeignKey(
+        RewardEvent,
+        on_delete=models.PROTECT,
+        related_name="ledger_entries",
+    )
+    account = models.CharField(max_length=255, db_index=True)
+    amount = models.BigIntegerField(help_text="Smallest unit, e.g. integer points.")
+    currency = models.CharField(max_length=16, default="POINTS")
+    direction = models.CharField(max_length=6, choices=Direction.choices)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["account", "created_at"]),
+            models.Index(fields=["tx_id"]),
+        ]
+        ordering = ["created_at", "id"]
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        if not self._state.adding:
+            raise ValidationError("LedgerEntry rows are immutable; create a new entry instead.")
+        super().save(*args, **kwargs)
+
+    def delete(self, using=None, keep_parents=False):  # type: ignore[override]
+        raise ValidationError("LedgerEntry rows are immutable; deletion is not allowed.")
+
+    def signed_amount(self) -> int:
+        return self.amount if self.direction == self.Direction.CREDIT else -self.amount
+
+    def __str__(self) -> str:  # pragma: no cover - debug helper
+        return f"LedgerEntry<{self.tx_id}:{self.account}:{self.amount}{self.currency}:{self.direction}>"
 
 
 class MonthlyRewardSnapshot(BaseModel):

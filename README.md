@@ -56,6 +56,7 @@ If you’re new, start with a good first issue.
 - Corrections happen via new events, never by rewriting history  
 Full details: CONTRIBUTOR_REWARDS.md
 
+
 ## What this project is NOT
 - a DAO
 - a token or crypto project

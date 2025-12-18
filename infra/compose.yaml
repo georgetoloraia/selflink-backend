@@ -12,6 +12,7 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api"
       DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -43,6 +44,7 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api"
       DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -71,6 +73,7 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api"
       DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
       CELERY_BROKER_URL: redis://redis:6379/0
