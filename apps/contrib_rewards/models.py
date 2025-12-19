@@ -26,8 +26,16 @@ class ContributorProfile(BaseModel):
             models.Index(fields=["github_username"]),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - debug helper
-        return f"Contributor<{self.user_id}>"
+    # def __str__(self) -> str:  # pragma: no cover - debug helper
+    #     return f"Contributor<{self.user_id}>"
+
+    def __str__(self) -> str:  # pragma: no cover
+        gh = self.github_username or "no-github"
+        email = getattr(self.user, "email", "") or ""
+        handle = getattr(self.user, "handle", "") or ""
+        ident = email or handle or str(self.user_id)
+        return f"{gh} ({ident})"
+
 
 
 class RewardEvent(BaseModel):
