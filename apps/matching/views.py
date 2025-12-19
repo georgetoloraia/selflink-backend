@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 
+from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,7 +10,8 @@ from rest_framework.views import APIView
 
 from apps.matching.serializers import SoulmatchResultSerializer, SoulmatchUserSerializer
 from apps.matching.services.soulmatch import calculate_soulmatch
-from apps.matching.tasks import calculate_soulmatch_task
+from apps.matching.tasks import soulmatch_compute_score_task
+from apps.core_platform.async_mode import should_run_async
 from apps.users.models import User
 
 
@@ -27,10 +29,24 @@ class SoulmatchWithView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            result = calculate_soulmatch_task.apply_async(args=[current_user.id, target.id]).get(timeout=30)
-        except Exception:
-            result = calculate_soulmatch(current_user, target)
+        if should_run_async(request):
+            pair_key = f"{min(current_user.id, target.id)}:{max(current_user.id, target.id)}"
+            rules_version = getattr(settings, "MATCH_RULES_VERSION", "v1")
+            task_result = soulmatch_compute_score_task.apply_async(
+                args=[current_user.id, target.id],
+                kwargs={"rules_version": rules_version},
+            )
+            return Response(
+                {
+                    "task_id": task_result.id,
+                    "pair_key": pair_key,
+                    "rules_version": rules_version,
+                    "user": SoulmatchUserSerializer(target).data,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        result = calculate_soulmatch(current_user, target)
         payload = {"user": SoulmatchUserSerializer(target).data, **result}
         return Response(payload, status=status.HTTP_200_OK)
 

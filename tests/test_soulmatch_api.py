@@ -28,6 +28,15 @@ class SoulmatchAPITests(BaseAPITestCase):
         self.assertEqual(resp.data["score"], 88)
         self.assertEqual(resp.data["user"]["id"], self.other.id)
 
+    @mock.patch("apps.matching.tasks.soulmatch_compute_score_task.apply_async")
+    def test_soulmatch_with_user_async_enqueues(self, mock_task) -> None:
+        mock_task.return_value.id = "task-match-1"
+
+        resp = self.client.get(f"/api/v1/soulmatch/with/{self.other.id}/?async=true")
+        self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(resp.data["task_id"], "task-match-1")
+        mock_task.assert_called_once()
+
     def test_soulmatch_with_self_returns_400(self) -> None:
         resp = self.client.get(f"/api/v1/soulmatch/with/{self.user['id']}/")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)

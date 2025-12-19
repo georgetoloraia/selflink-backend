@@ -18,7 +18,15 @@ make -C infra up
 COMPOSE=docker-compose make -C infra up
 ```
 
-This will build the API/Celery/Realtime images, start Postgres, Redis, OpenSearch, MinIO, and launch the Django API, Celery worker + beat, and the FastAPI realtime gateway.
+This will build the API/worker images, start Postgres, Redis, and Pgbouncer, and launch the Django API + Celery worker.
+
+Optional profiles:
+
+```bash
+docker compose -f infra/compose.yaml --profile realtime up -d
+docker compose -f infra/compose.yaml --profile search up -d
+docker compose -f infra/compose.yaml --profile storage up -d
+```
 
 ---
 
@@ -69,7 +77,7 @@ Rebuild every container:
 docker compose -f infra/compose.yaml build --no-cache
 ```
 
-Rebuild + restart one service (example: `realtime`):
+Rebuild + restart one service (example: `asgi`):
 
 ```bash
 docker compose -f infra/compose.yaml up -d --build realtime
@@ -168,8 +176,9 @@ docker compose -f infra/compose.yaml up -d --build
 ## 🧠 After `make -C infra up`
 
 - Django API → <http://localhost:8000>
-- Realtime Gateway → `ws://localhost:8001/ws`
-- MinIO Console → <http://localhost:9001>
-- OpenSearch → <http://localhost:9200>
+- ASGI (SSE) → <http://localhost:8001>
+- Realtime Gateway → `ws://localhost:8002/ws`
+- MinIO Console → <http://localhost:9001> (profile `storage`)
+- OpenSearch → <http://localhost:9200> (profile `search`)
 
 © 2025 SelfLink Project — Maintainer: @georgetoloraia

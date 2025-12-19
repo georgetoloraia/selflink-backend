@@ -18,6 +18,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.social.models import Follow
 from services.reco.jobs import rebuild_user_timeline
 
+from apps.core_platform.rate_limit import get_client_ip, is_rate_limited
+
 from .models import Device, PersonalMapProfile, User
 from .querysets import with_user_relationship_meta
 from .serializers import (
@@ -45,6 +47,9 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [permissions.AllowAny]
 
     def create(self, request: Request, *args, **kwargs) -> Response:
+        ip_addr = get_client_ip(request)
+        if is_rate_limited(f"auth:ip:{ip_addr}", settings.AUTH_RPS_IP, 1):
+            return Response({"detail": "Rate limit exceeded."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -58,6 +63,9 @@ class LoginView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request: Request, *args, **kwargs) -> Response:
+        ip_addr = get_client_ip(request)
+        if is_rate_limited(f"auth:ip:{ip_addr}", settings.AUTH_RPS_IP, 1):
+            return Response({"detail": "Rate limit exceeded."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         serializer = self.get_serializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
@@ -166,6 +174,9 @@ class SocialLoginBaseView(SocialLoginView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request: Request, *args, **kwargs) -> Response:
+        ip_addr = get_client_ip(request)
+        if is_rate_limited(f"auth:ip:{ip_addr}", settings.AUTH_RPS_IP, 1):
+            return Response({"detail": "Rate limit exceeded."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         response = super().post(request, *args, **kwargs)
         if response.status_code >= 400:
             return response

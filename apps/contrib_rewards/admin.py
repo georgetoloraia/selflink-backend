@@ -14,10 +14,21 @@ class ContributorProfileAdmin(admin.ModelAdmin):
 
 @admin.register(RewardEvent)
 class RewardEventAdmin(admin.ModelAdmin):
-    list_display = ("event_type", "contributor", "points", "occurred_at", "reference")
+    list_display = ("event_type", "contributor", "points", "occurred_at", "reference", "ruleset_version")
     list_filter = ("event_type",)
     search_fields = ("reference", "contributor__user__email", "contributor__github_username")
-    readonly_fields = ("contributor", "event_type", "points", "occurred_at", "reference", "metadata", "notes", "created_at", "updated_at")
+    readonly_fields = (
+        "contributor",
+        "event_type",
+        "points",
+        "occurred_at",
+        "reference",
+        "metadata",
+        "notes",
+        "ruleset_version",
+        "created_at",
+        "updated_at",
+    )
 
     def has_add_permission(self, request):  # type: ignore[override]
         return True

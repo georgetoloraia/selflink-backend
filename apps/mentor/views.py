@@ -21,12 +21,10 @@ from apps.ai.services.mentor import (
     build_soulmatch_prompt,
 )
 from apps.matching.services.soulmatch import calculate_soulmatch
-from apps.matching.tasks import calculate_soulmatch_task
 from apps.users.models import User
 from .models import DailyTask, MentorProfile, MentorSession
 from .serializers import DailyTaskSerializer, MentorAskSerializer, MentorProfileSerializer, MentorSessionSerializer
 from .services import generate_mentor_reply
-from .tasks import generate_mentor_reply_task, llama_generate_task
 
 
 @method_decorator(ratelimit(key="user", rate="30/min", method="POST", block=True), name="ask")
@@ -44,15 +42,7 @@ class MentorSessionViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
         text = serializer.validated_data["text"]
         api_key = request.headers.get("X-LLM-Key")
-        try:
-            task_result = generate_mentor_reply_task.apply_async(args=[request.user.id, text], kwargs={"api_key": api_key})
-            payload = task_result.get(timeout=45)
-            answer = payload.get("answer", "")
-            sentiment = payload.get("sentiment", "neutral")
-            if not answer:
-                answer, sentiment = generate_mentor_reply(request.user, text, api_key=api_key)
-        except Exception:
-            answer, sentiment = generate_mentor_reply(request.user, text, api_key=api_key)
+        answer, sentiment = generate_mentor_reply(request.user, text, api_key=api_key)
         session = MentorSession.objects.create(
             user=request.user,
             question=text,
@@ -120,13 +110,9 @@ class NatalMentorView(APIView):
         prompt = build_natal_prompt(user, chart)
         api_key = request.headers.get("X-LLM-Key")
         try:
-            task_result = llama_generate_task.apply_async(args=[NATAL_MENTOR_SYSTEM_PROMPT, prompt], kwargs={"api_key": api_key})
-            mentor_text = task_result.get(timeout=60)
-        except Exception:
-            try:
-                mentor_text = generate_llama_response(NATAL_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
-            except AIMentorError as exc:
-                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            mentor_text = generate_llama_response(NATAL_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
+        except AIMentorError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
         return Response({"mentor_text": mentor_text, "generated_at": timezone.now()}, status=status.HTTP_200_OK)
 
@@ -145,30 +131,20 @@ class SoulmatchMentorView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        try:
-            results = calculate_soulmatch_task.apply_async(args=[user.id, target.id]).get(timeout=30)
-        except Exception:
-            results = calculate_soulmatch(user, target)
+        results = calculate_soulmatch(user, target)
 
         prompt = build_soulmatch_prompt(user, target, results)
         api_key = request.headers.get("X-LLM-Key")
         try:
-            task_result = llama_generate_task.apply_async(
-                args=[SOULMATCH_MENTOR_SYSTEM_PROMPT, prompt],
-                kwargs={"max_tokens": 256, "timeout": 30, "api_key": api_key},
+            mentor_text = generate_llama_response(
+                SOULMATCH_MENTOR_SYSTEM_PROMPT,
+                prompt,
+                max_tokens=256,
+                timeout=30,
+                api_key=api_key,
             )
-            mentor_text = task_result.get(timeout=90)
-        except Exception:
-            try:
-                mentor_text = generate_llama_response(
-                    SOULMATCH_MENTOR_SYSTEM_PROMPT,
-                    prompt,
-                    max_tokens=256,
-                    timeout=30,
-                    api_key=api_key,
-                )
-            except AIMentorError as exc:
-                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        except AIMentorError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
         payload = {**results, "mentor_text": mentor_text, "user": {"id": target.id, "handle": target.handle, "name": target.name}}
         return Response(payload, status=status.HTTP_200_OK)
@@ -198,12 +174,8 @@ class DailyMentorView(APIView):
         prompt = build_daily_prompt(user, chart, transits)
         api_key = request.headers.get("X-LLM-Key")
         try:
-            task_result = llama_generate_task.apply_async(args=[DAILY_MENTOR_SYSTEM_PROMPT, prompt], kwargs={"api_key": api_key})
-            mentor_text = task_result.get(timeout=60)
-        except Exception:
-            try:
-                mentor_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
-            except AIMentorError as exc:
-                return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+            mentor_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
+        except AIMentorError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
         return Response({"date": timezone.localdate(), "messages": mentor_text.split("\n")})

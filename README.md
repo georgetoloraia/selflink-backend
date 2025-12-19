@@ -72,10 +72,19 @@ If something feels unclear or over-engineered, that’s a bug — please point i
 
 ## Quickstart (backend)
 - Clone the repo and copy `.env.example` to `.env`
-- `docker compose -f infra/compose.yaml up -d` to start Postgres/Redis/etc.
-- `docker compose -f infra/compose.yaml exec api python manage.py migrate`
+- `make up` (starts api + worker + postgres + redis + pgbouncer)
+- `make migrate`
 - `docker compose -f infra/compose.yaml exec api python manage.py createsuperuser`
+- Optional realtime/SSE stack: `make up-realtime` (adds ASGI + realtime service)
+- Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
 - For more, see `README_for_env.md` or `docker_guide.md`
+
+## Realtime / SSE
+- ASGI dev server: `uvicorn core.asgi:application --host 0.0.0.0 --port 8001`
+- Mentor SSE endpoint: `/api/v1/mentor/stream/` (served from ASGI)
+
+## BYO LLM Keys
+- `/api/v1/mentor/chat/` accepts `X-LLM-Key` for user-supplied provider keys.
 
 ## License
 Open source. See LICENSE.

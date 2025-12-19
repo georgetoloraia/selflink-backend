@@ -22,8 +22,11 @@ rad.json
 TestResults.xml
 #Database
 db.sqlite3
+# Python bytecode
+__pycache__/
 #venv
 venv
+.ruff_cache/
 
 # for my self
 tasks.txt
@@ -34,7 +37,7 @@ PROJECT_PLAN_v2.md
 rebuild.txt
 media
 celerybeat-schedule
-celerybeat-schedule
+staticfiles/
 tasts.md
 MASTER-ROADMAP.txt
 continue-roadmap.txt

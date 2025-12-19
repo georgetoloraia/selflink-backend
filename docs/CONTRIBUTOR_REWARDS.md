@@ -126,6 +126,12 @@ The result is stored in a MonthlyRewardSnapshot, which includes:
 
 - snapshot hash (for auditability)
 
+CLI helper:
+
+```
+python manage.py rewards_snapshot --month YYYY-MM --output /tmp/rewards_YYYY-MM.csv
+```
+
 # 6. Payouts
 
 Each contributor receives a Payout record per month when eligible.

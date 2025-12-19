@@ -2,6 +2,7 @@ import json
 from typing import Iterable
 
 import pytest
+from unittest import mock
 from rest_framework.test import APIClient
 
 from apps.mentor.models import MentorMessage, MentorSession
@@ -64,6 +65,28 @@ def test_chat_returns_reply_and_saves_messages(monkeypatch):
     assert messages.count() == 2
     assert messages.first().role == MentorMessage.Role.USER
     assert messages.last().role in (MentorMessage.Role.ASSISTANT, MentorMessage.Role.MENTOR)
+
+
+@pytest.mark.django_db
+def test_chat_async_enqueues_task():
+    user = User.objects.create_user(email="async@example.com", password="testpass123")
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    class _Result:
+        id = "task-123"
+
+    with mock.patch("apps.mentor.tasks.mentor_chat_generate_task.apply_async", return_value=_Result()) as mocked:
+        resp = client.post(
+            "/api/v1/mentor/chat/?async=true",
+            {"message": "I feel stuck", "mode": MentorSession.DEFAULT_MODE, "language": "en"},
+            format="json",
+        )
+
+    assert resp.status_code == 202, resp.content
+    data = resp.json()
+    assert data["task_id"] == "task-123"
+    mocked.assert_called_once()
 
 
 @pytest.mark.django_db

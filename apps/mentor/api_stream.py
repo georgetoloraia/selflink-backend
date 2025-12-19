@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Any, Dict, Generator, List
 
+from django.conf import settings
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -11,6 +12,7 @@ from rest_framework.views import APIView
 from apps.mentor.models import MentorMessage, MentorSession
 from apps.mentor.services.llm_client import LLMError, build_prompt, stream_completion
 from apps.mentor.services.personality import get_persona_prompt
+from apps.core_platform.rate_limit import is_rate_limited
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ def _sse_format(data: Dict[str, Any]) -> str:
 
 class MentorChatStreamView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "mentor"
 
     def get(self, request, *args, **kwargs) -> StreamingHttpResponse:  # type: ignore[override]
         mode = request.query_params.get("mode") or MentorSession.DEFAULT_MODE
@@ -31,6 +34,17 @@ class MentorChatStreamView(APIView):
             return StreamingHttpResponse(
                 _sse_format({"event": "error", "detail": "Message is required."}),
                 status=400,
+                content_type="text/event-stream",
+            )
+
+        if is_rate_limited(f"mentor:user:{request.user.id}", settings.MENTOR_RPS_USER, 1) or is_rate_limited(
+            "mentor:global",
+            settings.MENTOR_RPS_GLOBAL,
+            1,
+        ):
+            return StreamingHttpResponse(
+                _sse_format({"event": "error", "detail": "Rate limit exceeded."}),
+                status=429,
                 content_type="text/event-stream",
             )
 

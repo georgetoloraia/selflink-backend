@@ -95,6 +95,18 @@ class UserSerializer(serializers.ModelSerializer):
             return False
         return Follow.objects.filter(follower=request.user, followee=obj).exists()
 
+    def to_representation(self, instance: User) -> dict:
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        is_owner = bool(request and getattr(request, "user", None) == instance)
+        is_staff = bool(request and getattr(request, "user", None) and request.user.is_staff)
+        if not is_owner and not is_staff:
+            data["email"] = None
+            data["birth_date"] = None
+            data["birth_time"] = None
+            data["birth_place"] = None
+        return data
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)

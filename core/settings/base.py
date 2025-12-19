@@ -130,6 +130,10 @@ else:
     }
 
 RATELIMIT_USE_CACHE = "default"
+RATE_LIMITS_ENABLED = os.getenv("RATE_LIMITS_ENABLED", "false").lower() == "true"
+MENTOR_RPS_USER = int(os.getenv("MENTOR_RPS_USER", "2"))
+MENTOR_RPS_GLOBAL = int(os.getenv("MENTOR_RPS_GLOBAL", "20"))
+AUTH_RPS_IP = int(os.getenv("AUTH_RPS_IP", "5"))
 
 AUTH_USER_MODEL = "users.User"
 AUTHENTICATION_BACKENDS = (
@@ -215,15 +219,22 @@ REST_FRAMEWORK = {
         "apps.core.throttling.IPRateThrottle",
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.ScopedRateThrottle",
+        "apps.core.throttling.ScopedUserRateThrottle",
+        "apps.core.throttling.ScopedIPRateThrottle",
     ),
     "DEFAULT_THROTTLE_RATES": {
         "ip": os.getenv("THROTTLE_IP_RATE", "240/min"),
         "user": os.getenv("THROTTLE_USER_RATE", "120/min"),
         "anon": os.getenv("THROTTLE_ANON_RATE", "60/min"),
         "mentor": os.getenv("THROTTLE_MENTOR_RATE", "20/min"),
+        "user:mentor": os.getenv("THROTTLE_MENTOR_RATE", "20/min"),
+        "ip:mentor": os.getenv("THROTTLE_MENTOR_RATE", "20/min"),
         "astro": os.getenv("THROTTLE_ASTRO_RATE", "6/min"),
+        "user:astro": os.getenv("THROTTLE_ASTRO_RATE", "6/min"),
+        "ip:astro": os.getenv("THROTTLE_ASTRO_RATE", "6/min"),
         "matching": os.getenv("THROTTLE_MATCHING_RATE", "30/min"),
+        "user:matching": os.getenv("THROTTLE_MATCHING_RATE", "30/min"),
+        "ip:matching": os.getenv("THROTTLE_MATCHING_RATE", "30/min"),
     },
 }
 
@@ -285,6 +296,7 @@ OPENSEARCH_SCHEME = os.getenv("OPENSEARCH_SCHEME", "http")
 SWISSEPH_DATA_PATH = os.getenv("SWISSEPH_DATA_PATH", str(BASE_DIR / "astro_data"))
 ASTRO_RULES_VERSION = os.getenv("ASTRO_RULES_VERSION", "v1")
 ASTRO_CACHE_TTL_SECONDS = int(os.getenv("ASTRO_CACHE_TTL_SECONDS", str(60 * 60 * 24 * 7)))
+MATCH_RULES_VERSION = os.getenv("MATCH_RULES_VERSION", "v1")
 
 
 FEATURE_FLAGS = {

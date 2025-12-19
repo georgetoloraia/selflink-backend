@@ -22,11 +22,21 @@ def test_payout_command_dry_run_hash_stable():
     ContributorProfile.objects.create(user=user2, github_username="u2")
 
     # Two users with different point totals.
+    contributor1 = ContributorProfile.objects.get(user=user1)
+    contributor2 = ContributorProfile.objects.get(user=user2)
     post_event_and_ledger_entries(
         event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
+        contributor=contributor1,
         entries=[
-            {"account": "platform:rewards_pool", "amount": 15, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
+            {"account": "platform:rewards_pool", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
             {"account": f"user:{user1.id}", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+        ],
+    )
+    post_event_and_ledger_entries(
+        event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
+        contributor=contributor2,
+        entries=[
+            {"account": "platform:rewards_pool", "amount": 5, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
             {"account": f"user:{user2.id}", "amount": 5, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
         ],
     )

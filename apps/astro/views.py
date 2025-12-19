@@ -7,11 +7,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.astro.cache import get_cached_or_compute
 from apps.astro.models import NatalChart
 from apps.astro.serializers import BirthDataSerializer, NatalChartSerializer
 from apps.astro.services import birthdata_service, chart_calculator, ephemeris
-from apps.astro.tasks import compute_natal_chart_task
+from apps.astro.tasks import astrology_compute_birth_chart_task
 from apps.astro.services.location_resolver import LocationResolutionError
+from apps.core_platform.async_mode import should_run_async
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +48,21 @@ class NatalChartView(APIView):
             created = not hasattr(user, "birth_data")
             birth_data = serializer.save()
 
+        if should_run_async(request):
+            task_result = astrology_compute_birth_chart_task.apply_async(args=[birth_data.id])
+            return Response(
+                {
+                    "birth_data_id": birth_data.id,
+                    "task_id": task_result.id,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
         try:
-            task_result = compute_natal_chart_task.apply_async(args=[birth_data.id])
-            chart_id = task_result.get(timeout=90)
-            chart = NatalChart.objects.get(id=chart_id)
-        except Exception:
-            try:
-                chart = chart_calculator.calculate_natal_chart(birth_data)
-            except ephemeris.AstroCalculationError as exc:
-                logger.exception("Natal chart calculation failed", extra={"user_id": user.id})
-                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            _, chart = get_cached_or_compute(birth_data, calculate_fn=chart_calculator.calculate_natal_chart)
+        except ephemeris.AstroCalculationError as exc:
+            logger.exception("Natal chart calculation failed", extra={"user_id": user.id})
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         chart_serializer = NatalChartSerializer(chart)
         return Response(chart_serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

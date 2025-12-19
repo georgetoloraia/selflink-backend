@@ -1,16 +1,26 @@
 # Contributing to SelfLink
 
 Quickstart
-- Clone the repo, create a virtualenv, and install deps with `pip install -r requirements.txt`.
-- Copy `.env.example` to `.env`, then run `python manage.py migrate`.
+- Copy `.env.example` to `.env`
+- Install dev tooling: `pip install -r requirements-dev.txt`
+- `make up`
+- `make migrate`
+- `make test`
 
 How to run tests
-- `python manage.py test` (or `pytest` if you prefer).
+- `make test` (pytest)
+- `make lint` (ruff)
+- `pre-commit install` to enable local checks
 
 How to open PRs
 - Fork or branch, make focused changes with tests, then open a pull request explaining the change and impact.
 
 Good first issues
-- Look for issues labeled “good first issue” or propose a small doc/test fix to get started.
+- Look for labels like `good first issue` or `help wanted`.
 
-For the full contributor guide, see `contrinutors.md`.
+Architecture
+- Domain policy: `docs/architecture/domains.md`
+- Diagram: `docs/architecture/diagram.md`
+
+RFCs
+- Use `docs/rfc/template.md` for proposals that impact domains, data models, or infra.
