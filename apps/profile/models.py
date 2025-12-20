@@ -6,6 +6,23 @@ from django.db import models
 
 from apps.core.models import BaseModel
 
+
+class UserProfileManager(models.Manager):
+    def create(self, **kwargs):  # type: ignore[override]
+        user = kwargs.get("user")
+        user_id = kwargs.get("user_id")
+        if user is not None or user_id is not None:
+            lookup = {"user": user} if user is not None else {"user_id": user_id}
+            existing = self.filter(**lookup).first()
+            if existing:
+                for field_name, value in kwargs.items():
+                    if field_name in {"user", "user_id"}:
+                        continue
+                    setattr(existing, field_name, value)
+                existing.save()
+                return existing
+        return super().create(**kwargs)
+
 GENDER_CHOICES = (
     ("male", "male"),
     ("female", "female"),
@@ -40,6 +57,8 @@ ATTACHMENT_CHOICES = (
 
 
 class UserProfile(BaseModel):
+    objects = UserProfileManager()
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     gender = models.CharField(max_length=32, choices=GENDER_CHOICES, blank=True)
     orientation = models.CharField(max_length=32, choices=ORIENTATION_CHOICES, blank=True)
@@ -78,3 +97,21 @@ class UserProfile(BaseModel):
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"UserProfile<{self.user_id}>"
+
+    def is_empty(self) -> bool:
+        return (
+            not self.gender
+            and not self.orientation
+            and self.relationship_goal == "unsure"
+            and not self.values
+            and not self.preferred_lifestyle
+            and not self.attachment_style
+            and not self.love_language
+            and self.birth_date is None
+            and self.birth_time is None
+            and not self.birth_city
+            and not self.birth_country
+            and not self.birth_timezone
+            and self.birth_latitude is None
+            and self.birth_longitude is None
+        )

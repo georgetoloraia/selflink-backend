@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.feed.services.cache import FeedCache
+from apps.feed.cache import FeedCache
 from apps.mentor.models import MentorMemory
 from apps.social.models import Post, Timeline
 from apps.users.models import User

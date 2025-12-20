@@ -98,6 +98,8 @@ class UserSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: User) -> dict:
         data = super().to_representation(instance)
         request = self.context.get("request")
+        if self.context.get("include_pii"):
+            return data
         is_owner = bool(request and getattr(request, "user", None) == instance)
         is_staff = bool(request and getattr(request, "user", None) and request.user.is_staff)
         if not is_owner and not is_staff:

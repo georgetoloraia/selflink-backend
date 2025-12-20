@@ -6,6 +6,8 @@ from django.db.models import Count
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.validators import UniqueTogetherValidator
+from django.db import IntegrityError
 
 from apps.users.serializers import UserSerializer
 from apps.users.models import User
@@ -244,10 +246,21 @@ class MessageSerializer(serializers.ModelSerializer):
                 self._deduped = True
                 return existing
 
-        message = Message.objects.create(sender=user, status=Message.Status.SENT, **validated_data)
+        try:
+            message = Message.objects.create(sender=user, status=Message.Status.SENT, **validated_data)
+        except IntegrityError:
+            existing = Message.objects.filter(thread=thread, client_uuid=client_uuid).first()
+            if existing:
+                self._deduped = True
+                return existing
+            raise
         if message.thread_id:
             message.thread.save(update_fields=["updated_at"])
         return message
+
+    def get_validators(self):  # type: ignore[override]
+        validators = super().get_validators()
+        return [validator for validator in validators if not isinstance(validator, UniqueTogetherValidator)]
 
     def validate(self, attrs: dict) -> dict:
         attrs = super().validate(attrs)

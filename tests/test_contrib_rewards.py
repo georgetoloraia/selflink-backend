@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone as dt_timezone
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -36,7 +38,7 @@ def test_monthly_rewards_dry_run_allocates_pool():
         contributor=contributor,
         event_type=RewardEvent.EventType.PR_MERGED,
         points=10,
-        occurred_at=timezone.datetime(2025, 1, 15, tzinfo=timezone.utc),
+        occurred_at=datetime(2025, 1, 15, tzinfo=dt_timezone.utc),
     )
 
     result = calculate_monthly_rewards(
@@ -63,7 +65,7 @@ def test_rewards_snapshot_is_deterministic():
         contributor=contributor,
         event_type=RewardEvent.EventType.PR_MERGED,
         points=7,
-        occurred_at=timezone.datetime(2025, 2, 10, tzinfo=timezone.utc),
+        occurred_at=datetime(2025, 2, 10, tzinfo=dt_timezone.utc),
     )
 
     first = calculate_monthly_rewards(period="2025-02", revenue_cents=0, costs_cents=0, dry_run=True)

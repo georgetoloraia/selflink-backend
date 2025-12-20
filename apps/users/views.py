@@ -36,7 +36,7 @@ def _build_auth_payload(user: User, request: Request, message: str = "") -> dict
     return {
         "token": str(refresh.access_token),
         "refreshToken": str(refresh),
-        "user": UserSerializer(user, context={"request": request}).data,
+        "user": UserSerializer(user, context={"request": request, "include_pii": True}).data,
         "message": message or "",
     }
 

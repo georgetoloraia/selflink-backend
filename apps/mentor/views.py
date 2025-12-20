@@ -20,6 +20,7 @@ from apps.ai.services.mentor import (
     build_natal_prompt,
     build_soulmatch_prompt,
 )
+from apps.astro.services.transits import get_today_transits
 from apps.matching.services.soulmatch import calculate_soulmatch
 from apps.users.models import User
 from .models import DailyTask, MentorProfile, MentorSession
@@ -166,8 +167,6 @@ class DailyMentorView(APIView):
         transits = None
         if birth_data:
             try:
-                from apps.astro.services.transits import get_today_transits
-
                 transits = get_today_transits(birth_data.latitude, birth_data.longitude)
             except Exception:
                 transits = None

@@ -106,15 +106,13 @@ class NatalChartAPITests(BaseAPITestCase):
         from apps.users.models import User
 
         user = User.objects.get(email="astro@example.com")
-        birth_data, _ = BirthData.objects.get_or_create(
+        birth_data = BirthData(
             user=user,
-            defaults={
-                "date_of_birth": date(1990, 1, 1),
-                "time_of_birth": time(12, 0),
-                "timezone": "UTC",
-                "latitude": 37.7749,
-                "longitude": -122.4194,
-            },
+            date_of_birth=date(1990, 1, 1),
+            time_of_birth=time(12, 0),
+            timezone="UTC",
+            latitude=37.7749,
+            longitude=-122.4194,
         )
         return NatalChart(
             user=user,

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from django.core.cache import cache
 from django.test import override_settings
 from rest_framework.test import APIClient
@@ -9,6 +11,7 @@ from rest_framework.test import APIClient
 from apps.users.models import User
 
 
+@pytest.mark.django_db
 @override_settings(RATE_LIMITS_ENABLED=True, MENTOR_RPS_USER=1, MENTOR_RPS_GLOBAL=1)
 def test_mentor_rate_limit_returns_429():
     cache.clear()

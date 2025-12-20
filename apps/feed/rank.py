@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass
 
 from django.utils import timezone
+from django.core.exceptions import ObjectDoesNotExist
 
 from apps.social.models import Follow
 
@@ -91,7 +92,12 @@ def compute_video_flag(post) -> float:
     """
     Returns 1.0 when the post has an attached video, 0.0 otherwise.
     """
-    return 1.0 if getattr(post, "video", None) is not None else 0.0
+    if getattr(post, "_video_stub", None) is not None:
+        return 1.0
+    try:
+        return 1.0 if getattr(post, "video", None) is not None else 0.0
+    except ObjectDoesNotExist:
+        return 0.0
 
 
 def compute_matrix_alignment(user, post) -> float:
