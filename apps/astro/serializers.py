@@ -185,8 +185,10 @@ class BirthDataSerializer(serializers.ModelSerializer):
 
         if latitude is not None and longitude is not None and not timezone:
             try:
-                validated_data["timezone"] = resolve_timezone_from_coordinates(latitude, longitude)
-            except LocationResolutionError:
+                validated_data["timezone"] = location_resolver.resolve_timezone_from_coordinates(
+                    latitude, longitude
+                )
+            except location_resolver.LocationResolutionError:
                 pass
 
         for field, value in validated_data.items():

@@ -1,3 +1,4 @@
+from .base import BASE_DIR, REST_FRAMEWORK
 from .base import *  # noqa: F403
 
 # Keep tests self-contained without external services.
