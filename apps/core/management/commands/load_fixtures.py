@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json
-import os
 from pathlib import Path
-from typing import Iterable
 
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError

@@ -118,7 +118,7 @@ class PostTests(BaseAPITestCase):
         self.assertIsNone(video.get("thumbnail_url"))
 
     def test_feed_includes_video_metadata(self) -> None:
-        user_data = self.register_and_login(email="videofeed@example.com", handle="videofeed")
+        self.register_and_login(email="videofeed@example.com", handle="videofeed")
         video_file = SimpleUploadedFile(
             "feedclip.mp4",
             b"fake video content",
@@ -166,7 +166,7 @@ class MentorTests(BaseAPITestCase):
 
 class FollowTimelineTests(BaseAPITestCase):
     def test_follow_populates_timeline(self) -> None:
-        follower = self.register_and_login(email="timeline@example.com", handle="timeline")
+        self.register_and_login(email="timeline@example.com", handle="timeline")
         followee = User.objects.create_user(
             email="followee@example.com",
             handle="followee",
@@ -272,7 +272,7 @@ class FeedResponseTests(BaseAPITestCase):
 
 class FeedModeTests(BaseAPITestCase):
     def test_for_you_ranks_followed_and_engaged_posts(self) -> None:
-        user = self.register_and_login(email="foryou@example.com", handle="foryou")
+        self.register_and_login(email="foryou@example.com", handle="foryou")
         followee = User.objects.create_user(
             email="followee@example.com",
             handle="followee",
@@ -311,7 +311,7 @@ class FeedModeTests(BaseAPITestCase):
         self.assertEqual(top_post_id, post_followee.id)
 
     def test_for_you_orders_posts_by_combined_signals(self) -> None:
-        user = self.register_and_login(email="ranked@example.com", handle="ranked")
+        self.register_and_login(email="ranked@example.com", handle="ranked")
         followee = User.objects.create_user(
             email="rankfollow@example.com",
             handle="rankfollow",
@@ -345,7 +345,7 @@ class FeedModeTests(BaseAPITestCase):
         self.assertEqual(post_items[0]["post"]["id"], top_post.id)
 
     def test_following_feed_shows_only_followed_posts(self) -> None:
-        user = self.register_and_login(email="followmode@example.com", handle="followmode")
+        self.register_and_login(email="followmode@example.com", handle="followmode")
         followee = User.objects.create_user(
             email="followee2@example.com",
             handle="followee2",
@@ -377,7 +377,7 @@ class ForYouVideosFeedTests(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_video_feed_returns_only_video_posts(self) -> None:
-        user = self.register_and_login(email="videomode@example.com", handle="videomode")
+        self.register_and_login(email="videomode@example.com", handle="videomode")
         # create one video post
         video_file = SimpleUploadedFile(
             "videomode.mp4",
@@ -407,7 +407,7 @@ class ForYouVideosFeedTests(BaseAPITestCase):
         self.assertNotIn(non_video.data["id"], ids)
 
     def test_video_feed_paginates_with_cursor(self) -> None:
-        user = self.register_and_login(email="videopage@example.com", handle="videopage")
+        self.register_and_login(email="videopage@example.com", handle="videopage")
         for i in range(3):
             clip = SimpleUploadedFile(
                 f"paginated_{i}.mp4",
@@ -432,7 +432,7 @@ class ForYouVideosFeedTests(BaseAPITestCase):
         self.assertEqual(len(second_page.data.get("items", [])), 1)
 
     def test_video_feed_orders_by_recency_and_engagement(self) -> None:
-        user = self.register_and_login(email="videorank@example.com", handle="videorank")
+        self.register_and_login(email="videorank@example.com", handle="videorank")
         recent_clip = SimpleUploadedFile(
             "recent_rank.mp4",
             b"recent video content",

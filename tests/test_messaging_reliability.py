@@ -6,7 +6,6 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from apps.messaging.models import Message, ThreadMember
-from apps.users.models import User
 
 
 def register_and_login(client: APIClient, email: str, handle: str) -> dict:

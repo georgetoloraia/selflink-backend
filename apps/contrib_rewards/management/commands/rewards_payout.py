@@ -39,7 +39,7 @@ class Command(BaseCommand):
         out_path = options.get("out")
 
         try:
-            month_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
+            datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
         except Exception as exc:
             raise CommandError("Month must be in YYYY-MM format.") from exc
 

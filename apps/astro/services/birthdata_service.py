@@ -61,7 +61,7 @@ def create_or_update_birth_data_from_profile(user: User) -> BirthData:
         resolved = resolve_location_from_profile(profile)
     except LocationResolutionError:
         raise
-    except Exception as exc:
+    except Exception:
         logger.exception("Unexpected error resolving location", extra={"user_id": user.id})
         raise
 

@@ -4,7 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
-from rest_framework import generics, permissions, status, viewsets
+from rest_framework import generics, permissions, viewsets
 
 from rest_framework.decorators import action
 from rest_framework.request import Request
@@ -12,7 +12,7 @@ from rest_framework.response import Response
 
 from apps.feed.cache import FeedCache
 from apps.feed.composer import compose_home_feed_items, extract_cursor_from_url
-from .models import Comment, Follow, Gift, Like, Post, Timeline
+from .models import Comment, Gift, Like, Post, Timeline
 from apps.moderation.autoflag import auto_report_post
 from .serializers import (
     CommentSerializer,

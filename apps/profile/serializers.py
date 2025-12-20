@@ -2,13 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from apps.profile.models import (
-    ATTACHMENT_CHOICES,
-    GENDER_CHOICES,
-    ORIENTATION_CHOICES,
-    REL_GOAL_CHOICES,
-    UserProfile,
-)
+from apps.profile.models import UserProfile
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

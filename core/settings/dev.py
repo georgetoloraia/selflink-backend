@@ -4,6 +4,6 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 CELERY_TASK_ALWAYS_EAGER = True
-REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"] = [  # type: ignore[index]
+REST_FRAMEWORK["DEFAULT_PERMISSION_CLASSES"] = [  # type: ignore[index] # noqa: F405
     "rest_framework.permissions.IsAuthenticatedOrReadOnly",
 ]

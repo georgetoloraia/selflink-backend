@@ -8,7 +8,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
 from apps.config.models import FeatureFlag
-from apps.moderation.models import Enforcement, Report
 
 User = get_user_model()
 

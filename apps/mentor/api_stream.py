@@ -115,7 +115,7 @@ class MentorChatStreamView(APIView):
             except LLMError as exc:
                 logger.exception("Mentor LLM stream failed")
                 yield _sse_format({"event": "error", "detail": str(exc)})
-            except Exception as exc:  # pragma: no cover - safeguard for streaming
+            except Exception:  # pragma: no cover - safeguard for streaming
                 logger.exception("Unexpected mentor stream error")
                 yield _sse_format({"event": "error", "detail": "Streaming failed."})
 
