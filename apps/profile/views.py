@@ -16,6 +16,11 @@ class MeProfileView(APIView):
         user = request.user
         try:
             profile = user.profile
+            if profile.is_empty():
+                return Response(
+                    {"detail": "No profile yet. Update to create one."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
         except UserProfile.DoesNotExist:
             return Response(
                 {"detail": "No profile yet. Update to create one."},
@@ -28,10 +33,11 @@ class MeProfileView(APIView):
         user = request.user
         try:
             profile = user.profile
+            was_empty = profile.is_empty()
             serializer = UserProfileSerializer(profile, data=request.data, partial=True, context={"request": request})
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            status_code = status.HTTP_200_OK
+            status_code = status.HTTP_201_CREATED if was_empty else status.HTTP_200_OK
         except UserProfile.DoesNotExist:
             serializer = UserProfileSerializer(data=request.data, context={"request": request})
             serializer.is_valid(raise_exception=True)

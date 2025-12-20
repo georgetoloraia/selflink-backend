@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from django.db.models import F
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request

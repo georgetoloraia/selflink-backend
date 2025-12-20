@@ -7,11 +7,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.astro.models import NatalChart
+from apps.astro.cache import get_cached_or_compute
+from apps.astro.models import BirthData, NatalChart
 from apps.astro.serializers import BirthDataSerializer, NatalChartSerializer
 from apps.astro.services import birthdata_service, chart_calculator, ephemeris
-from apps.astro.tasks import compute_natal_chart_task
+from apps.astro.tasks import astrology_compute_birth_chart_task
 from apps.astro.services.location_resolver import LocationResolutionError
+from apps.core_platform.async_mode import should_run_async
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,21 @@ class NatalChartView(APIView):
 
     def post(self, request) -> Response:
         user = request.user
-        if request.data.get("source", "profile") == "profile":
+        had_birth_data = BirthData.objects.filter(user=user).exists()
+        payload_fields = {
+            "date_of_birth",
+            "time_of_birth",
+            "timezone",
+            "city",
+            "country",
+            "latitude",
+            "longitude",
+        }
+        use_profile_source = request.data.get("source") == "profile" and not any(
+            field in request.data for field in payload_fields
+        )
+
+        if use_profile_source:
             try:
                 birth_data = birthdata_service.create_or_update_birth_data_from_profile(user)
             except birthdata_service.BirthDataIncompleteError:
@@ -39,23 +55,36 @@ class NatalChartView(APIView):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            created = not hasattr(user, "birth_data")
+            except Exception:
+                logger.exception("Birth data resolution failed", extra={"user_id": user.id})
+                return Response(
+                    {
+                        "detail": "Unable to resolve location for your birth place. Please update your city and country or contact support."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            created = not had_birth_data
         else:
             serializer = BirthDataSerializer(data=request.data, context={"request": request})
             serializer.is_valid(raise_exception=True)
-            created = not hasattr(user, "birth_data")
             birth_data = serializer.save()
+            created = serializer.context.get("created", not had_birth_data)
+
+        if should_run_async(request):
+            task_result = astrology_compute_birth_chart_task.apply_async(args=[birth_data.id])
+            return Response(
+                {
+                    "birth_data_id": birth_data.id,
+                    "task_id": task_result.id,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
 
         try:
-            task_result = compute_natal_chart_task.apply_async(args=[birth_data.id])
-            chart_id = task_result.get(timeout=90)
-            chart = NatalChart.objects.get(id=chart_id)
-        except Exception:
-            try:
-                chart = chart_calculator.calculate_natal_chart(birth_data)
-            except ephemeris.AstroCalculationError as exc:
-                logger.exception("Natal chart calculation failed", extra={"user_id": user.id})
-                return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            _, chart = get_cached_or_compute(birth_data, calculate_fn=chart_calculator.calculate_natal_chart)
+        except ephemeris.AstroCalculationError as exc:
+            logger.exception("Natal chart calculation failed", extra={"user_id": user.id})
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         chart_serializer = NatalChartSerializer(chart)
         return Response(chart_serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)

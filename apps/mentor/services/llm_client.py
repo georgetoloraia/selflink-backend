@@ -157,7 +157,6 @@ def _trim_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             new_trimmed.append(m)
             continue
 
-        start = 0
         end = len(content)
 
         # content-ის რომელ ნაწილს ჩავრთავთ?

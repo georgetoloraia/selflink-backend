@@ -14,26 +14,52 @@ services:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api"
       DJANGO_SETTINGS_MODULE: core.settings.base
-      DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL:-redis://redis:6379/1}
       REALTIME_JWT_SECRET: ${REALTIME_JWT_SECRET}
-      OPENSEARCH_ENABLED: "true"
-      OPENSEARCH_HOST: opensearch
-      OPENSEARCH_PORT: 9200
+      OPENSEARCH_ENABLED: ${OPENSEARCH_ENABLED:-false}
+      OPENSEARCH_HOST: ${OPENSEARCH_HOST:-opensearch}
+      OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
       OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME}
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY_ID: selflink
-      S3_SECRET_ACCESS_KEY: selflinkpass
-      S3_BUCKET: selflink-media
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET:-selflink-media}
     depends_on:
-      - postgres
+      - pgbouncer
       - redis
 
-  celery-worker:
+  asgi:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.api
+    command: uvicorn core.asgi:application --host 0.0.0.0 --port 8001
+    volumes:
+      - ..:/app
+    profiles: ["realtime"]
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./.env
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,asgi"
+      DJANGO_SETTINGS_MODULE: core.settings.base
+      DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL:-redis://redis:6379/1}
+    depends_on:
+      - pgbouncer
+      - redis
+
+  worker:
     build:
       context: ..
       dockerfile: infra/docker/Dockerfile.api
@@ -44,64 +70,59 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
-      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,worker"
       DJANGO_SETTINGS_MODULE: core.settings.base
-      DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      REDIS_URL: redis://redis:6379/0
-      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL}
-      OPENSEARCH_ENABLED: "true"
-      OPENSEARCH_HOST: opensearch
-      OPENSEARCH_PORT: 9200
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY_ID: selflink
-      S3_SECRET_ACCESS_KEY: selflinkpass
-      S3_BUCKET: selflink-media
+      DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL:-redis://redis:6379/1}
+      OPENSEARCH_ENABLED: ${OPENSEARCH_ENABLED:-false}
+      OPENSEARCH_HOST: ${OPENSEARCH_HOST:-opensearch}
+      OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_BUCKET: ${S3_BUCKET:-selflink-media}
     depends_on:
-      - postgres
+      - pgbouncer
       - redis
 
-  celery-beat:
+  beat:
     build:
       context: ..
       dockerfile: infra/docker/Dockerfile.api
     command: celery -A core beat -l info
     volumes:
       - ..:/app
+    profiles: ["beat"]
     env_file:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
-      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,beat"
       DJANGO_SETTINGS_MODULE: core.settings.base
-      DATABASE_URL: postgres://selflink:selflink@postgres:5432/selflink
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      REDIS_URL: redis://redis:6379/0
-      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL}
-      OPENSEARCH_ENABLED: "true"
-      OPENSEARCH_HOST: opensearch
-      OPENSEARCH_PORT: 9200
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY_ID: selflink
-      S3_SECRET_ACCESS_KEY: selflinkpass
-      S3_BUCKET: selflink-media
+      DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL:-redis://redis:6379/1}
     depends_on:
-      - postgres
+      - pgbouncer
       - redis
 
   realtime:
     build:
       context: ..
       dockerfile: infra/docker/Dockerfile.realtime
+    profiles: ["realtime"]
     env_file:
       - ./.env
     ports:
-      - "8001:8001"
+      - "8002:8001"
     environment:
       REALTIME_JWT_SECRET: ${REALTIME_JWT_SECRET}
-      REALTIME_REDIS_URL: redis://redis:6379/1
+      REALTIME_REDIS_URL: ${REALTIME_REDIS_URL:-redis://redis:6379/1}
     depends_on:
       - redis
 
@@ -111,20 +132,33 @@ services:
       POSTGRES_DB: selflink
       POSTGRES_USER: selflink
       POSTGRES_PASSWORD: selflink
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  # analytics-replica:
+  #   image: postgres:15-alpine
+  #   profiles: ["analytics"]
+  #   environment:
+  #     POSTGRES_DB: selflink
+  #     POSTGRES_USER: selflink
+  #     POSTGRES_PASSWORD: selflink
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.22.1
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      - postgres
+
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis-data:/data
 
   opensearch:
     image: opensearchproject/opensearch:2.13.0
+    profiles: ["search"]
     environment:
       discovery.type: single-node
       OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
@@ -139,13 +173,13 @@ services:
     volumes:
       - opensearch-data:/usr/share/opensearch/data
 
-
   minio:
     image: minio/minio:RELEASE.2024-01-18T22-51-28Z
+    profiles: ["storage"]
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: selflink
-      MINIO_ROOT_PASSWORD: selflinkpass
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "9000:9000"
       - "9001:9001"

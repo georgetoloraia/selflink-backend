@@ -67,6 +67,7 @@ class RewardEvent(BaseModel):
     )
     metadata = models.JSONField(default=dict, blank=True)
     notes = models.CharField(max_length=255, blank=True)
+    ruleset_version = models.CharField(max_length=16, default="v1")
 
     class Meta:
         ordering = ["-occurred_at", "-created_at"]
@@ -76,7 +77,7 @@ class RewardEvent(BaseModel):
         ]
 
     def save(self, *args, **kwargs) -> None:  # type: ignore[override]
-        if self.pk:
+        if not self._state.adding:
             raise ValidationError("RewardEvent rows are immutable. Create a new event instead.")
         super().save(*args, **kwargs)
 
@@ -139,6 +140,14 @@ class MonthlyRewardSnapshot(BaseModel):
 
     class Meta:
         ordering = ["-period"]
+
+    def save(self, *args, **kwargs) -> None:  # type: ignore[override]
+        if not self._state.adding:
+            raise ValidationError("MonthlyRewardSnapshot rows are immutable. Create a new snapshot instead.")
+        super().save(*args, **kwargs)
+
+    def delete(self, using=None, keep_parents=False):  # type: ignore[override]
+        raise ValidationError("MonthlyRewardSnapshot rows are immutable; deletion is not allowed.")
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"RewardSnapshot<{self.period}>"

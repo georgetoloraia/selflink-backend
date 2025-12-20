@@ -147,6 +147,7 @@ class ThreadViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "updated_at"]
     ordering = "-updated_at"
     search_fields = ["title", "members__user__handle", "members__user__name"]
+    pagination_class = None
 
     def get_queryset(self):  # type: ignore[override]
         last_message_subquery = Message.objects.filter(thread=OuterRef("pk")).order_by("-created_at")
@@ -368,7 +369,7 @@ class MessageViewSet(viewsets.ModelViewSet):
             notify_thread_message(message)
             auto_report_message(message)
 
-        status_code = status.HTTP_200_OK if deduped else status.HTTP_201_CREATED
+        status_code = status.HTTP_201_CREATED
         return Response(serializer.data, status=status_code, headers=self.get_success_headers(serializer.data))
 
     @action(detail=True, methods=["get", "post"], url_path="reactions")

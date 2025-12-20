@@ -5,7 +5,7 @@ REVENUE ?= 0
 COSTS ?= 0
 OUT ?= ./tmp/payout.csv
 
-.PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down test lint rewards-dry-run
+.PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -25,11 +25,17 @@ celery-beat:
 compose-up:
 	docker compose -f infra/compose.yaml up -d --build
 
+up:
+	docker compose -f infra/compose.yaml up -d --build
+
+up-realtime:
+	docker compose -f infra/compose.yaml --profile realtime up -d --build
+
 compose-down:
 	docker compose -f infra/compose.yaml down
 
 test:
-	$(MANAGE) test
+	@if command -v pytest >/dev/null 2>&1; then pytest; else $(MANAGE) test; fi
 
 lint:
 	@if command -v ruff >/dev/null 2>&1; then ruff check .; else echo "ruff not installed; pip install ruff to run lint"; fi

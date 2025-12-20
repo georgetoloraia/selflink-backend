@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from apps.astro.models import BirthData
-from apps.astro.services.location_resolver import LocationResolutionError, resolve_location_from_profile
+from apps.astro.services import location_resolver
 from apps.profile.models import UserProfile
 from apps.users.models import User
 
@@ -58,10 +58,10 @@ def create_or_update_birth_data_from_profile(user: User) -> BirthData:
     profile.birth_country = profile.birth_country or birth_country
 
     try:
-        resolved = resolve_location_from_profile(profile)
-    except LocationResolutionError:
+        resolved = location_resolver.resolve_location_from_profile(profile)
+    except location_resolver.LocationResolutionError:
         raise
-    except Exception as exc:
+    except Exception:
         logger.exception("Unexpected error resolving location", extra={"user_id": user.id})
         raise
 

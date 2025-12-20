@@ -16,10 +16,10 @@ def test_balanced_transaction_succeeds():
 
     event = post_event_and_ledger_entries(
         event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
-        actor=contributor.user,
+        contributor=contributor,
         entries=[
             {"account": "platform:rewards_pool", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-            {"account": "user:1", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+            {"account": f"user:{user.id}", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
         ],
     )
     entries = list(event.ledger_entries.all())
@@ -32,14 +32,14 @@ def test_balanced_transaction_succeeds():
 @pytest.mark.django_db
 def test_unbalanced_transaction_raises():
     user = User.objects.create_user(email="u2@example.com", password="pass1234", handle="u2", name="User Two")
-    ContributorProfile.objects.create(user=user, github_username="u2")
+    contributor = ContributorProfile.objects.create(user=user, github_username="u2")
     with pytest.raises(ValidationError):
         post_event_and_ledger_entries(
             event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
-            actor=user,
+            contributor=contributor,
             entries=[
                 {"account": "platform:rewards_pool", "amount": 5, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-                {"account": "user:2", "amount": 3, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+                {"account": f"user:{user.id}", "amount": 3, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
             ],
         )
     assert RewardEvent.objects.count() == 0
@@ -52,10 +52,10 @@ def test_immutability():
     contributor = ContributorProfile.objects.create(user=user, github_username="u3")
     event = post_event_and_ledger_entries(
         event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
-        actor=contributor.user,
+        contributor=contributor,
         entries=[
             {"account": "platform:rewards_pool", "amount": 2, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-            {"account": "user:3", "amount": 2, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+            {"account": f"user:{user.id}", "amount": 2, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
         ],
     )
     with pytest.raises(ValidationError):

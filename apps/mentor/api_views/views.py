@@ -19,6 +19,9 @@ from apps.mentor.serializers import (
     MentorMessageSerializer,
 )
 from apps.mentor.services import llm_client, memory_manager, prompt_builder, safety
+from apps.mentor.tasks import mentor_daily_entry_task
+from apps.core_platform.async_mode import should_run_async
+from apps.core_platform.rate_limit import is_rate_limited
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ def _mentor_feature_enabled() -> bool:
 
 class MentorChatView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "mentor"
 
     def post(self, request, *args, **kwargs) -> Response:  # type: ignore[override]
         serializer = MentorChatRequestSerializer(data=request.data)
@@ -100,6 +104,7 @@ class MentorChatView(APIView):
 
 class DailyEntryView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "mentor"
 
     def post(self, request, *args, **kwargs) -> Response:  # type: ignore[override]
         serializer = DailyEntryRequestSerializer(data=request.data)
@@ -114,6 +119,13 @@ class DailyEntryView(APIView):
 
         pre_flags = safety.preprocess_user_message(entry_text)
 
+        if is_rate_limited(f"mentor:user:{user.id}", settings.MENTOR_RPS_USER, 1) or is_rate_limited(
+            "mentor:global",
+            settings.MENTOR_RPS_GLOBAL,
+            1,
+        ):
+            return Response({"detail": "Rate limit exceeded."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
         session = (
             MentorSession.objects.filter(
                 user=user,
@@ -123,6 +135,52 @@ class DailyEntryView(APIView):
             .order_by("-created_at")
             .first()
         )
+
+        if should_run_async(request):
+            if session is None:
+                session = MentorSession.objects.create(
+                    user=user,
+                    question=entry_text,
+                    answer="",
+                    sentiment="",
+                    mode=mode,
+                    language=language,
+                    active=True,
+                    date=entry_date,
+                )
+            else:
+                session.question = entry_text
+                session.language = language or session.language
+                session.date = entry_date
+                session.save(update_fields=["question", "language", "date", "updated_at"])
+
+            user_message_obj = MentorMessage.objects.create(
+                session=session,
+                role=MentorMessage.Role.USER,
+                content=entry_text,
+                meta={"safety": pre_flags} if pre_flags else None,
+            )
+            task_result = mentor_daily_entry_task.apply_async(
+                args=[session.id, user_message_obj.id],
+                kwargs={"language": language},
+            )
+            meta = user_message_obj.meta or {}
+            meta.update({"task_id": task_result.id, "task_version": "v1"})
+            user_message_obj.meta = meta
+            user_message_obj.save(update_fields=["meta", "updated_at"])
+
+            return Response(
+                {
+                    "session_id": session.id,
+                    "date": str(entry_date),
+                    "entry": entry_text,
+                    "message_id": user_message_obj.id,
+                    "task_id": task_result.id,
+                    "language": language,
+                    "meta": {"user_flags": pre_flags},
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
 
         if not _mentor_feature_enabled():
             mentor_reply_raw = (

@@ -5,12 +5,7 @@ from zoneinfo import ZoneInfo
 from rest_framework import serializers
 
 from apps.astro.models import BirthData, NatalChart
-from apps.astro.services.location_resolver import (
-    LocationResolutionError,
-    resolve_location,
-    resolve_location_from_profile,
-    resolve_timezone_from_coordinates,
-)
+from apps.astro.services import location_resolver
 
 
 class BirthDataSerializer(serializers.ModelSerializer):
@@ -112,29 +107,34 @@ class BirthDataSerializer(serializers.ModelSerializer):
         # If coordinates provided, they are source of truth; resolve timezone if missing.
         if latitude is not None and longitude is not None and not timezone:
             try:
-                timezone = resolve_timezone_from_coordinates(latitude, longitude)
-            except LocationResolutionError:
+                timezone = location_resolver.resolve_timezone_from_coordinates(latitude, longitude)
+            except location_resolver.LocationResolutionError:
                 timezone = ""
 
         # Resolve missing location fields from profile + personal map
         if (latitude is None or longitude is None or not timezone) and profile:
             try:
-                resolved_profile = resolve_location_from_profile(profile)
+                resolved_profile = location_resolver.resolve_location_from_profile(profile)
                 timezone = timezone or resolved_profile.timezone
                 latitude = latitude if latitude is not None else resolved_profile.latitude
                 longitude = longitude if longitude is not None else resolved_profile.longitude
-            except LocationResolutionError:
+            except location_resolver.LocationResolutionError:
                 pass
 
         # Resolve missing location fields from city/country fallback (coordinates may still override city/country)
         if latitude is None or longitude is None or not timezone:
             if city and country:
                 try:
-                    resolved = resolve_location(city, country, latitude=latitude, longitude=longitude)
+                    resolved = location_resolver.resolve_location(
+                        city,
+                        country,
+                        latitude=latitude,
+                        longitude=longitude,
+                    )
                     timezone = timezone or resolved.timezone
                     latitude = resolved.latitude if latitude is None else latitude
                     longitude = resolved.longitude if longitude is None else longitude
-                except LocationResolutionError:
+                except location_resolver.LocationResolutionError:
                     raise serializers.ValidationError(
                         {
                             "detail": "Unable to resolve latitude/longitude/timezone for the provided city and country. "
@@ -146,7 +146,7 @@ class BirthDataSerializer(serializers.ModelSerializer):
         if latitude is None or longitude is None or not timezone:
             # last-resort fallback to default resolver to prevent DB integrity errors
             try:
-                fallback = resolve_location(city or "Tbilisi", country or "Georgia")
+                fallback = location_resolver.resolve_location(city or "Tbilisi", country or "Georgia")
                 timezone = timezone or fallback.timezone
                 latitude = latitude if latitude is not None else fallback.latitude
                 longitude = longitude if longitude is not None else fallback.longitude
@@ -163,7 +163,7 @@ class BirthDataSerializer(serializers.ModelSerializer):
         latitude = self.validate_latitude(latitude)
         longitude = self.validate_longitude(longitude)
 
-        instance, _ = BirthData.objects.update_or_create(
+        instance, created = BirthData.objects.update_or_create(
             user=user,
             defaults={
                 "date_of_birth": date_of_birth,
@@ -175,6 +175,7 @@ class BirthDataSerializer(serializers.ModelSerializer):
                 "longitude": longitude,
             },
         )
+        self.context["created"] = created
         return instance
 
     def update(self, instance: BirthData, validated_data: dict) -> BirthData:
@@ -184,8 +185,10 @@ class BirthDataSerializer(serializers.ModelSerializer):
 
         if latitude is not None and longitude is not None and not timezone:
             try:
-                validated_data["timezone"] = resolve_timezone_from_coordinates(latitude, longitude)
-            except LocationResolutionError:
+                validated_data["timezone"] = location_resolver.resolve_timezone_from_coordinates(
+                    latitude, longitude
+                )
+            except location_resolver.LocationResolutionError:
                 pass
 
         for field, value in validated_data.items():

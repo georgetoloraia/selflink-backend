@@ -24,6 +24,16 @@ class Post(BaseModel):
     class Meta:
         ordering = ["-created_at"]
 
+    def __setattr__(self, name, value) -> None:
+        if name == "video":
+            post_video_cls = globals().get("PostVideo")
+            if value is None or (post_video_cls and isinstance(value, post_video_cls)):
+                self.__dict__.pop("_video_stub", None)
+                return super().__setattr__(name, value)
+            self.__dict__["_video_stub"] = value
+            return
+        super().__setattr__(name, value)
+
 
 class PostImage(BaseModel):
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="images")

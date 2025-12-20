@@ -27,7 +27,7 @@ class Command(BaseCommand):
             "--force",
             action="store_true",
             default=False,
-            help="Allow overwriting an existing published snapshot.",
+            help="(Deprecated) Snapshots are immutable; use a new period instead.",
         )
         parser.add_argument("--out", type=str, default=None, help="Optional path to write the CSV output.")
 
@@ -36,11 +36,10 @@ class Command(BaseCommand):
         ruleset = options["ruleset"]
         dry_run = options["dry_run"]
         write_snapshot = options["write_snapshot"]
-        force = options["force"]
         out_path = options.get("out")
 
         try:
-            month_date = datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
+            datetime.strptime(f"{month}-01", "%Y-%m-%d").date()
         except Exception as exc:
             raise CommandError("Month must be in YYYY-MM format.") from exc
 
@@ -66,24 +65,19 @@ class Command(BaseCommand):
         )
 
         if write_snapshot and not dry_run:
-            snapshot, created = MonthlyRewardSnapshot.objects.get_or_create(
-                period=month,
-                defaults={
-                    "revenue_cents": 0,
-                    "costs_cents": 0,
-                    "contributor_pool_cents": 0,
-                    "total_points": summary["total_points"],
-                    "total_events": 0,
-                    "ledger_hash": inputs_hash,
-                    "dispute_window_ends_at": timezone.now(),
-                },
-            )
-            if not created and not force:
-                raise CommandError("Snapshot already exists for this period. Use --force to overwrite.")
+            if MonthlyRewardSnapshot.objects.filter(period=month).exists():
+                raise CommandError("Snapshot already exists for this period. Snapshots are immutable.")
 
-            snapshot.total_points = summary["total_points"]
-            snapshot.ledger_hash = inputs_hash
-            snapshot.save(update_fields=["total_points", "ledger_hash", "updated_at"])
-            self.stdout.write(self.style.SUCCESS(f"Snapshot stored for {month} ({'created' if created else 'updated'})"))
+            snapshot = MonthlyRewardSnapshot.objects.create(
+                period=month,
+                revenue_cents=0,
+                costs_cents=0,
+                contributor_pool_cents=0,
+                total_points=summary["total_points"],
+                total_events=0,
+                ledger_hash=inputs_hash,
+                dispute_window_ends_at=timezone.now(),
+            )
+            self.stdout.write(self.style.SUCCESS(f"Snapshot stored for {month} ({snapshot.id})"))
         elif write_snapshot and dry_run:
             self.stdout.write("Dry-run mode: snapshot not written (use without --dry-run to persist).")

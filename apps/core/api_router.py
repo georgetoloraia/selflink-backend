@@ -8,6 +8,7 @@ urlpatterns = [
     path("", include("apps.users.profile_urls")),
     path("", include("apps.social.urls")),
     path("", include("apps.messaging.urls")),
+    path("messaging/", include("apps.messaging.urls")),
     path("", include("apps.mentor.urls")),
     path("", include("apps.astro.urls")),
     path("", include("apps.profile.urls")),

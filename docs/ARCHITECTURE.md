@@ -2,6 +2,11 @@
 
 This backend is split into clear domains so heavy/variable work can be isolated and audited cleanly.
 
+See also:
+- `docs/architecture/domains.md`
+- `docs/architecture/diagram.md`
+- `docs/DATA_RETENTION.md`
+
 ## Domains
 - **Identity & Social (apps.users, apps.profile, apps.social, apps.messaging, apps.notifications)**  
   Authentication, identity, social graph, messaging, and notification fanout. PII is anchored in the user models with a dedicated `UserPII` container for sensitive fields to enable future row-level isolation.

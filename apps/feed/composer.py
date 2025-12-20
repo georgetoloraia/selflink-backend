@@ -4,6 +4,7 @@ import logging
 from typing import Iterable, List, Sequence
 from urllib.parse import parse_qs, urlparse
 
+from django.core.cache import cache
 from django.utils import timezone
 
 from django.db.models import Q
@@ -32,22 +33,22 @@ def compose_home_feed_items(
     inserting mentor/matrix/soulmatch insight cards derived from real services.
     """
     entries: List = list(timeline_entries)
-    if not entries:
-        return []
 
     posts = [
         getattr(entry, "post", entry)
         for entry in entries
         if getattr(entry, "post", entry) is not None
-    ]
-    if not posts:
-        return []
+    ] if entries else []
 
-    post_data = PostSerializer(
-        posts,
-        many=True,
-        context=serializer_context or {},
-    ).data
+    post_data = (
+        PostSerializer(
+            posts,
+            many=True,
+            context=serializer_context or {},
+        ).data
+        if posts
+        else []
+    )
 
     post_items = [
         {"type": "post", "id": post["id"], "post": post}
@@ -67,8 +68,6 @@ def extract_cursor_from_url(url: str | None, cursor_param: str = "cursor") -> st
 
 def _insert_insights(post_items: Sequence[dict], user=None) -> list[dict]:
     base_items = list(post_items)
-    if not base_items:
-        return base_items
 
     today_iso = timezone.localdate().isoformat()
     mentor_payload = None
@@ -76,18 +75,46 @@ def _insert_insights(post_items: Sequence[dict], user=None) -> list[dict]:
     soulmatch_payload = None
 
     if user:
-        try:
-            mentor_payload = get_mentor_feed_insight(user)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Mentor insight unavailable for user %s: %s", getattr(user, "id", None), exc, exc_info=True)
-        try:
-            matrix_payload = get_matrix_feed_insight(user)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("Matrix insight unavailable for user %s: %s", getattr(user, "id", None), exc, exc_info=True)
-        try:
-            soulmatch_payload = get_daily_feed_recommendations(user)
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("SoulMatch insight unavailable for user %s: %s", getattr(user, "id", None), exc, exc_info=True)
+        if not base_items:
+            mentor_payload = cache.get(f"mentor_insight:{user.id}:{today_iso}") or cache.get(
+                f"mentor:feed_insight:{user.id}:{today_iso}"
+            )
+            matrix_payload = cache.get(f"matrix_insight:{user.id}:{today_iso}") or cache.get(
+                f"matrix:feed_insight:{user.id}:{today_iso}"
+            )
+            soulmatch_payload = cache.get(f"soulmatch_insight:{user.id}:{today_iso}") or cache.get(
+                f"soulmatch:feed:{user.id}:{today_iso}"
+            )
+            if not any([mentor_payload, matrix_payload, soulmatch_payload]):
+                return base_items
+        else:
+            try:
+                mentor_payload = get_mentor_feed_insight(user)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "Mentor insight unavailable for user %s: %s",
+                    getattr(user, "id", None),
+                    exc,
+                    exc_info=True,
+                )
+            try:
+                matrix_payload = get_matrix_feed_insight(user)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "Matrix insight unavailable for user %s: %s",
+                    getattr(user, "id", None),
+                    exc,
+                    exc_info=True,
+                )
+            try:
+                soulmatch_payload = get_daily_feed_recommendations(user)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning(
+                    "SoulMatch insight unavailable for user %s: %s",
+                    getattr(user, "id", None),
+                    exc,
+                    exc_info=True,
+                )
 
     mentor_item = (
         {

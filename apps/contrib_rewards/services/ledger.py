@@ -5,7 +5,7 @@ from typing import Iterable, List, Sequence
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from apps.contrib_rewards.models import LedgerEntry, RewardEvent
+from apps.contrib_rewards.models import ContributorProfile, LedgerEntry, RewardEvent
 
 
 def _validate_entries(entries: Sequence[dict]) -> None:
@@ -27,12 +27,30 @@ def _validate_entries(entries: Sequence[dict]) -> None:
         raise ValidationError(f"Unbalanced ledger entries for currency: {unbalanced}")
 
 
+def _points_from_entries(entries: Sequence[dict], contributor: ContributorProfile) -> int:
+    account = f"user:{contributor.user_id}"
+    points = 0
+    for entry in entries:
+        if entry.get("account") != account:
+            continue
+        if entry.get("currency", "POINTS") != "POINTS":
+            continue
+        amount = int(entry.get("amount", 0))
+        direction = entry.get("direction")
+        if direction == LedgerEntry.Direction.CREDIT:
+            points += amount
+        elif direction == LedgerEntry.Direction.DEBIT:
+            points -= amount
+    return points
+
+
 def post_event_and_ledger_entries(
     *,
     event_type: str,
-    external_id: str | None = None,
-    actor=None,
-    payload: dict | None = None,
+    contributor: ContributorProfile,
+    reference: str | None = None,
+    metadata: dict | None = None,
+    notes: str = "",
     ruleset_version: str = "v1",
     entries: Iterable[dict],
 ) -> RewardEvent:
@@ -55,14 +73,19 @@ def post_event_and_ledger_entries(
         )
     )
 
-    payload = payload or {}
+    if contributor is None:
+        raise ValidationError("Contributor is required for reward events.")
+    metadata = metadata or {}
+    points = _points_from_entries(entry_list, contributor)
 
     with transaction.atomic():
         event = RewardEvent.objects.create(
+            contributor=contributor,
             event_type=event_type,
-            external_id=external_id,
-            actor=actor,
-            payload=payload,
+            points=points,
+            reference=reference or "",
+            metadata=metadata,
+            notes=notes or "",
             ruleset_version=ruleset_version,
         )
         rows = [

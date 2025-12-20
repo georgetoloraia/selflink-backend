@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
 from typing import Dict, List
 
 from django.db import transaction
 from django.conf import settings
 from django.core.cache import cache
 
-from apps.astro.models import BirthData, NatalChart
+from apps.astro.models import AstrologyResult, BirthData, NatalChart
 from apps.astro.services import ephemeris
 
 logger = logging.getLogger(__name__)
@@ -77,13 +79,22 @@ def _enrich_planets(positions: Dict[str, Dict[str, float]]) -> Dict[str, Dict[st
     return enriched
 
 
+def _birth_data_hash(birth_data: BirthData) -> str:
+    payload = {
+        "date": birth_data.date_of_birth.isoformat(),
+        "time": birth_data.time_of_birth.isoformat(),
+        "timezone": birth_data.timezone,
+        "latitude": round(float(birth_data.latitude), 6),
+        "longitude": round(float(birth_data.longitude), 6),
+        "city": (birth_data.city or "").strip().lower(),
+        "country": (birth_data.country or "").strip().lower(),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _cache_key(birth_data: BirthData) -> str:
-    return (
-        f"astro:natal:{birth_data.user_id}:"
-        f"{birth_data.date_of_birth}:{birth_data.time_of_birth}:"
-        f"{birth_data.latitude}:{birth_data.longitude}:{birth_data.timezone}:"
-        f"{_RULES_VERSION}"
-    )
+    return f"astro:natal:{_birth_data_hash(birth_data)}:{_RULES_VERSION}"
 
 
 @transaction.atomic
@@ -129,5 +140,15 @@ def calculate_natal_chart(birth_data: BirthData) -> NatalChart:
             "aspects": chart_data["aspects"],
         },
     )
+
+    try:
+        AstrologyResult.objects.get_or_create(
+            birth_data_hash=_birth_data_hash(birth_data),
+            rules_version=_RULES_VERSION,
+            defaults={"payload_json": chart_data},
+        )
+    except Exception:  # pragma: no cover - cache write should not block main flow
+        logger.warning("Failed to persist astrology result cache", exc_info=True)
+
     cache.set(cache_key, chart.id, timeout=_CACHE_TTL)
     return chart

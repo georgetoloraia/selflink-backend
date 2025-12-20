@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
+from django.conf import settings
 from django.db import transaction
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -12,7 +13,10 @@ from rest_framework.views import APIView
 from apps.mentor.models import MentorMessage, MentorSession
 from apps.mentor.services.llm_client import LLMError, build_prompt, full_completion
 from apps.mentor.services.personality import get_persona_prompt
-from apps.mentor.tasks import mentor_full_completion_task
+from apps.mentor.tasks import mentor_chat_generate_task
+from apps.core_platform.async_mode import should_run_async
+from apps.core_platform.rate_limit import is_rate_limited
+from libs.llm import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +33,15 @@ class MentorChatView(APIView):
 
         if not user_message:
             return Response({"detail": "Message is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if is_rate_limited(f"mentor:user:{request.user.id}", settings.MENTOR_RPS_USER, 1) or is_rate_limited(
+            "mentor:global",
+            settings.MENTOR_RPS_GLOBAL,
+            1,
+        ):
+            return Response({"detail": "Rate limit exceeded."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        api_key = request.headers.get("X-LLM-Key")
 
         session = (
             MentorSession.objects.filter(
@@ -56,6 +69,23 @@ class MentorChatView(APIView):
                 content=user_message,
             )
 
+        if should_run_async(request):
+            task_result = mentor_chat_generate_task.apply_async(
+                args=[session.id, user_message_obj.id],
+                kwargs={"mode": mode, "language": language, "api_key": api_key},
+            )
+            user_message_obj.meta = {"task_id": task_result.id, "task_version": "v1"}
+            user_message_obj.save(update_fields=["meta", "updated_at"])
+            return Response(
+                {
+                    "session_id": session.id,
+                    "mode": session.mode,
+                    "message_id": user_message_obj.id,
+                    "task_id": task_result.id,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
         user_profile_summary = f"id={request.user.id}, email={getattr(request.user, 'email', '')}"
         astro_summary = None
 
@@ -79,10 +109,17 @@ class MentorChatView(APIView):
             user_message=user_message,
         )
 
-        try:
-            task_result = mentor_full_completion_task.apply_async(args=[full_prompt])
-            reply_text = task_result.get(timeout=120)
-        except Exception:
+        if api_key:
+            try:
+                llm = get_llm_client(overrides={"api_key": api_key})
+                reply_text = llm.complete(system_prompt="", user_prompt=full_prompt)
+            except Exception:
+                try:
+                    reply_text = full_completion(full_prompt)
+                except LLMError as exc:  # pragma: no cover - depends on runtime LLM availability
+                    logger.exception("Mentor LLM full completion failed")
+                    return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        else:
             try:
                 reply_text = full_completion(full_prompt)
             except LLMError as exc:  # pragma: no cover - depends on runtime LLM availability

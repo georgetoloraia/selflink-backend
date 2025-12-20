@@ -107,7 +107,7 @@ class MessagingReactionsRepliesTests(APITestCase):
         self.assertFalse(reply_payload["has_attachments"])
 
         third_client = APIClient()
-        third_user = register_and_login(third_client, "third@example.com", "third")
+        register_and_login(third_client, "third@example.com", "third")
         other_thread = third_client.post(
             "/api/v1/messaging/threads/direct/",
             {"user_id": self.sender["id"]},

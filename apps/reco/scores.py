@@ -5,7 +5,6 @@ from typing import Dict, Iterable
 
 from django.db import transaction
 
-from apps.matrix.models import AstroProfile, MatrixData
 from apps.reco.models import SoulMatchProfile, SoulMatchScore
 from apps.reco.services import refresh_soulmatch_profile
 from apps.users.models import User

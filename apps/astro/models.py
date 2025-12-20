@@ -68,3 +68,19 @@ class NatalChart(BaseModel):
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"NatalChart<{self.user_id}>"
+
+
+class AstrologyResult(BaseModel):
+    birth_data_hash = models.CharField(max_length=64)
+    rules_version = models.CharField(max_length=32, default="v1")
+    payload_json = models.JSONField()
+    computed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("birth_data_hash", "rules_version")
+        indexes = [
+            models.Index(fields=["birth_data_hash", "rules_version"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - debug helper
+        return f"AstrologyResult<{self.birth_data_hash}:{self.rules_version}>"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from apps.astro.models import NatalChart
 from apps.profile.models import UserProfile
@@ -91,6 +91,8 @@ def _attachment_score(a: Optional[str], b: Optional[str]) -> float:
 
 
 def _psychology_score(profile_a: UserProfile | None, profile_b: UserProfile | None) -> float:
+    if not profile_a or not profile_b:
+        return 0.0
     values_score = _overlap_score(getattr(profile_a, "values", []), getattr(profile_b, "values", []), max_points=15)
     attachment = _attachment_score(
         getattr(profile_a, "attachment_style", None), getattr(profile_b, "attachment_style", None)
@@ -99,6 +101,8 @@ def _psychology_score(profile_a: UserProfile | None, profile_b: UserProfile | No
 
 
 def _lifestyle_score(profile_a: UserProfile | None, profile_b: UserProfile | None) -> float:
+    if not profile_a or not profile_b:
+        return 0.0
     lifestyle = _overlap_score(
         getattr(profile_a, "preferred_lifestyle", []),
         getattr(profile_b, "preferred_lifestyle", []),
@@ -113,6 +117,8 @@ def _lifestyle_score(profile_a: UserProfile | None, profile_b: UserProfile | Non
 
 
 def _generate_tags(scores: SoulmatchScores) -> List[str]:
+    if scores.astro == 0 and scores.psychology == 0 and scores.lifestyle == 0:
+        return ["neutral"]
     tags: List[str] = []
     if scores.astro > 30 and scores.psychology > 15:
         tags.append("soulmate_like")
@@ -131,8 +137,12 @@ def calculate_soulmatch(user_a: User, user_b: User) -> Dict[str, object]:
     if user_a.id == user_b.id:
         raise ValueError("Cannot compute SoulMatch for the same user.")
 
-    profile_a = getattr(user_a, "profile", None)
-    profile_b = getattr(user_b, "profile", None)
+    profile_a = UserProfile.objects.filter(user_id=user_a.id).first()
+    profile_b = UserProfile.objects.filter(user_id=user_b.id).first()
+    if profile_a and profile_a.is_empty():
+        profile_a = None
+    if profile_b and profile_b.is_empty():
+        profile_b = None
     chart_a = getattr(user_a, "natal_chart", None)
     chart_b = getattr(user_b, "natal_chart", None)
 

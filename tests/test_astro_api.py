@@ -47,6 +47,16 @@ class NatalChartAPITests(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_calc.assert_called()
 
+    @mock.patch("apps.astro.tasks.astrology_compute_birth_chart_task.apply_async")
+    def test_async_chart_enqueue(self, mock_task: mock.Mock) -> None:
+        mock_task.return_value.id = "task-astro-1"
+
+        response = self.client.post("/api/v1/astro/natal/?async=true", POST_PAYLOAD, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data["task_id"], "task-astro-1")
+        mock_task.assert_called_once()
+
     @mock.patch("apps.astro.services.location_resolver.resolve_timezone_from_coordinates", return_value="Etc/GMT")
     @mock.patch("apps.astro.views.chart_calculator.calculate_natal_chart")
     def test_coordinates_override_city_country(self, mock_calc: mock.Mock, mock_tz: mock.Mock) -> None:
@@ -96,15 +106,13 @@ class NatalChartAPITests(BaseAPITestCase):
         from apps.users.models import User
 
         user = User.objects.get(email="astro@example.com")
-        birth_data, _ = BirthData.objects.get_or_create(
+        birth_data = BirthData(
             user=user,
-            defaults={
-                "date_of_birth": date(1990, 1, 1),
-                "time_of_birth": time(12, 0),
-                "timezone": "UTC",
-                "latitude": 37.7749,
-                "longitude": -122.4194,
-            },
+            date_of_birth=date(1990, 1, 1),
+            time_of_birth=time(12, 0),
+            timezone="UTC",
+            latitude=37.7749,
+            longitude=-122.4194,
         )
         return NatalChart(
             user=user,

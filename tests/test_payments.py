@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from apps.payments.models import Plan, Subscription, Wallet
+from apps.payments.models import Subscription, Wallet
 from apps.payments.services import map_stripe_status
 from apps.users.models import User
 
