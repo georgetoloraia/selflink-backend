@@ -71,13 +71,15 @@ It is an experiment in trust, transparency, and simplicity.
 If something feels unclear or over-engineered, that’s a bug — please point it out.
 
 ## Quickstart (backend)
-- Clone the repo and copy `.env.example` to `infra/.env`
+- Clone the repo and copy `infra/.env.example` to `infra/.env` (keep `$$` escapes for Compose)
 - `make infra-up` (starts api + asgi + worker + postgres + redis + pgbouncer)
 - `make infra-migrate`
 - `make infra-superuser`
 - `make infra-status` (quick health check for api/asgi ports)
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
 - For more, see `README_for_env.md` or `docker_guide.md`
+
+Note: Docker Compose interpolates `$VAR` in `infra/.env`; escape literal `$` as `$$` to avoid warnings.
 
 ## Realtime / SSE
 - ASGI dev server: `uvicorn core.asgi:application --host 0.0.0.0 --port 8001`
@@ -99,6 +101,15 @@ ingress:
 ```
 - If Cloudflare cached old 404s for media, purge cache or use a cache-busting query param.
 - Quick check: `curl -I https://api.self-link.com/media/avatars/<uuid>.jpeg?v=1`
+
+## Media check (Docker + Tunnel)
+- Ensure `SERVE_MEDIA=true` in `infra/.env` and restart containers.
+- Docs check: `curl -I http://localhost:8000/api/docs/`
+- Origin test: `curl -I http://localhost:8000/media/avatars/<uuid>.jpeg`
+- ASGI test: `curl -I http://localhost:8001/media/avatars/<uuid>.jpeg`
+- Tunnel test: `curl -I https://api.self-link.com/media/avatars/<uuid>.jpeg?v=1`
+- Local verify: `python manage.py check_media --path "avatars/<uuid>.jpeg"`
+- Cloudflare may cache 404s; purge cache or bypass cache for `/media/*`.
 
 ## BYO LLM Keys
 - `/api/v1/mentor/chat/` accepts `X-LLM-Key` for user-supplied provider keys.
