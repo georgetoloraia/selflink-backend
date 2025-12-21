@@ -16,6 +16,7 @@ services:
       DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
       SERVE_MEDIA: "${SERVE_MEDIA:-false}"
+      STORAGE_BACKEND: "${STORAGE_BACKEND:-local}"
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
@@ -28,10 +29,6 @@ services:
       OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME}
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
-      S3_BUCKET: ${S3_BUCKET:-selflink-media}
     depends_on:
       - pgbouncer
       - redis
@@ -58,6 +55,7 @@ services:
       DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,asgi,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
       SERVE_MEDIA: "${SERVE_MEDIA:-false}"
+      STORAGE_BACKEND: "${STORAGE_BACKEND:-local}"
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
@@ -85,6 +83,7 @@ services:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,worker,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
+      STORAGE_BACKEND: "${STORAGE_BACKEND:-local}"
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
@@ -93,10 +92,6 @@ services:
       OPENSEARCH_ENABLED: ${OPENSEARCH_ENABLED:-false}
       OPENSEARCH_HOST: ${OPENSEARCH_HOST:-opensearch}
       OPENSEARCH_PORT: ${OPENSEARCH_PORT:-9200}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
-      S3_BUCKET: ${S3_BUCKET:-selflink-media}
     depends_on:
       - pgbouncer
       - redis
@@ -123,6 +118,7 @@ services:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,beat,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
+      STORAGE_BACKEND: "${STORAGE_BACKEND:-local}"
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}

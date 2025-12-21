@@ -13,5 +13,7 @@ urlpatterns = [
 ]
 
 # Serving media via Django is acceptable for dev/tunnel setups; production should use nginx/S3.
-if settings.DEBUG or getattr(settings, "SERVE_MEDIA", False):
+if (
+    settings.DEBUG or getattr(settings, "SERVE_MEDIA", False)
+) and getattr(settings, "STORAGE_BACKEND", "local") == "local":
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

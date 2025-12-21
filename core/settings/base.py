@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import os
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -37,6 +39,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "ratelimit",
     "django_prometheus",
+    "storages",
     "channels",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -198,8 +201,74 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local").strip().lower()
+_SUPPORTED_STORAGE_BACKENDS = {"local", "s3"}
+if STORAGE_BACKEND not in _SUPPORTED_STORAGE_BACKENDS:
+    raise ImproperlyConfigured(
+        f"STORAGE_BACKEND must be one of {sorted(_SUPPORTED_STORAGE_BACKENDS)}; got {STORAGE_BACKEND!r}."
+    )
+
+logger = logging.getLogger(__name__)
+
+if STORAGE_BACKEND == "local":
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = BASE_DIR / "media"
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+    DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]
+
+    _ignored_s3_vars = [
+        name
+        for name in ("S3_ENDPOINT", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_BUCKET")
+        if os.getenv(name)
+    ]
+    if _ignored_s3_vars:
+        logger.warning(
+            "STORAGE_BACKEND=local ignoring S3 settings: %s",
+            ", ".join(sorted(_ignored_s3_vars)),
+        )
+else:
+    try:
+        import storages  # noqa: F401
+    except ImportError as exc:
+        raise ImproperlyConfigured("STORAGE_BACKEND=s3 requires django-storages.") from exc
+
+    S3_ENDPOINT = os.getenv("S3_ENDPOINT", "").strip()
+    S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID", "").strip()
+    S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "").strip()
+    S3_BUCKET = os.getenv("S3_BUCKET", "").strip()
+    missing = [
+        name
+        for name, value in (
+            ("S3_ENDPOINT", S3_ENDPOINT),
+            ("S3_ACCESS_KEY_ID", S3_ACCESS_KEY_ID),
+            ("S3_SECRET_ACCESS_KEY", S3_SECRET_ACCESS_KEY),
+            ("S3_BUCKET", S3_BUCKET),
+        )
+        if not value
+    ]
+    if missing:
+        raise ImproperlyConfigured(
+            "STORAGE_BACKEND=s3 requires: " + ", ".join(missing)
+        )
+
+    AWS_S3_ENDPOINT_URL = S3_ENDPOINT
+    AWS_ACCESS_KEY_ID = S3_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY = S3_SECRET_ACCESS_KEY
+    AWS_STORAGE_BUCKET_NAME = S3_BUCKET
+    AWS_S3_ADDRESSING_STYLE = "path"
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = os.getenv("S3_QUERYSTRING_AUTH", "true").lower() == "true"
+
+    MEDIA_URL = f"{AWS_S3_ENDPOINT_URL.rstrip('/')}/{AWS_STORAGE_BUCKET_NAME}/"
+    MEDIA_ROOT = None
+    STORAGES = {
+        "default": {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+    DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]
 SERVE_MEDIA = os.getenv("SERVE_MEDIA", "false").lower() == "true"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

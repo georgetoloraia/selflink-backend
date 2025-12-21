@@ -24,6 +24,7 @@ django-filter==24.3
 django-allauth==0.63.6
 django-prometheus==2.3.1
 django-ratelimit==4.1.0
+django-storages==1.14.2
 djangorestframework==3.15.2
 djangorestframework-simplejwt==5.3.1
 drf-spectacular==0.27.2

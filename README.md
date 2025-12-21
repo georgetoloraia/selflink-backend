@@ -102,14 +102,31 @@ Cache guidance:
 - Once stable, you can cache `/media/*` with a long TTL.
 - Use `?v=timestamp` to bust cache during development.
 
-## Media check (Docker + Tunnel)
-- Upload a new avatar/post image/video.
-- Confirm file exists in the API container:
-  `docker compose -f infra/compose.yaml exec api ls -lah /app/media/<path>`
-- Origin check (media service): `curl -I http://localhost:8080/media/<path>`
-- Public check: `curl -I https://api.self-link.com/media/<path>?v=1`
-- Local verify: `python manage.py check_media --path "avatars/<uuid>.jpeg"`
-- WebSocket check: connect to `wss://api.self-link.com/ws?token=...`
+## Media storage modes
+
+### A) Local media (Docker + Tunnel)
+- `STORAGE_BACKEND=local` (default in `infra/compose.yaml`).
+- Keep the `media-data` volume and the `media` nginx service; route `/media/*` to `http://localhost:8080`.
+- `SERVE_MEDIA=true` is a dev-only fallback when using Django for `/media/`.
+- Verification:
+  - Upload a new avatar/post image/video.
+  - Confirm file exists in the API container:
+    `docker compose -f infra/compose.yaml exec api ls -lah /app/media/<path>`
+  - Origin check (media service): `curl -I http://localhost:8080/media/<path>`
+  - Public check: `curl -I https://api.self-link.com/media/<path>?v=1`
+  - Diagnostics: `python manage.py storage_status`
+
+### B) S3/MinIO media
+- `STORAGE_BACKEND=s3`
+- Set `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET` in `infra/.env`.
+- Optional: `S3_QUERYSTRING_AUTH=true` for presigned URLs (default) or `false` for public bucket URLs.
+- Start MinIO with `docker compose -f infra/compose.yaml --profile storage up -d minio` (or point to AWS S3).
+- Verification:
+  - Upload a new avatar/post image/video.
+  - Confirm the object exists in the bucket (MinIO console or client).
+  - API should return an absolute URL (starts with `http`).
+  - `curl -I <absolute-media-url>`
+  - Diagnostics: `python manage.py storage_status`
 
 ## BYO LLM Keys
 - `/api/v1/mentor/chat/` accepts `X-LLM-Key` for user-supplied provider keys.
