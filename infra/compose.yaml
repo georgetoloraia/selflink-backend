@@ -12,7 +12,7 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
-      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
@@ -48,7 +48,7 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
-      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,asgi"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,asgi,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
@@ -70,7 +70,7 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
-      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,worker"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,worker,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
@@ -100,7 +100,7 @@ services:
       - ./.env
     environment:
       DJANGO_DEBUG: "false"
-      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,beat"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,beat,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
@@ -144,7 +144,7 @@ services:
   #     POSTGRES_PASSWORD: selflink
 
   pgbouncer:
-    image: edoburu/pgbouncer:1.22.1
+    image: edoburu/pgbouncer:1.22.1-p0
     volumes:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
