@@ -5,6 +5,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.test import override_settings
+from django.utils.functional import empty
 
 from apps.messaging.models import Message, MessageAttachment, Thread
 
@@ -51,12 +52,11 @@ def test_s3_storage_url_is_absolute():
             "default": {"BACKEND": "storages.backends.s3boto3.S3Boto3Storage"},
             "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
         },
-        "DEFAULT_FILE_STORAGE": "storages.backends.s3boto3.S3Boto3Storage",
         "MEDIA_URL": "http://minio:9000/selflink-media/",
     }
 
     with override_settings(**s3_settings):
-        default_storage._wrapped = None
+        default_storage._wrapped = empty
         user = get_user_model().objects.create_user(
             email="media-s3@example.com",
             password="pass12345",
@@ -79,9 +79,9 @@ def test_s3_storage_url_is_absolute():
         assert settings.STORAGE_BACKEND == "s3"
         assert settings.STORAGES["default"]["BACKEND"].endswith("S3Boto3Storage")
         url = attachment.file.url
-        default_storage._wrapped = None
+        default_storage._wrapped = empty
 
-    default_storage._wrapped = None
+    default_storage._wrapped = empty
 
     assert url.startswith("http")
     assert "minio:9000" in url

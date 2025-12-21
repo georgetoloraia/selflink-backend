@@ -10,11 +10,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         storage_backend = getattr(settings, "STORAGE_BACKEND", "local")
-        default_storage_setting = getattr(settings, "DEFAULT_FILE_STORAGE", "(default)")
         storage_backend_path = f"{default_storage.__class__.__module__}.{default_storage.__class__.__name__}"
 
         self.stdout.write(f"STORAGE_BACKEND={storage_backend}")
-        self.stdout.write(f"DEFAULT_FILE_STORAGE={default_storage_setting}")
+        self.stdout.write(
+            f"DEFAULT_FILE_STORAGE={getattr(settings, 'DEFAULT_FILE_STORAGE', '(unset)')}"
+        )
         self.stdout.write(f"DEFAULT_STORAGE_BACKEND={storage_backend_path}")
 
         if storage_backend == "local":
@@ -32,10 +33,6 @@ class Command(BaseCommand):
         if configured_backend and configured_backend != expected:
             raise CommandError(
                 f"Inconsistent storage backend: STORAGES.default={configured_backend} expected {expected}"
-            )
-        if default_storage_setting not in ("(default)", expected):
-            raise CommandError(
-                f"Inconsistent DEFAULT_FILE_STORAGE={default_storage_setting}; expected {expected}"
             )
         if storage_backend_path != expected:
             raise CommandError(
