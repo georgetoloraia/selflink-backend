@@ -71,17 +71,21 @@ It is an experiment in trust, transparency, and simplicity.
 If something feels unclear or over-engineered, that’s a bug — please point it out.
 
 ## Quickstart (backend)
-- Clone the repo and copy `.env.example` to `.env`
-- `make up` (starts api + worker + postgres + redis + pgbouncer)
-- `make migrate`
-- `docker compose -f infra/compose.yaml exec api python manage.py createsuperuser`
-- Optional realtime/SSE stack: `make up-realtime` (adds ASGI + realtime service)
+- Clone the repo and copy `.env.example` to `infra/.env`
+- `make infra-up` (starts api + asgi + worker + postgres + redis + pgbouncer)
+- `make infra-migrate`
+- `make infra-superuser`
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
 - For more, see `README_for_env.md` or `docker_guide.md`
 
 ## Realtime / SSE
 - ASGI dev server: `uvicorn core.asgi:application --host 0.0.0.0 --port 8001`
 - Mentor SSE endpoint: `/api/v1/mentor/stream/` (served from ASGI)
+
+## Cloudflare Tunnel notes
+- Route `/ws` to the ASGI service (port 8001) and all other paths to the API service (port 8000).
+- Add `api.self-link.com` to `DJANGO_ALLOWED_HOSTS` in `infra/.env`.
+- Set `SERVE_MEDIA=true` to serve `/media/` directly from Django behind the tunnel.
 
 ## BYO LLM Keys
 - `/api/v1/mentor/chat/` accepts `X-LLM-Key` for user-supplied provider keys.

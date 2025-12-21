@@ -13,3 +13,9 @@ OPENSEARCH_ENABLED = False
 MEDIA_ROOT = BASE_DIR / "tmp" / "test-media"
 
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = ()
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}

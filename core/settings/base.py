@@ -37,6 +37,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "ratelimit",
     "django_prometheus",
+    "channels",
     "dj_rest_auth",
     "dj_rest_auth.registration",
     "allauth",
@@ -54,6 +55,7 @@ LOCAL_APPS = [
     "apps.messaging",
     "apps.mentor",
     "apps.astro",
+    "apps.audit",
     "apps.profile",
     "apps.matching",
     "apps.matrix",
@@ -66,6 +68,7 @@ LOCAL_APPS = [
     "apps.reco",
     "apps.search",
     "apps.contrib_rewards",
+    "apps.realtime",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -197,6 +200,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+SERVE_MEDIA = os.getenv("SERVE_MEDIA", "false").lower() == "true"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -284,6 +288,13 @@ CELERY_BEAT_SCHEDULE = {
 # Prefer explicit PUBSUB_REDIS_URL; default to docker redis hostname to avoid localhost lookups
 PUBSUB_REDIS_URL = os.getenv("PUBSUB_REDIS_URL", "redis://redis:6379/1")
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [PUBSUB_REDIS_URL]},
+    }
+}
+
 # --- OpenSearch (align env names) ---
 OPENSEARCH_ENABLED = os.getenv("OPENSEARCH_ENABLED", "true").lower() == "true"
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
@@ -362,6 +373,7 @@ LOGGING: Dict[str, Any] = {
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@selflink.app")
+GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"

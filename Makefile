@@ -1,11 +1,12 @@
 PYTHON ?= python3
 MANAGE := $(PYTHON) manage.py
 PERIOD ?= $(shell date +%Y-%m)
+MONTH ?= $(PERIOD)
 REVENUE ?= 0
 COSTS ?= 0
 OUT ?= ./tmp/payout.csv
 
-.PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run
+.PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run infra-up infra-down infra-logs infra-migrate infra-superuser snapshot-month
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -42,3 +43,21 @@ lint:
 
 rewards-dry-run:
 	$(MANAGE) calc_monthly_rewards $(PERIOD) --revenue-cents=$(REVENUE) --costs-cents=$(COSTS) --dry-run
+
+infra-up:
+	docker compose -f infra/compose.yaml up -d --build
+
+infra-down:
+	docker compose -f infra/compose.yaml down
+
+infra-logs:
+	docker compose -f infra/compose.yaml logs -f --tail=100
+
+infra-migrate:
+	docker compose -f infra/compose.yaml exec api python manage.py migrate
+
+infra-superuser:
+	docker compose -f infra/compose.yaml exec api python manage.py createsuperuser
+
+snapshot-month:
+	docker compose -f infra/compose.yaml exec api python manage.py contrib_rewards_snapshot_month --month $(MONTH)
