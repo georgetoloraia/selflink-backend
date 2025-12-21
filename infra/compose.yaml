@@ -37,7 +37,7 @@ services:
       - redis
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/docs/')\""]
-      interval: 10s
+      interval: 500s
       timeout: 5s
       retries: 12
 
@@ -68,7 +68,7 @@ services:
       - redis
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/api/docs/')\""]
-      interval: 10s
+      interval: 500s
       timeout: 5s
       retries: 12
 
@@ -149,7 +149,7 @@ services:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U selflink -d selflink"]
-      interval: 10s
+      interval: 500s
       timeout: 5s
       retries: 12
 
@@ -175,7 +175,7 @@ services:
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 500s
       timeout: 5s
       retries: 12
 
@@ -190,7 +190,7 @@ services:
       - "9200:9200"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf -u admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD} http://localhost:9200/_cluster/health || exit 1"]
-      interval: 10s
+      interval: 500s
       timeout: 5s
       retries: 12
     volumes:
