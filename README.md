@@ -86,30 +86,30 @@ Note: Docker Compose interpolates `$VAR` in `infra/.env`; escape literal `$` as 
 - Mentor SSE endpoint: `/api/v1/mentor/stream/` (served from ASGI)
 
 ## Cloudflare Tunnel notes
-- Route `/ws` to the ASGI service (port 8001) and all other paths to the API service (port 8000).
-- Add `api.self-link.com` to `DJANGO_ALLOWED_HOSTS` in `infra/.env`.
-- Set `SERVE_MEDIA=true` to serve `/media/` directly from Django behind the tunnel.
-- Example `cloudflared` ingress:
-```
-ingress:
-  - hostname: api.self-link.com
-    path: /ws*
-    service: http://localhost:8001
-  - hostname: api.self-link.com
-    service: http://localhost:8000
-  - service: http_status:404
-```
-- If Cloudflare cached old 404s for media, purge cache or use a cache-busting query param.
-- Quick check: `curl -I https://api.self-link.com/media/avatars/<uuid>.jpeg?v=1`
+- Routing for `api.self-link.com`:
+  - REST + docs (`/api/v1/*`, `/api/docs/`) -> API (`http://localhost:8000`)
+  - WebSockets (`/ws*`) -> ASGI (`http://localhost:8001`)
+  - Media (`/media/*`) -> static media server (`http://localhost:8080`)
+- `cloudflared` runs on the host/systemd; use `infra/cloudflared/config.yml` and replace:
+  - `tunnel: <TUNNEL_UUID>`
+  - `credentials-file: /etc/cloudflared/<TUNNEL_UUID>.json`
+- The media service is published only to `127.0.0.1:8080` for the host tunnel.
+- `SERVE_MEDIA` is a dev fallback only; keep it `false` in production.
+
+Cache guidance:
+- Cloudflare can cache 404s; purge cache if media was missing before.
+- While testing, add a Cache Rule to bypass cache for `/media/*`.
+- Once stable, you can cache `/media/*` with a long TTL.
+- Use `?v=timestamp` to bust cache during development.
 
 ## Media check (Docker + Tunnel)
-- Ensure `SERVE_MEDIA=true` in `infra/.env` and restart containers.
-- Docs check: `curl -I http://localhost:8000/api/docs/`
-- Origin test: `curl -I http://localhost:8000/media/avatars/<uuid>.jpeg`
-- ASGI test: `curl -I http://localhost:8001/media/avatars/<uuid>.jpeg`
-- Tunnel test: `curl -I https://api.self-link.com/media/avatars/<uuid>.jpeg?v=1`
+- Upload a new avatar/post image/video.
+- Confirm file exists in the API container:
+  `docker compose -f infra/compose.yaml exec api ls -lah /app/media/<path>`
+- Origin check (media service): `curl -I http://localhost:8080/media/<path>`
+- Public check: `curl -I https://api.self-link.com/media/<path>?v=1`
 - Local verify: `python manage.py check_media --path "avatars/<uuid>.jpeg"`
-- Cloudflare may cache 404s; purge cache or bypass cache for `/media/*`.
+- WebSocket check: connect to `wss://api.self-link.com/ws?token=...`
 
 ## BYO LLM Keys
 - `/api/v1/mentor/chat/` accepts `X-LLM-Key` for user-supplied provider keys.

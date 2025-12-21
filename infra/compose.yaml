@@ -15,7 +15,7 @@ services:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
-      SERVE_MEDIA: "true"
+      SERVE_MEDIA: "${SERVE_MEDIA:-false}"
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
@@ -57,7 +57,7 @@ services:
       DJANGO_DEBUG: "false"
       DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,asgi,api.self-link.com"
       DJANGO_SETTINGS_MODULE: core.settings.base
-      SERVE_MEDIA: "true"
+      SERVE_MEDIA: "${SERVE_MEDIA:-false}"
       DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
@@ -100,6 +100,14 @@ services:
     depends_on:
       - pgbouncer
       - redis
+
+  media:
+    image: nginx:alpine
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - media-data:/srv/media
+      - ./nginx/media.conf:/etc/nginx/conf.d/default.conf:ro
 
   beat:
     build:
