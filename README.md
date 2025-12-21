@@ -75,6 +75,7 @@ If something feels unclear or over-engineered, that’s a bug — please point i
 - `make infra-up` (starts api + asgi + worker + postgres + redis + pgbouncer)
 - `make infra-migrate`
 - `make infra-superuser`
+- `make infra-status` (quick health check for api/asgi ports)
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
 - For more, see `README_for_env.md` or `docker_guide.md`
 
@@ -86,6 +87,18 @@ If something feels unclear or over-engineered, that’s a bug — please point i
 - Route `/ws` to the ASGI service (port 8001) and all other paths to the API service (port 8000).
 - Add `api.self-link.com` to `DJANGO_ALLOWED_HOSTS` in `infra/.env`.
 - Set `SERVE_MEDIA=true` to serve `/media/` directly from Django behind the tunnel.
+- Example `cloudflared` ingress:
+```
+ingress:
+  - hostname: api.self-link.com
+    path: /ws*
+    service: http://localhost:8001
+  - hostname: api.self-link.com
+    service: http://localhost:8000
+  - service: http_status:404
+```
+- If Cloudflare cached old 404s for media, purge cache or use a cache-busting query param.
+- Quick check: `curl -I https://api.self-link.com/media/avatars/<uuid>.jpeg?v=1`
 
 ## BYO LLM Keys
 - `/api/v1/mentor/chat/` accepts `X-LLM-Key` for user-supplied provider keys.
