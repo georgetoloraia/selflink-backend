@@ -23,7 +23,7 @@ TestResults.xml
 #Database
 db.sqlite3
 # Python bytecode
-__pycache__/
+__pycache__
 #venv
 venv
 .ruff_cache/
@@ -46,3 +46,4 @@ selflink_llama_prompt.txt
 test_llama.py
 selflink_refactor_reddit_feedback.txt
 idea.txt
+personal.txt
