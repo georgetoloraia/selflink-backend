@@ -1,10 +1,10 @@
 # SelfLink
 
-SelfLink is an open-source backend + mobile app experimenting with a simple idea:  
+SelfLink is an open-source backend + mobile app experimenting with a simple idea:
 Can we build software where contributors are rewarded transparently, enforced by code instead of promises?
 
-This repository contains the backend.  
-Start here: `START_HERE.md`  
+This repository contains the backend.
+Start here: `START_HERE.md`
 The mobile app lives here: https://github.com/georgetoloraia/selflink-mobile
 
 ## What exists today
@@ -12,7 +12,7 @@ The mobile app lives here: https://github.com/georgetoloraia/selflink-mobile
 - React Native / Expo mobile app connected to it
 - Auth and core flows working end-to-end
 - Append-only contributor rewards ledger
-- Deterministic monthly reward calculation (no manual edits)  
+- Deterministic monthly reward calculation (no manual edits)
 This is an early-stage project, but it is already real and working.
 
 ## One-sentence mental model
@@ -46,28 +46,30 @@ Monthly Snapshot → Payouts
 There are three simple ways to help:
 1) Backend (Django / DRF): See CONTRIBUTING.md
 2) Mobile (React Native / Expo): https://github.com/georgetoloraia/selflink-mobile
-3) Architecture / design feedback: Open an issue — no code required  
+3) Architecture / design feedback: Open an issue — no code required
 If you’re new, start with a good first issue.
 
 ## Contributor rewards (short version)
 - 50% of future net platform revenue is reserved for contributors
 - Contributions are tracked as immutable RewardEvents
 - Rewards are calculated monthly using deterministic rules
-- Corrections happen via new events, never by rewriting history  
-Full details: CONTRIBUTOR_REWARDS.md
+- Corrections happen via new events, never by rewriting history
+Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
+
+For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 
 
 ## What this project is NOT
 - a DAO
 - a token or crypto project
 - a finished product
-- a promise of guaranteed income  
+- a promise of guaranteed income
 It is an experiment in trust, transparency, and simplicity.
 
 ## Status
 - Actively developed
 - Open to contributors
-- Early feedback is especially valuable  
+- Early feedback is especially valuable
 If something feels unclear or over-engineered, that’s a bug — please point it out.
 
 ## Quickstart (backend)
