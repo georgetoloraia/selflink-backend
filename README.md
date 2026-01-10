@@ -61,7 +61,7 @@ For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 
 ## What this project is NOT
 - a DAO
-- a token or crypto project
+- a token or crypto project `But that could change because crypto is a really powerful thing, of course it's not just up to me to decide.`
 - a finished product
 - a promise of guaranteed income
 It is an experiment in trust, transparency, and simplicity.
