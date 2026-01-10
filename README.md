@@ -1,5 +1,7 @@
 # SelfLink
 
+click for more [`WHAT-IS-SELFLINK.md`](WHAT-IS-SELFLINK.md)
+
 SelfLink is an open-source backend + mobile app experimenting with a simple idea:
 Can we build software where contributors are rewarded transparently, enforced by code instead of promises?
 
