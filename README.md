@@ -96,11 +96,11 @@ Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker 
 
 ## Realtime architecture
 - FastAPI is the primary realtime gateway to keep WebSocket fanout isolated and scalable without coupling to Django request latency.
-- Docker Compose starts it by default; for non-Docker runs, start `uvicorn services.realtime.app:app --host 0.0.0.0 --port 8001` and route `/ws` to that port.
+- Docker Compose starts it by default; for non-Docker runs, start `uvicorn services.realtime.app:app --host 0.0.0.0 --port 8002` and route `/ws` to that port.
 - Legacy Channels clients can be migrated by switching `/ws` to the FastAPI gateway; keep `REALTIME_CHANNELS_ENABLED=true` only for temporary compatibility.
 
 ## Realtime quick test
-- `curl -s http://localhost:8002/health` -> `{"status":"ok"}`
+- `python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"` -> exit code 0
 
 ## Cloudflare Tunnel notes
 - Routing for `api.self-link.com`:
