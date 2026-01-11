@@ -67,4 +67,4 @@ infra-status:
 	@docker compose -f infra/compose.yaml ps
 	@python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/docs/')" >/dev/null 2>&1 && echo "api: ok" || echo "api: not ready"
 	@python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/docs/')" >/dev/null 2>&1 && echo "asgi: ok" || echo "asgi: not ready"
-	@python -c "import socket; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1',8001)); s.close()" >/dev/null 2>&1 && echo "ws: port open" || echo "ws: port closed"
+	@python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')" >/dev/null 2>&1 && echo "realtime: ok" || (echo "realtime: not ready"; exit 1)
