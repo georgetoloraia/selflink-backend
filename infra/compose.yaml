@@ -137,6 +137,7 @@ services:
     ports:
       - "8002:8001"
     environment:
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
       REALTIME_JWT_SECRET: ${REALTIME_JWT_SECRET}
       REALTIME_REDIS_URL: ${REALTIME_REDIS_URL:-redis://redis:6379/1}
     depends_on:

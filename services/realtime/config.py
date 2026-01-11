@@ -21,10 +21,10 @@ class Settings(BaseSettings):
 
     @property
     def jwt_secret(self) -> str:
-        if self.jwt_signing_key and self.jwt_signing_key.strip():
-            return self.jwt_signing_key
         if self.realtime_jwt_secret and self.realtime_jwt_secret.strip():
             return self.realtime_jwt_secret
+        if self.jwt_signing_key and self.jwt_signing_key.strip():
+            return self.jwt_signing_key
         return "unsafe-realtime-secret"
 
 
