@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from urllib.parse import urlparse
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -10,6 +11,22 @@ import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def is_running_in_docker() -> bool:
+    return os.getenv("RUNNING_IN_DOCKER", "").lower() == "true" or os.path.exists("/.dockerenv")
+
+
+def validate_database_url_for_docker(database_url: str, in_docker: bool) -> None:
+    if not in_docker or not database_url:
+        return
+    parsed = urlparse(database_url)
+    host = parsed.hostname
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        raise ImproperlyConfigured(
+            "DATABASE_URL points to localhost inside Docker. "
+            "Use Docker hostnames like pgbouncer or postgres instead."
+        )
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-secret-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
@@ -111,6 +128,7 @@ TEMPLATES = [
 ]
 
 DEFAULT_DATABASE_URL = f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+validate_database_url_for_docker(os.getenv("DATABASE_URL", ""), is_running_in_docker())
 DATABASES: Dict[str, Dict[str, Any]] = {
     "default": dj_database_url.parse(
         os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL),
