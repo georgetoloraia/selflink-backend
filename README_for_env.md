@@ -20,6 +20,7 @@
 - `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `REDIS_URL`, `PUBSUB_REDIS_URL`: Redis endpoints for Celery, caching, and realtime fanout.
 - `CORS_ALLOWED_ORIGINS`: front-end origins permitted to call the API.
 - `JWT_SIGNING_KEY`, `REALTIME_JWT_SECRET`: secrets for issuing/verifying tokens; **use the same value for both**.
+- `REALTIME_CHANNELS_ENABLED`: enables deprecated Django Channels realtime; leave `false` to use the FastAPI gateway.
 - `OPENSEARCH_ENABLED`, `OPENSEARCH_HOST`, `OPENSEARCH_PORT`, `OPENSEARCH_USER`, `OPENSEARCH_PASSWORD`: optional OpenSearch integration.
 - `OPENSEARCH_INITIAL_ADMIN_PASSWORD`: OpenSearch bootstrap password for local dev.
 - `SWISSEPH_DATA_PATH`: Swiss Ephemeris data directory (e.g. `/app/astro_data`).

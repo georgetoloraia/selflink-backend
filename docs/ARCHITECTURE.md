@@ -11,7 +11,7 @@ See also:
 - **Identity & Social (apps.users, apps.profile, apps.social, apps.messaging, apps.notifications)**  
   Authentication, identity, social graph, messaging, and notification fanout. PII is anchored in the user models with a dedicated `UserPII` container for sensitive fields to enable future row-level isolation.
 - **AI Mentor (apps.mentor, apps.ai)**  
-  Conversational mentor endpoints. HTTP views stay thin; LLM calls are executed via Celery tasks and can later stream via SSE/Channels.
+  Conversational mentor endpoints. HTTP views stay thin; LLM calls are executed via Celery tasks and can stream via SSE (ASGI) or the FastAPI realtime gateway (Channels is deprecated).
 - **Astro & Matching (apps.astro, apps.matrix, apps.matching)**  
   Deterministic astrology calculations, natal chart data, and soulmatch compatibility logic. Results are cacheable by birth data + rules version, and long-running work is offloaded to Celery tasks.
 - **Rewards & Audit (apps.contrib_rewards)**  

@@ -99,6 +99,9 @@ Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker 
 - Docker Compose starts it by default; for non-Docker runs, start `uvicorn services.realtime.app:app --host 0.0.0.0 --port 8001` and route `/ws` to that port.
 - Legacy Channels clients can be migrated by switching `/ws` to the FastAPI gateway; keep `REALTIME_CHANNELS_ENABLED=true` only for temporary compatibility.
 
+## Realtime quick test
+- `curl -s http://localhost:8002/health` -> `{"status":"ok"}`
+
 ## Cloudflare Tunnel notes
 - Routing for `api.self-link.com`:
   - REST + docs (`/api/v1/*`, `/api/docs/`) -> API (`http://localhost:8000`)
