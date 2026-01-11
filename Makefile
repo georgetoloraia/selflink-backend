@@ -31,7 +31,7 @@ up:
 	docker compose -f infra/compose.yaml up -d --build
 
 up-realtime:
-	docker compose -f infra/compose.yaml --profile realtime up -d --build
+	docker compose -f infra/compose.yaml up -d --build
 
 compose-down:
 	docker compose -f infra/compose.yaml down

@@ -4,7 +4,7 @@ credentials-file: /etc/cloudflared/<TUNNEL_UUID>.json
 ingress:
   - hostname: api.self-link.com
     path: /ws*
-    service: http://localhost:8001
+    service: http://localhost:8002
     originRequest:
       noTLSVerify: true
   - hostname: api.self-link.com

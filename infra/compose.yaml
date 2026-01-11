@@ -132,7 +132,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/Dockerfile.realtime
-    profiles: ["realtime"]
     env_file:
       - ./.env
     ports:
@@ -142,6 +141,11 @@ services:
       REALTIME_REDIS_URL: ${REALTIME_REDIS_URL:-redis://redis:6379/1}
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 500s
+      timeout: 5s
+      retries: 12
 
   postgres:
     image: postgres:15-alpine

@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title=settings.app_name)
 
 
+@app.get("/health")
+def health_check() -> dict:
+    return {"status": "ok"}
+
+
 def get_user_id(websocket: WebSocket) -> int:
     token = websocket.query_params.get("token")
     if not token:

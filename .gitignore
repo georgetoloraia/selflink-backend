@@ -34,6 +34,7 @@ roadmap.txt
 PROJECT_PLAN.md
 PROJECT_PLAN_v2.md
 .env
+infra/.env
 rebuild.txt
 media
 celerybeat-schedule

@@ -18,15 +18,16 @@ make -C infra up
 COMPOSE=docker-compose make -C infra up
 ```
 
-This will build the API/worker images, start Postgres, Redis, and Pgbouncer, and launch the Django API + Celery worker.
+This will build the API/worker/realtime images, start Postgres, Redis, and Pgbouncer, and launch the Django API + ASGI + Celery worker + realtime gateway.
 
 Optional profiles:
 
 ```bash
-docker compose -f infra/compose.yaml --profile realtime up -d
 docker compose -f infra/compose.yaml --profile search up -d
 docker compose -f infra/compose.yaml --profile storage up -d
 ```
+
+Realtime gateway (FastAPI) is enabled by default; no profile is required.
 
 ---
 
@@ -77,10 +78,10 @@ Rebuild every container:
 docker compose -f infra/compose.yaml build --no-cache
 ```
 
-Rebuild + restart one service (example: `asgi`):
+Rebuild + restart one service (example: `api`):
 
 ```bash
-docker compose -f infra/compose.yaml up -d --build realtime
+docker compose -f infra/compose.yaml up -d --build api
 ```
 
 Restart everything without rebuilding:
@@ -109,19 +110,24 @@ docker compose -f infra/compose.yaml down -v
 
 ## ⚙️ Environment Notes
 
-Ensure a root-level `.env` exists before booting the stack:
+Ensure `infra/.env` exists before booting the stack:
 
 ```bash
-cp .env.example .env
+cp infra/.env.example infra/.env
 ```
 
-`.env` must define `REALTIME_JWT_SECRET`, database URLs, Redis/OpenSearch hosts, and MinIO credentials. After changing `.env`, rebuild affected services:
+Docker Compose reads `infra/.env` (the root `.env` is only for non-Docker runs). Use Docker service hostnames like `pgbouncer`, `redis`, and `opensearch` instead of `localhost` in container URLs. `infra/.env` must define `REALTIME_JWT_SECRET`, database URLs, Redis/OpenSearch hosts, and MinIO credentials. After changing `infra/.env`, rebuild affected services:
 
 ```bash
 docker compose -f infra/compose.yaml up -d --build
 ```
 
 ---
+
+## 🧩 Dev vs prod server modes
+
+- `infra/compose.yaml` runs Django via `runserver` for local development.
+- `infra/docker/Dockerfile.api` defaults to Gunicorn for production-like deployments.
 
 ## 🧰 Troubleshooting
 
@@ -177,7 +183,7 @@ docker compose -f infra/compose.yaml up -d --build
 
 - Django API → <http://localhost:8000>
 - ASGI (SSE) → <http://localhost:8001>
-- Realtime Gateway → `ws://localhost:8002/ws`
+- Realtime Gateway (FastAPI) → `ws://localhost:8002/ws`
 - MinIO Console → <http://localhost:9001> (profile `storage`)
 - OpenSearch → <http://localhost:9200> (profile `search`)
 

@@ -1,7 +1,8 @@
 # Contributing to SelfLink
 
 Quickstart
-- Copy `.env.example` to `.env`
+- Docker: copy `infra/.env.example` to `infra/.env`
+- Local: copy `.env.example` to `.env`
 - Install dev tooling: `pip install -r requirements-dev.txt`
 - `make up`
 - `make migrate`

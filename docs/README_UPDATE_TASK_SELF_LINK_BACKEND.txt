@@ -32,7 +32,7 @@ The updated README.md should roughly follow this structure:
 4) Requirements & prerequisites
 5) Setup and installation (local + Docker)
 6) Running the backend (dev mode)
-7) Environment configuration (.env)
+7) Environment configuration (.env / infra/.env)
 8) Database & migrations
 9) API overview (auth, versioning, key apps)
 10) AI Mentor feature overview (new)
@@ -90,7 +90,7 @@ You can adapt the exact headings, but keep this logical flow.
      - `source venv/bin/activate` (Linux/macOS) or `venv\Scripts\activate` (Windows)
   3) Install dependencies
      - `pip install -r requirements.txt`
-  4) Create .env file or export environment variables (see next section)
+  4) Create .env file (local) or infra/.env (Docker) or export environment variables (see next section)
   5) Run migrations
      - `python manage.py migrate`
   6) Create superuser (optional)
@@ -109,7 +109,7 @@ You can adapt the exact headings, but keep this logical flow.
     - `python manage.py collectstatic --noinput`
 - Briefly mention which services run via compose (api, db, redis, etc.).
 
-2.7. Environment Configuration (.env)
+2.7. Environment Configuration (.env / infra/.env)
 - Explain that settings read environment variables for:
   - DATABASE_URL
   - DJANGO_SECRET_KEY
@@ -119,7 +119,7 @@ You can adapt the exact headings, but keep this logical flow.
   - OPENSEARCH_* variables
   - FEATURE_FLAGS (mentor_llm, soulmatch, payments, etc.)
   - SWISSEPH_DATA_PATH for astro data
-- Give a minimal example .env snippet in README.
+- Give a minimal example .env snippet in README and mention infra/.env for Docker Compose.
 
 2.8. Database & Migrations
 - Explain the migration workflow:

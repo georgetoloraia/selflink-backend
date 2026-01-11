@@ -76,23 +76,36 @@ If something feels unclear or over-engineered, that’s a bug — please point i
 
 ## Quickstart (backend)
 - Clone the repo and copy `infra/.env.example` to `infra/.env` (keep `$$` escapes for Compose)
-- `make infra-up` (starts api + asgi + worker + postgres + redis + pgbouncer)
+- `make infra-up` (starts api + asgi + worker + realtime + postgres + redis + pgbouncer + media)
 - `make infra-migrate`
 - `make infra-superuser`
 - `make infra-status` (quick health check for api/asgi ports)
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
 - For more, see `README_for_env.md` or `docker_guide.md`
 
-Note: Docker Compose interpolates `$VAR` in `infra/.env`; escape literal `$` as `$$` to avoid warnings.
+Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker runs. Docker Compose interpolates `$VAR` in `infra/.env`, so escape literal `$` as `$$`. Inside containers, `localhost` does not point to other services; use Docker hostnames like `pgbouncer`, `redis`, and `opensearch`.
+
+## Dev vs prod server modes
+- `infra/compose.yaml` runs Django via `runserver` for local development.
+- `infra/docker/Dockerfile.api` defaults to Gunicorn for production-like deployments.
 
 ## Realtime / SSE
-- ASGI dev server: `uvicorn core.asgi:application --host 0.0.0.0 --port 8001`
-- Mentor SSE endpoint: `/api/v1/mentor/stream/` (served from ASGI)
+- FastAPI realtime gateway (primary): `ws://localhost:8002/ws` (Docker Compose).
+- ASGI dev server: `uvicorn core.asgi:application --host 0.0.0.0 --port 8001` (SSE endpoints like `/api/v1/mentor/stream/`).
+- Django Channels `/ws` is deprecated; to enable legacy support set `REALTIME_CHANNELS_ENABLED=true` and use the ASGI server on port 8001.
+
+## Realtime architecture
+- FastAPI is the primary realtime gateway to keep WebSocket fanout isolated and scalable without coupling to Django request latency.
+- Docker Compose starts it by default; for non-Docker runs, start `uvicorn services.realtime.app:app --host 0.0.0.0 --port 8001` and route `/ws` to that port.
+- Legacy Channels clients can be migrated by switching `/ws` to the FastAPI gateway; keep `REALTIME_CHANNELS_ENABLED=true` only for temporary compatibility.
+
+## Realtime quick test
+- `curl -s http://localhost:8002/health` -> `{"status":"ok"}`
 
 ## Cloudflare Tunnel notes
 - Routing for `api.self-link.com`:
   - REST + docs (`/api/v1/*`, `/api/docs/`) -> API (`http://localhost:8000`)
-  - WebSockets (`/ws*`) -> ASGI (`http://localhost:8001`)
+  - WebSockets (`/ws*`) -> FastAPI realtime gateway (`http://localhost:8002`)
   - Media (`/media/*`) -> static media server (`http://localhost:8080`)
 - `cloudflared` runs on the host/systemd; use `infra/cloudflared/config.yml` and replace:
   - `tunnel: <TUNNEL_UUID>`
