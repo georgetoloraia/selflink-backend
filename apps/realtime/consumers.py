@@ -1,3 +1,9 @@
+"""Deprecated Channels-based realtime consumer.
+
+Use the FastAPI realtime service in services/realtime instead.
+Enable only for legacy clients via REALTIME_CHANNELS_ENABLED=true.
+"""
+
 from __future__ import annotations
 
 import urllib.parse

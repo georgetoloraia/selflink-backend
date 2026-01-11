@@ -132,7 +132,6 @@ services:
     build:
       context: ..
       dockerfile: infra/docker/Dockerfile.realtime
-    profiles: ["realtime"]
     env_file:
       - ./.env
     ports:
