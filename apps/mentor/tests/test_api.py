@@ -53,6 +53,7 @@ def test_chat_returns_reply_and_saves_messages(monkeypatch):
         "/api/v1/mentor/chat/",
         {"message": "I feel stuck", "mode": MentorSession.DEFAULT_MODE, "language": "en"},
         format="json",
+        HTTP_X_SYNC="true",
     )
 
     assert resp.status_code == 200, resp.content
@@ -78,7 +79,7 @@ def test_chat_async_enqueues_task():
 
     with mock.patch("apps.mentor.tasks.mentor_chat_generate_task.apply_async", return_value=_Result()) as mocked:
         resp = client.post(
-            "/api/v1/mentor/chat/?async=true",
+            "/api/v1/mentor/chat/",
             {"message": "I feel stuck", "mode": MentorSession.DEFAULT_MODE, "language": "en"},
             format="json",
         )
@@ -112,3 +113,42 @@ def test_stream_returns_sse(monkeypatch):
     assert resp["Content-Type"] == "text/event-stream"
     body = b"".join(resp.streaming_content)
     assert b"event" in body and b"token" in body
+
+
+@pytest.mark.django_db
+def test_task_status_ready():
+    user = User.objects.create_user(email="taskready@example.com", password="testpass123")
+    session = MentorSession.objects.create(user=user, mode=MentorSession.DEFAULT_MODE, active=True)
+    message = MentorMessage.objects.create(
+        session=session,
+        role=MentorMessage.Role.ASSISTANT,
+        content="Done",
+        meta={"task_id": "task-ready"},
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/v1/mentor/task-status/task-ready/")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["status"] == "ready"
+    assert payload["message"]["id"] == message.id
+
+
+@pytest.mark.django_db
+def test_task_status_pending():
+    user = User.objects.create_user(email="taskpending@example.com", password="testpass123")
+    session = MentorSession.objects.create(user=user, mode=MentorSession.DEFAULT_MODE, active=True)
+    MentorMessage.objects.create(
+        session=session,
+        role=MentorMessage.Role.USER,
+        content="Pending",
+        meta={"task_id": "task-pending"},
+    )
+    client = APIClient()
+    client.force_authenticate(user=user)
+
+    resp = client.get("/api/v1/mentor/task-status/task-pending/")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["status"] == "pending"

@@ -36,13 +36,24 @@ class MentorAIApiTests(BaseAPITestCase):
 
     @mock.patch("apps.mentor.views.generate_llama_response", return_value="AI natal guidance")
     def test_natal_mentor_requires_chart(self, mock_llm) -> None:
-        response = self.client.post("/api/v1/mentor/natal/")
+        response = self.client.post("/api/v1/mentor/natal/", HTTP_X_SYNC="true")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         _seed_chart(User.objects.get(id=self.user["id"]))
-        response = self.client.post("/api/v1/mentor/natal/")
+        response = self.client.post("/api/v1/mentor/natal/", HTTP_X_SYNC="true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("mentor_text", response.data)
         mock_llm.assert_called()
+
+    @mock.patch("apps.mentor.views.mentor_natal_generate_task.apply_async")
+    @mock.patch("apps.mentor.views.generate_llama_response")
+    def test_natal_mentor_defaults_async(self, mock_llm, mock_task) -> None:
+        _seed_chart(User.objects.get(id=self.user["id"]))
+        mock_task.return_value.id = "task-natal"
+        response = self.client.post("/api/v1/mentor/natal/")
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data["task_id"], "task-natal")
+        mock_task.assert_called_once()
+        mock_llm.assert_not_called()
 
     @mock.patch("apps.mentor.views.generate_llama_response", return_value="Soulmatch guidance")
     @mock.patch("apps.mentor.views.calculate_soulmatch")
@@ -53,10 +64,20 @@ class MentorAIApiTests(BaseAPITestCase):
             "components": {"astro": 20, "matrix": 15, "psychology": 20, "lifestyle": 20},
             "tags": ["aligned_lifestyle"],
         }
-        response = self.client.get(f"/api/v1/mentor/soulmatch/{self.other.id}/")
+        response = self.client.get(f"/api/v1/mentor/soulmatch/{self.other.id}/", HTTP_X_SYNC="true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["score"], 75)
         self.assertIn("mentor_text", response.data)
+
+    @mock.patch("apps.mentor.views.mentor_soulmatch_generate_task.apply_async")
+    @mock.patch("apps.mentor.views.calculate_soulmatch")
+    def test_soulmatch_mentor_defaults_async(self, mock_calc, mock_task) -> None:
+        mock_task.return_value.id = "task-soulmatch"
+        response = self.client.get(f"/api/v1/mentor/soulmatch/{self.other.id}/")
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data["task_id"], "task-soulmatch")
+        mock_task.assert_called_once()
+        mock_calc.assert_not_called()
 
     def test_soulmatch_mentor_blocks_self(self) -> None:
         response = self.client.get(f"/api/v1/mentor/soulmatch/{self.user['id']}/")
@@ -67,8 +88,19 @@ class MentorAIApiTests(BaseAPITestCase):
     def test_daily_mentor(self, mock_transits, mock_llm) -> None:
         mock_transits.return_value = {"sun_today": {"lon": 10, "sign": "Aries"}, "moon_today": {"lon": 20, "sign": "Aries"}}
         _seed_chart(User.objects.get(id=self.user["id"]))
-        response = self.client.get("/api/v1/mentor/daily/")
+        response = self.client.get("/api/v1/mentor/daily/", HTTP_X_SYNC="true")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("messages", response.data)
         mock_llm.assert_called()
         mock_transits.assert_called()
+
+    @mock.patch("apps.mentor.views.mentor_daily_mentor_task.apply_async")
+    @mock.patch("apps.mentor.views.get_today_transits")
+    def test_daily_mentor_defaults_async(self, mock_transits, mock_task) -> None:
+        _seed_chart(User.objects.get(id=self.user["id"]))
+        mock_task.return_value.id = "task-daily"
+        response = self.client.get("/api/v1/mentor/daily/")
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data["task_id"], "task-daily")
+        mock_task.assert_called_once()
+        mock_transits.assert_not_called()

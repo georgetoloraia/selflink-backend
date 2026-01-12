@@ -23,5 +23,5 @@ def test_mentor_rate_limit_returns_429():
         first = client.post("/api/v1/mentor/chat/", {"message": "hello"}, format="json")
         second = client.post("/api/v1/mentor/chat/", {"message": "hello again"}, format="json")
 
-    assert first.status_code == 200
+    assert first.status_code == 202
     assert second.status_code == 429
