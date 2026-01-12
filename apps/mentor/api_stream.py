@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Dict, Generator, List
 
 from django.conf import settings
@@ -10,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from apps.mentor.models import MentorMessage, MentorSession
-from apps.mentor.services.llm_client import LLMError, build_prompt, stream_completion
+from apps.mentor.services.llm_client import DEFAULT_TIMEOUT, LLMError, build_prompt, stream_completion
 from apps.mentor.services.personality import get_persona_prompt
 from apps.core_platform.rate_limit import is_rate_limited
 
@@ -100,8 +101,13 @@ class MentorChatStreamView(APIView):
 
                 yield _sse_format({"event": "start", "session_id": session.id, "mode": mode})
 
+                max_duration = DEFAULT_TIMEOUT
+                started_at = time.monotonic()
                 reply_parts: List[str] = []
-                for chunk in stream_completion(full_prompt):
+                for chunk in stream_completion(full_prompt, timeout=max_duration):
+                    if time.monotonic() - started_at > max_duration:
+                        yield _sse_format({"event": "error", "detail": "Stream timed out."})
+                        return
                     reply_parts.append(chunk)
                     yield _sse_format({"event": "token", "delta": chunk})
 

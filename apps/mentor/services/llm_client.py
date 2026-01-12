@@ -66,7 +66,7 @@ def build_prompt(
     return "\n".join(parts)
 
 
-def stream_completion(full_prompt: str) -> Generator[str, None, None]:
+def stream_completion(full_prompt: str, timeout: float | None = None) -> Generator[str, None, None]:
     """
     Stream tokens from the LLM using Ollama's /api/generate endpoint.
     """
@@ -78,7 +78,7 @@ def stream_completion(full_prompt: str) -> Generator[str, None, None]:
     }
 
     try:
-        response = requests.post(url, json=payload, stream=True, timeout=None)
+        response = requests.post(url, json=payload, stream=True, timeout=timeout)
         response.raise_for_status()
     except RequestException as exc:  # pragma: no cover - network errors are environment-specific
         logger.exception("Mentor LLM streaming request failed")
