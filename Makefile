@@ -6,8 +6,12 @@ REVENUE ?= 0
 COSTS ?= 0
 OUT ?= ./tmp/payout.csv
 
+HEALTHCHECK_API = python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/docs/')"
+HEALTHCHECK_ASGI = python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/docs/')"
+HEALTHCHECK_REALTIME = python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"
+
 .PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run infra-up infra-down infra-logs infra-migrate infra-superuser snapshot-month
-.PHONY: infra-status
+.PHONY: infra-status infra-status-strict
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -65,6 +69,16 @@ snapshot-month:
 
 infra-status:
 	@docker compose -f infra/compose.yaml ps
-	@python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/docs/')" >/dev/null 2>&1 && echo "api: ok" || echo "api: not ready"
-	@python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/docs/')" >/dev/null 2>&1 && echo "asgi: ok" || echo "asgi: not ready"
-	@python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')" >/dev/null 2>&1 && echo "realtime: ok" || (echo "realtime: not ready"; exit 1)
+	@check() { label=$$1; shift; if "$$@" >/dev/null 2>&1; then echo "$$label: ok"; else echo "$$label: not ready"; return 1; fi; }; \
+		check "api" $(HEALTHCHECK_API) || true; \
+		check "asgi" $(HEALTHCHECK_ASGI) || true; \
+		check "realtime" $(HEALTHCHECK_REALTIME) || true
+
+infra-status-strict:
+	@docker compose -f infra/compose.yaml ps
+	@check() { label=$$1; shift; if "$$@" >/dev/null 2>&1; then echo "$$label: ok"; else echo "$$label: not ready"; return 1; fi; }; \
+		status=0; \
+		check "api" $(HEALTHCHECK_API) || status=1; \
+		check "asgi" $(HEALTHCHECK_ASGI) || status=1; \
+		check "realtime" $(HEALTHCHECK_REALTIME) || status=1; \
+		exit $$status

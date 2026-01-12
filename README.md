@@ -79,7 +79,8 @@ If something feels unclear or over-engineered, that’s a bug — please point i
 - `make infra-up` (starts api + asgi + worker + realtime + postgres + redis + pgbouncer + media)
 - `make infra-migrate`
 - `make infra-superuser`
-- `make infra-status` (quick health check for api/asgi ports)
+- `make infra-status` (informational health check)
+- `make infra-status-strict` (fails if api/asgi/realtime are not healthy)
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
 - For more, see `README_for_env.md` or `docker_guide.md`
 
