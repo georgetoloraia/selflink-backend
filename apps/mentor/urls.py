@@ -8,6 +8,7 @@ from .api_views.views import (
     DailyHistoryView,
     DailySessionDetailView,
     MentorHistoryView,
+    MentorTaskStatusView,
 )
 from .views import (
     DailyMentorView,
@@ -33,4 +34,5 @@ urlpatterns = router.urls + [
     path("mentor/daily/history/", DailyHistoryView.as_view(), name="mentor-daily-history"),
     path("mentor/daily/session/<int:session_id>/", DailySessionDetailView.as_view(), name="mentor-daily-session"),
     path("mentor/history/", MentorHistoryView.as_view(), name="mentor-history"),
+    path("mentor/task-status/<str:task_id>/", MentorTaskStatusView.as_view(), name="mentor-task-status"),
 ]

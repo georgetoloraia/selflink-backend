@@ -14,7 +14,7 @@ from apps.mentor.models import MentorMessage, MentorSession
 from apps.mentor.services.llm_client import LLMError, build_prompt, full_completion
 from apps.mentor.services.personality import get_persona_prompt
 from apps.mentor.tasks import mentor_chat_generate_task
-from apps.core_platform.async_mode import should_run_async
+from apps.core_platform.async_mode import should_run_async_default
 from apps.core_platform.rate_limit import is_rate_limited
 from libs.llm import get_llm_client
 
@@ -69,7 +69,7 @@ class MentorChatView(APIView):
                 content=user_message,
             )
 
-        if should_run_async(request):
+        if should_run_async_default(request, default_async=True):
             task_result = mentor_chat_generate_task.apply_async(
                 args=[session.id, user_message_obj.id],
                 kwargs={"mode": mode, "language": language, "api_key": api_key},
@@ -82,6 +82,7 @@ class MentorChatView(APIView):
                     "mode": session.mode,
                     "message_id": user_message_obj.id,
                     "task_id": task_result.id,
+                    "task_status_url": f"/api/v1/mentor/task-status/{task_result.id}/",
                 },
                 status=status.HTTP_202_ACCEPTED,
             )

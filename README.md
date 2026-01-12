@@ -49,5 +49,28 @@ Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker 
 - Docker Compose starts it by default; for non-Docker runs, start `uvicorn services.realtime.app:app --host 0.0.0.0 --port 8002` and route `/ws` to that port.
 - Legacy Channels clients can be migrated by switching `/ws` to the FastAPI gateway; keep `REALTIME_CHANNELS_ENABLED=true` only for temporary compatibility.
 
+## Mentor async defaults
+- Non-stream mentor endpoints enqueue Celery tasks by default and return `202` with a `task_id`.
+- Poll `/api/v1/mentor/task-status/<task_id>/` for `pending` or `ready` results.
+- Force sync (debug only) with `X-Sync: true` or `?async=false`.
+- SSE streaming stays synchronous via ASGI at `/api/v1/mentor/stream/`.
+
+Examples:
+```
+curl -X POST http://localhost:8000/api/v1/mentor/chat/ \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"I feel stuck"}'
+
+curl -X POST http://localhost:8000/api/v1/mentor/chat/ \
+  -H "Authorization: Bearer <token>" \
+  -H "X-Sync: true" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"I feel stuck"}'
+
+curl -N "http://localhost:8001/api/v1/mentor/stream/?message=hi" \
+  -H "Authorization: Bearer <token>"
+```
+
 ## License
 Open source. See LICENSE.

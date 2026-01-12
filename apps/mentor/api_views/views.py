@@ -314,3 +314,44 @@ class MentorHistoryView(ListAPIView):
             .select_related("session")
             .order_by("-created_at")
         )
+
+
+class MentorTaskStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, task_id: str, *args, **kwargs) -> Response:  # type: ignore[override]
+        message = (
+            MentorMessage.objects.filter(
+                session__user=request.user,
+                meta__task_id=task_id,
+                role__in=[MentorMessage.Role.ASSISTANT, MentorMessage.Role.MENTOR],
+            )
+            .select_related("session")
+            .order_by("-created_at")
+            .first()
+        )
+        if message:
+            session = message.session
+            return Response(
+                {
+                    "task_id": task_id,
+                    "status": "ready",
+                    "message": MentorMessageSerializer(message).data,
+                    "session": {
+                        "id": session.id,
+                        "mode": session.mode,
+                        "date": str(session.date) if session.date else None,
+                        "metadata": session.metadata,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        pending = MentorMessage.objects.filter(
+            session__user=request.user,
+            meta__task_id=task_id,
+        ).exists()
+        if pending:
+            return Response({"task_id": task_id, "status": "pending"}, status=status.HTTP_200_OK)
+
+        return Response({"detail": "Task not found."}, status=status.HTTP_404_NOT_FOUND)

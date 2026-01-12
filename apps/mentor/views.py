@@ -21,11 +21,13 @@ from apps.ai.services.mentor import (
     build_soulmatch_prompt,
 )
 from apps.astro.services.transits import get_today_transits
+from apps.core_platform.async_mode import should_run_async_default
 from apps.matching.services.soulmatch import calculate_soulmatch
 from apps.users.models import User
-from .models import DailyTask, MentorProfile, MentorSession
+from .models import DailyTask, MentorMessage, MentorProfile, MentorSession
 from .serializers import DailyTaskSerializer, MentorAskSerializer, MentorProfileSerializer, MentorSessionSerializer
 from .services import generate_mentor_reply
+from .tasks import mentor_daily_mentor_task, mentor_natal_generate_task, mentor_soulmatch_generate_task
 
 
 @method_decorator(ratelimit(key="user", rate="30/min", method="POST", block=True), name="ask")
@@ -108,8 +110,41 @@ class NatalMentorView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        prompt = build_natal_prompt(user, chart)
         api_key = request.headers.get("X-LLM-Key")
+        if should_run_async_default(request, default_async=True):
+            session = MentorSession.objects.create(
+                user=user,
+                mode=MentorSession.MODE_NATAL_MENTOR,
+                language=None,
+                active=True,
+                metadata={"natal_chart_id": chart.id},
+                question="Natal mentor request",
+            )
+            user_message_obj = MentorMessage.objects.create(
+                session=session,
+                role=MentorMessage.Role.USER,
+                content="Natal mentor request",
+                meta={"natal_chart_id": chart.id},
+            )
+            task_result = mentor_natal_generate_task.apply_async(
+                args=[session.id, user_message_obj.id, chart.id],
+                kwargs={"api_key": api_key},
+            )
+            meta = user_message_obj.meta or {}
+            meta.update({"task_id": task_result.id, "task_version": "v1"})
+            user_message_obj.meta = meta
+            user_message_obj.save(update_fields=["meta", "updated_at"])
+            return Response(
+                {
+                    "session_id": session.id,
+                    "message_id": user_message_obj.id,
+                    "task_id": task_result.id,
+                    "task_status_url": f"/api/v1/mentor/task-status/{task_result.id}/",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        prompt = build_natal_prompt(user, chart)
         try:
             mentor_text = generate_llama_response(NATAL_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
         except AIMentorError as exc:
@@ -132,10 +167,42 @@ class SoulmatchMentorView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        results = calculate_soulmatch(user, target)
-
-        prompt = build_soulmatch_prompt(user, target, results)
         api_key = request.headers.get("X-LLM-Key")
+        if should_run_async_default(request, default_async=True):
+            session = MentorSession.objects.create(
+                user=user,
+                mode=MentorSession.MODE_SOULMATCH,
+                language=None,
+                active=True,
+                metadata={"target_user_id": target.id},
+                question=f"Soulmatch mentor request for user {target.id}",
+            )
+            user_message_obj = MentorMessage.objects.create(
+                session=session,
+                role=MentorMessage.Role.USER,
+                content=f"Soulmatch mentor request for user {target.id}",
+                meta={"target_user_id": target.id},
+            )
+            task_result = mentor_soulmatch_generate_task.apply_async(
+                args=[session.id, user_message_obj.id, target.id],
+                kwargs={"api_key": api_key},
+            )
+            meta = user_message_obj.meta or {}
+            meta.update({"task_id": task_result.id, "task_version": "v1"})
+            user_message_obj.meta = meta
+            user_message_obj.save(update_fields=["meta", "updated_at"])
+            return Response(
+                {
+                    "session_id": session.id,
+                    "message_id": user_message_obj.id,
+                    "task_id": task_result.id,
+                    "task_status_url": f"/api/v1/mentor/task-status/{task_result.id}/",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        results = calculate_soulmatch(user, target)
+        prompt = build_soulmatch_prompt(user, target, results)
         try:
             mentor_text = generate_llama_response(
                 SOULMATCH_MENTOR_SYSTEM_PROMPT,
@@ -163,6 +230,43 @@ class DailyMentorView(APIView):
                 {"detail": "No natal chart found. Create your chart via /api/v1/astro/natal/ first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        api_key = request.headers.get("X-LLM-Key")
+        if should_run_async_default(request, default_async=True):
+            entry_date = timezone.localdate()
+            session = MentorSession.objects.create(
+                user=user,
+                mode=MentorSession.MODE_DAILY_MENTOR,
+                language=None,
+                active=True,
+                date=entry_date,
+                metadata={"date": str(entry_date)},
+                question="Daily mentor request",
+            )
+            user_message_obj = MentorMessage.objects.create(
+                session=session,
+                role=MentorMessage.Role.USER,
+                content="Daily mentor request",
+                meta={"date": str(entry_date)},
+            )
+            task_result = mentor_daily_mentor_task.apply_async(
+                args=[session.id, user_message_obj.id],
+                kwargs={"api_key": api_key},
+            )
+            meta = user_message_obj.meta or {}
+            meta.update({"task_id": task_result.id, "task_version": "v1"})
+            user_message_obj.meta = meta
+            user_message_obj.save(update_fields=["meta", "updated_at"])
+            return Response(
+                {
+                    "session_id": session.id,
+                    "message_id": user_message_obj.id,
+                    "task_id": task_result.id,
+                    "date": str(entry_date),
+                    "task_status_url": f"/api/v1/mentor/task-status/{task_result.id}/",
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
         birth_data = getattr(chart, "birth_data", None)
         transits = None
         if birth_data:
@@ -171,7 +275,6 @@ class DailyMentorView(APIView):
             except Exception:
                 transits = None
         prompt = build_daily_prompt(user, chart, transits)
-        api_key = request.headers.get("X-LLM-Key")
         try:
             mentor_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
         except AIMentorError as exc:
