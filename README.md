@@ -49,6 +49,11 @@ Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker 
 - Docker Compose starts it by default; for non-Docker runs, start `uvicorn services.realtime.app:app --host 0.0.0.0 --port 8002` and route `/ws` to that port.
 - Legacy Channels clients can be migrated by switching `/ws` to the FastAPI gateway; keep `REALTIME_CHANNELS_ENABLED=true` only for temporary compatibility.
 
+Quick verify:
+- `curl http://localhost:8002/health` returns `ok`.
+- Ensure `/ws*` routes to host port `8002` (see `infra/cloudflared/config.yml`).
+- `/ws` on ASGI (`8001`) returns 404 unless `REALTIME_CHANNELS_ENABLED=true`.
+
 ## Mentor async defaults
 - Non-stream mentor endpoints enqueue Celery tasks by default and return `202` with a `task_id`.
 - Poll `/api/v1/mentor/task-status/<task_id>/` for `pending` or `ready` results.

@@ -8,8 +8,18 @@ ingress:
     originRequest:
       noTLSVerify: true
   - hostname: api.self-link.com
+    path: /api/v1/mentor/stream*
+    service: http://localhost:8001
+    originRequest:
+      noTLSVerify: true
+  - hostname: api.self-link.com
     path: /media/*
     service: http://localhost:8080
+    originRequest:
+      noTLSVerify: true
+  - hostname: api.self-link.com
+    path: /api*
+    service: http://localhost:8000
     originRequest:
       noTLSVerify: true
   - hostname: api.self-link.com
