@@ -1,120 +1,199 @@
-SelfLink is an open-source backend and mobile app that combines multiple social products into one transparent platform.
+# What Is SelfLink?
+
+SelfLink is an open-source social platform (backend + mobile app) that intentionally combines multiple social products into **one transparent, inspectable system**.
 
 Instead of building:
 
 - a social network,
 - a creator platform,
-- a compatibility app,
-- an astrology app,
+- a dating or compatibility app,
+- an astrology or matrix app,
+- an AI coaching product,
 - and a contributor reward system
-as separate, closed products,
 
-SelfLink explores whether all of these can exist together on top of a single, transparent, code-enforced system.
+as separate, closed, opaque products,
 
-### A Concrete Starting Point
+**SelfLink explores whether all of these can exist together inside a single, open social ecosystem — where users can see how things work and participate in shaping them.**
+
+---
+
+## A Concrete Starting Point
 
 Imagine a platform where:
-- creators post content (like Instagram or TikTok),
-- users discover each other through compatibility and interests (like Tinder),
+
+- people post content and communicate (like Facebook / Instagram / Messenger),
+- users discover each other through interests and compatibility (like Tinder),
 - astrology and matrix systems calculate personal and relational insights,
-- contributors build and maintain the system itself,
-- and everyone can verify how rewards, rankings, and rules work.
+- an AI Mentor gives daily, personalized guidance,
+- contributors help build and maintain the platform itself,
+- and users can inspect how rewards, discovery, and rules actually work.
 
-Most platforms solve one of these problems in isolation.
-SelfLink intentionally combines them.
+Most platforms solve **one** of these problems in isolation.
 
-### What SelfLink Contains
+**SelfLink intentionally combines them**, because in real life:
+- social interaction,
+- compatibility,
+- personal growth,
+- value exchange,
+- and trust
 
-1. Contributor Rewards (Core Infrastructure)
+are not separate experiences.
 
-SelfLink includes a transparent contributor reward system:
-- contributions (code, moderation, content, governance) are recorded as events
-- rewards are calculated deterministically
-- monthly snapshots can be reproduced and audited by anyone
-- no hidden payouts, no discretionary decisions
+---
 
-This makes contributors closer to co-founders, based on measurable impact rather than promises.
+## What SelfLink Contains
 
-2. A Social Network (Not Just Posts)
+### 1. Open & Transparent Social Network (Core)
 
-SelfLink is a full social platform, not a library:
+SelfLink is a full social platform — not a library and not just infrastructure:
+
 - user profiles and identity
-- posts, feeds, interactions
+- posts, feeds, and interactions
 - messaging and connections
 - discovery and visibility logic
 
-But unlike traditional social networks, these features exist to support meaningful interaction and transparency, not engagement tricks.
+Unlike traditional social networks, SelfLink is designed to be **open and inspectable**:
+- no hidden recommendation logic
+- no unexplained ranking
+- no “trust the algorithm” black boxes
 
-3. Compatibility & Discovery
+Users can see *why* they see what they see.
 
-SelfLink includes rule-based discovery and matching, inspired by:
-- dating apps (e.g. Tinder)
-- compatibility platforms
+---
+
+### 2. Compatibility & Discovery (People You Actually Want to Meet)
+
+SelfLink includes rule-based discovery and matching inspired by:
+
+- dating platforms
 - interest-based networks
+- compatibility systems
 
 Matching is:
 - explainable
 - deterministic
-- not a black-box algorithm
+- based on visible inputs
+- not optimized for addiction or endless swiping
 
-Users can understand why they are compatible or shown to each other.
+Users can understand **why** someone appears compatible, and decide for themselves.
 
-4. Astrology & Matrix Systems
+---
 
-SelfLink integrates:
-- astrological calculations
-- matrix-based personality systems
-- compatibility logic based on these models
+### 3. Astrology & Matrix Systems (Structured Personal Models)
+
+Astrology and matrix systems are **not included as belief systems**, but as **structured identity engines**.
+
+They provide:
+- deterministic inputs (birth data)
+- reproducible outputs
+- long-term personal models
+- compatibility logic that can be inspected
 
 These systems are:
 - computed deterministically
-- reproducible
 - stored as structured data
+- reusable by AI and discovery logic
 
-They power both personal insights and user-to-user compatibility.
+They power:
+- personal insights
+- relationship compatibility
+- timing-based guidance
 
-5. Transparency for Users
+Users may opt into or out of these systems — SelfLink still works without them.
+
+---
+
+### 4. AI Mentor (Personal Growth & Daily Guidance)
+
+SelfLink includes an **AI Mentor** that goes beyond generic chatbots.
+
+The AI Mentor:
+- understands the user’s personal context
+- uses social data, history, and optional astrology/matrix inputs
+- gives **situational, time-aware advice**
+
+Examples:
+- “Today is not a good day to sign contracts.”
+- “Negotiations are favored today.”
+- “This period is emotionally unstable — avoid escalating conflicts.”
+
+The goal is **contextual intelligence**, not generic motivation.
+
+---
+
+### 5. Contributor Rewards & Built-In Value Layer
+
+SelfLink includes a transparent contributor reward system:
+
+- contributions (code, moderation, content, governance) are recorded as events
+- rewards are calculated deterministically
+- monthly snapshots are reproducible and auditable
+- no hidden payouts, no discretionary decisions
+
+This applies not only to developers, but eventually to:
+- moderators
+- creators
+- system contributors
+
+Contributors are closer to **participants in a system**, not disposable labor.
+
+---
+
+### 6. Transparency & Participation (The Inner Kitchen Is Visible)
 
 Users are not passive consumers.
 
 They can:
-- see how recommendations and compatibility work
+- inspect how recommendations and compatibility work
 - understand how rewards and incentives are structured
-- express opinions on system rules and changes
+- participate in discussions about system rules and evolution
 
-The goal is not “voting on everything”, but informed participation.
+The goal is not “voting on everything”, but **informed participation**.
 
-### What Problem Does This Solve?
+---
+
+## What Problem Does SelfLink Solve?
 
 Most platforms today are:
-- fragmented (many apps for one experience)
-- opaque (users don’t know how things work)
+
+- fragmented (many apps for one human experience)
+- opaque (users don’t know how decisions are made)
 - trust-based (contributors rely on promises)
 - closed (you can’t inspect or extend them)
 
 SelfLink explores a different model:
 
-> A unified social platform where content, compatibility, rewards, and governance are > all enforced by readable, auditable code.
+> **A unified social platform where social interaction, compatibility, personal growth, AI guidance, and rewards are enforced by readable, auditable code.**
 
-### What Can You Do With SelfLink?
+---
+
+## What Can You Do With SelfLink?
 
 You might reach for SelfLink if you’re thinking:
-- “I want to build a social platform with creators and contributors.”
-- “I want compatibility and discovery without black-box algorithms.”
-- “I want astrology or matrix logic integrated into a real app.”
-- “I want contributors to earn ownership transparently.”
+
+- “I want a social platform that isn’t controlled by hidden algorithms.”
+- “I want to meet people I’m actually compatible with.”
+- “I want daily guidance that understands who I am and where I’m going.”
+- “I want contributors to earn value transparently.”
 - “I want users to trust the system, not the founder.”
 
-SelfLink is a platform, not a single feature.
+SelfLink is **one social ecosystem**, not a collection of disconnected tools.
 
-### One-Sentence Summary
+---
 
-> SelfLink is an open social platform that combines social networking, compatibility, > astrology, and transparent contributor rewards into a single, auditable system.
+## One-Sentence Summary
 
-### Important Note
+> **SelfLink is an open, transparent social ecosystem that combines social networking, compatibility, astrology-based personal models, AI mentorship, and contributor rewards into a single, auditable system.**
 
-***SelfLink is intentionally ambitious.***
+---
 
->     Not all parts are finished, and not all ideas are proven —
->     this repository is a living experiment in building social software that scales
->     trust, not just features.
+## Important Note
+
+**SelfLink is intentionally ambitious.**
+
+Not all parts are finished, and not all ideas are proven.
+
+This repository is a living experiment in building social software that:
+- unifies human interaction instead of fragmenting it
+- replaces opaque algorithms with visible rules
+- and scales trust, not just features
