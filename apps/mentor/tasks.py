@@ -6,6 +6,17 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 
 from apps.ai.services.llama_client import generate_llama_response
+from apps.ai.services.mentor import (
+    DAILY_MENTOR_SYSTEM_PROMPT,
+    NATAL_MENTOR_SYSTEM_PROMPT,
+    SOULMATCH_MENTOR_SYSTEM_PROMPT,
+    build_daily_prompt,
+    build_natal_prompt,
+    build_soulmatch_prompt,
+)
+from apps.astro.models import NatalChart
+from apps.astro.services.transits import get_today_transits
+from apps.matching.services.soulmatch import calculate_soulmatch
 from apps.mentor.models import MentorMessage, MentorSession
 from apps.mentor.services import generate_mentor_reply, llm_client
 from apps.mentor.services import memory_manager, prompt_builder, safety
@@ -54,8 +65,9 @@ def llama_generate_task(
     )
 
 
-@shared_task
+@shared_task(bind=True)
 def mentor_chat_generate_task(
+    self,
     session_id: int,
     user_message_id: int,
     mode: str | None = None,
@@ -108,7 +120,8 @@ def mentor_chat_generate_task(
         reply_text = DEFAULT_MENTOR_ERROR
         error = "llm_failure"
 
-    meta = {"request_id": user_message_id, "task_version": task_version}
+    task_id = self.request.id
+    meta = {"request_id": user_message_id, "task_version": task_version, "task_id": task_id}
     if error:
         meta["error"] = error
 
@@ -123,8 +136,9 @@ def mentor_chat_generate_task(
     return {"session_id": session.id, "message_id": assistant_message.id, "reply": reply_text}
 
 
-@shared_task
+@shared_task(bind=True)
 def mentor_daily_entry_task(
+    self,
     session_id: int,
     user_message_id: int,
     language: str | None = None,
@@ -166,7 +180,8 @@ def mentor_daily_entry_task(
     session.language = language or session.language
     session.save(update_fields=["question", "answer", "language", "updated_at"])
 
-    meta = {"request_id": user_message_id, "task_version": task_version}
+    task_id = self.request.id
+    meta = {"request_id": user_message_id, "task_version": task_version, "task_id": task_id}
     if post_flags:
         meta["safety"] = post_flags
 
@@ -181,3 +196,151 @@ def mentor_daily_entry_task(
     memory_manager.store_conversation(session.user, session, user_message.content, mentor_reply)
 
     return {"session_id": session.id, "message_id": mentor_message.id, "reply": mentor_reply}
+
+
+@shared_task(bind=True)
+def mentor_natal_generate_task(
+    self,
+    session_id: int,
+    user_message_id: int,
+    chart_id: int,
+    api_key: str | None = None,
+    task_version: str = "v1",
+) -> dict[str, object]:
+    session = MentorSession.objects.select_related("user").get(id=session_id)
+    user_message = MentorMessage.objects.get(id=user_message_id, session=session)
+
+    error = None
+    try:
+        chart = NatalChart.objects.get(id=chart_id, user=session.user)
+        prompt = build_natal_prompt(session.user, chart)
+        reply_text = generate_llama_response(NATAL_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
+    except Exception:
+        reply_text = DEFAULT_MENTOR_ERROR
+        error = "mentor_natal_failure"
+
+    session.question = user_message.content
+    session.answer = reply_text
+    session.save(update_fields=["question", "answer", "updated_at"])
+
+    task_id = self.request.id
+    meta = {"request_id": user_message_id, "task_version": task_version, "task_id": task_id}
+    if error:
+        meta["error"] = error
+
+    with transaction.atomic():
+        mentor_message = MentorMessage.objects.create(
+            session=session,
+            role=MentorMessage.Role.MENTOR,
+            content=reply_text,
+            meta=meta,
+        )
+
+    return {"session_id": session.id, "message_id": mentor_message.id, "reply": reply_text}
+
+
+@shared_task(bind=True)
+def mentor_daily_mentor_task(
+    self,
+    session_id: int,
+    user_message_id: int,
+    api_key: str | None = None,
+    task_version: str = "v1",
+) -> dict[str, object]:
+    session = MentorSession.objects.select_related("user").get(id=session_id)
+    user_message = MentorMessage.objects.get(id=user_message_id, session=session)
+
+    error = None
+    try:
+        chart = getattr(session.user, "natal_chart", None)
+        if chart is None:
+            raise ValueError("missing_chart")
+        birth_data = getattr(chart, "birth_data", None)
+        transits = None
+        if birth_data:
+            try:
+                transits = get_today_transits(birth_data.latitude, birth_data.longitude)
+            except Exception:
+                transits = None
+        prompt = build_daily_prompt(session.user, chart, transits)
+        reply_text = generate_llama_response(DAILY_MENTOR_SYSTEM_PROMPT, prompt, api_key=api_key)
+    except Exception as exc:
+        reply_text = DEFAULT_MENTOR_ERROR
+        error = "mentor_daily_failure"
+        if str(exc) == "missing_chart":
+            reply_text = "No natal chart found. Create your chart via /api/v1/astro/natal/ first."
+            error = "missing_chart"
+
+    session.question = user_message.content
+    session.answer = reply_text
+    session.save(update_fields=["question", "answer", "updated_at"])
+
+    task_id = self.request.id
+    meta = {"request_id": user_message_id, "task_version": task_version, "task_id": task_id}
+    if error:
+        meta["error"] = error
+
+    with transaction.atomic():
+        mentor_message = MentorMessage.objects.create(
+            session=session,
+            role=MentorMessage.Role.MENTOR,
+            content=reply_text,
+            meta=meta,
+        )
+
+    return {"session_id": session.id, "message_id": mentor_message.id, "reply": reply_text}
+
+
+@shared_task(bind=True)
+def mentor_soulmatch_generate_task(
+    self,
+    session_id: int,
+    user_message_id: int,
+    target_user_id: int,
+    api_key: str | None = None,
+    task_version: str = "v1",
+) -> dict[str, object]:
+    session = MentorSession.objects.select_related("user").get(id=session_id)
+    user_message = MentorMessage.objects.get(id=user_message_id, session=session)
+
+    error = None
+    results: dict[str, object] | None = None
+    try:
+        target = User.objects.get(id=target_user_id)
+        results = calculate_soulmatch(session.user, target)
+        prompt = build_soulmatch_prompt(session.user, target, results)
+        reply_text = generate_llama_response(
+            SOULMATCH_MENTOR_SYSTEM_PROMPT,
+            prompt,
+            max_tokens=256,
+            timeout=30,
+            api_key=api_key,
+        )
+    except Exception:
+        reply_text = DEFAULT_MENTOR_ERROR
+        error = "mentor_soulmatch_failure"
+
+    session.question = user_message.content
+    session.answer = reply_text
+    if results is not None:
+        metadata = session.metadata or {}
+        metadata.update({"target_user_id": target_user_id, "soulmatch": results})
+        session.metadata = metadata
+        session.save(update_fields=["question", "answer", "metadata", "updated_at"])
+    else:
+        session.save(update_fields=["question", "answer", "updated_at"])
+
+    task_id = self.request.id
+    meta = {"request_id": user_message_id, "task_version": task_version, "task_id": task_id}
+    if error:
+        meta["error"] = error
+
+    with transaction.atomic():
+        mentor_message = MentorMessage.objects.create(
+            session=session,
+            role=MentorMessage.Role.MENTOR,
+            content=reply_text,
+            meta=meta,
+        )
+
+    return {"session_id": session.id, "message_id": mentor_message.id, "reply": reply_text}
