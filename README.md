@@ -24,6 +24,7 @@ Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
 For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 
 ## Quickstart (backend)
+- Prereq (Ubuntu/Debian): `sudo apt-get install -y docker-compose-plugin`
 - Clone the repo and copy `infra/.env.example` to `infra/.env` (keep `$$` escapes for Compose)
 - `make infra-up-local` (starts api + asgi + worker + realtime + postgres + redis + pgbouncer + media)
 - `make infra-migrate`

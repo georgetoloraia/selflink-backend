@@ -6,7 +6,7 @@ REVENUE ?= 0
 COSTS ?= 0
 OUT ?= ./tmp/payout.csv
 
-COMPOSE ?= docker compose
+COMPOSE ?= $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" || echo "docker-compose")
 COMPOSE_BASE ?= infra/compose.yaml
 COMPOSE_HOST ?= infra/compose.host.yaml
 COMPOSE_FILES ?= $(COMPOSE_BASE)
