@@ -38,7 +38,7 @@ For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 - `make infra-status` (informational health check)
 - `make infra-status-strict` (fails if api/asgi/realtime are not healthy)
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
-- For more, see `README_for_env.md` or `docker_guide.md`
+- For more, see `README_for_env.md`, `docker_guide.md`, or `docs/WHY_THIS_STACK.md`
 
 Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker runs. Docker Compose interpolates `$VAR` in `infra/.env`, so escape literal `$` as `$$`. Inside containers, `localhost` does not point to other services; use Docker hostnames like `pgbouncer`, `redis`, and `opensearch`.
 
