@@ -72,7 +72,7 @@ infra-superuser:
 	$(COMPOSE_CMD) exec api python manage.py createsuperuser
 
 snapshot-month:
-	docker compose -f infra/compose.yaml exec api python manage.py contrib_rewards_snapshot_month --month $(MONTH)
+	$(COMPOSE_CMD) exec api python manage.py contrib_rewards_snapshot_month --month $(MONTH)
 
 infra-status:
 	@$(COMPOSE_CMD) ps
@@ -124,18 +124,29 @@ infra-up-host:
 	secret=$$(strip "$$(get_env DJANGO_SECRET_KEY)"); \
 	if [ -z "$$secret" ]; then echo "infra-up-host: DJANGO_SECRET_KEY must be set in infra/.env"; exit 1; fi; \
 	debug=$$(strip "$$(get_env DJANGO_DEBUG)"); \
-	if [ "$$debug" = "true" ]; then echo "infra-up-host: DJANGO_DEBUG must be false"; exit 1; fi; \
+	if echo "$$debug" | grep -Eiq '^(true|1|yes|on)$$'; then echo "infra-up-host: DJANGO_DEBUG must be false"; exit 1; fi; \
 	hosts=$$(strip "$$(get_env DJANGO_ALLOWED_HOSTS)"); \
 	if [ -z "$$hosts" ] || [ "$$hosts" = "*" ]; then \
 		echo "infra-up-host: DJANGO_ALLOWED_HOSTS must be set (comma-separated hosts)"; \
 		exit 1; \
 	fi; \
+	if echo "$$hosts" | grep -Eiq '(^|,)[[:space:]]*(localhost|127\\.0\\.0\\.1|10\\.0\\.2\\.2)[[:space:]]*(,|$$)'; then \
+		echo "infra-up-host: DJANGO_ALLOWED_HOSTS must not include localhost/127.0.0.1/10.0.2.2 in host mode"; \
+		exit 1; \
+	fi; \
 	dburl=$$(strip "$$(get_env DATABASE_URL)"); \
 	if [ -z "$$dburl" ]; then echo "infra-up-host: DATABASE_URL must be set"; exit 1; fi; \
-	if echo "$$dburl" | grep -Eiq '(localhost|127\\.0\\.0\\.1)'; then \
+	if echo "$$dburl" | grep -Eiq '://([^@/]*@)?(localhost|127\\.0\\.0\\.1)(:|/|$$)'; then \
 		echo "infra-up-host: DATABASE_URL must use Docker hostnames (pgbouncer/postgres), not localhost"; \
 		exit 1; \
 	fi; \
+	check_no_localhost_url() { \
+		name="$$1"; value="$$2"; \
+		if [ -n "$$value" ] && echo "$$value" | grep -Eiq '://([^@/]*@)?(localhost|127\\.0\\.0\\.1)(:|/|$$)'; then \
+			echo "infra-up-host: $$name must not use localhost/127.0.0.1 inside Docker"; \
+			exit 1; \
+		fi; \
+	}; \
 	realtime_secret=$$(strip "$$(get_env REALTIME_JWT_SECRET)"); \
 	jwt_key=$$(strip "$$(get_env JWT_SIGNING_KEY)"); \
 	if [ -z "$$realtime_secret" ] && [ -z "$$jwt_key" ]; then \
@@ -145,6 +156,10 @@ infra-up-host:
 	if [ -z "$$realtime_secret" ] && [ -n "$$jwt_key" ]; then \
 		echo "infra-up-host: WARNING: REALTIME_JWT_SECRET is empty; using JWT_SIGNING_KEY fallback"; \
 	fi; \
+	check_no_localhost_url CELERY_BROKER_URL "$$(strip "$$(get_env CELERY_BROKER_URL)")"; \
+	check_no_localhost_url CELERY_RESULT_BACKEND "$$(strip "$$(get_env CELERY_RESULT_BACKEND)")"; \
+	check_no_localhost_url REDIS_URL "$$(strip "$$(get_env REDIS_URL)")"; \
+	check_no_localhost_url PUBSUB_REDIS_URL "$$(strip "$$(get_env PUBSUB_REDIS_URL)")"; \
 	rate=$$(strip "$$(get_env RATE_LIMITS_ENABLED)"); \
 	if [ "$$rate" != "true" ]; then \
 		echo "infra-up-host: WARNING: RATE_LIMITS_ENABLED is not true (set to true for host mode)"; \
