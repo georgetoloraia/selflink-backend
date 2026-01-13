@@ -1,0 +1,26 @@
+services:
+  api:
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  asgi:
+    ports:
+      - "127.0.0.1:8001:8001"
+
+  realtime:
+    ports:
+      - "127.0.0.1:8002:8001"
+
+  media:
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  opensearch:
+    ports:
+      - "127.0.0.1:9200:9200"
+
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
