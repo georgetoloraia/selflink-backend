@@ -17,7 +17,7 @@ HEALTHCHECK_ASGI = python -c "import urllib.request; urllib.request.urlopen('htt
 HEALTHCHECK_REALTIME = python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"
 
 .PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run infra-up infra-down infra-logs infra-migrate infra-superuser snapshot-month
-.PHONY: infra-up-local infra-up-host infra-down-local infra-down-host
+.PHONY: infra-up-local infra-up-host infra-down-local infra-down-host infra-host-reset
 .PHONY: infra-status infra-status-strict
 
 install:
@@ -164,6 +164,32 @@ infra-up-host:
 	if [ "$$rate" != "true" ]; then \
 		echo "infra-up-host: WARNING: RATE_LIMITS_ENABLED is not true (set to true for host mode)"; \
 	fi
+	@set -e; \
+	ports="8000 8001 8002 8080"; \
+	fail_port() { \
+		port="$$1"; \
+		echo "infra-up-host: port $$port is already in use"; \
+		echo "infra-up-host: debug -> sudo ss -lntp | grep ':$$port'"; \
+		echo "infra-up-host: if ss shows nothing but Docker reports address in use, run:"; \
+		echo "  sudo docker compose -f infra/compose.yaml -f infra/compose.host.yaml down --remove-orphans"; \
+		echo "  sudo systemctl restart docker"; \
+		exit 1; \
+	}; \
+	if command -v ss >/dev/null 2>&1; then \
+		for p in $$ports; do \
+			if ss -lnt | awk '{print $$4}' | grep -Eq ":$$p$$"; then \
+				fail_port "$$p"; \
+			fi; \
+		done; \
+	elif command -v lsof >/dev/null 2>&1; then \
+		for p in $$ports; do \
+			if lsof -nP -iTCP:$$p -sTCP:LISTEN >/dev/null 2>&1; then \
+				fail_port "$$p"; \
+			fi; \
+		done; \
+	else \
+		echo "infra-up-host: WARNING: neither ss nor lsof found; skipping port preflight checks"; \
+	fi
 	@$(MAKE) infra-up COMPOSE_FILES="$(COMPOSE_BASE) $(COMPOSE_HOST)"
 	@echo "infra-up-host: stack started on localhost ports (8000/8001/8002/8080)."
 	@echo "infra-up-host: next steps -> make infra-migrate, then start Cloudflare Tunnel or reverse proxy."
@@ -171,3 +197,7 @@ infra-up-host:
 
 infra-down-host:
 	@$(MAKE) infra-down COMPOSE_FILES="$(COMPOSE_BASE) $(COMPOSE_HOST)"
+
+infra-host-reset:
+	@$(COMPOSE) -f $(COMPOSE_BASE) -f $(COMPOSE_HOST) down --remove-orphans
+	@echo "infra-host-reset: if ports still fail, run: sudo systemctl restart docker"
