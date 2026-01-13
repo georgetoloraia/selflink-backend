@@ -12,8 +12,8 @@ COMPOSE_HOST ?= infra/compose.host.yaml
 COMPOSE_FILES ?= $(COMPOSE_BASE)
 COMPOSE_CMD = $(COMPOSE) $(foreach f,$(COMPOSE_FILES),-f $(f))
 
-HEALTHCHECK_API = python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/docs/')"
-HEALTHCHECK_ASGI = python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/docs/')"
+HEALTHCHECK_API = python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/docs/')"
+HEALTHCHECK_ASGI = python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/docs/')"
 HEALTHCHECK_REALTIME = python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"
 
 .PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run infra-up infra-down infra-logs infra-migrate infra-superuser snapshot-month
@@ -104,7 +104,22 @@ infra-up-host:
 		echo "infra-up-host: missing infra/.env (copy infra/.env.example -> infra/.env)"; \
 		exit 1; \
 	fi; \
-	get_env() { awk -F= -v key="$$1" '$$1==key {print substr($$0, index($$0,\"=\")+1)}' "$$ENV_FILE" | tail -n 1; }; \
+	get_env() { \
+		awk -v key="$$1" ' \
+			/^[[:space:]]*#/ || /^[[:space:]]*$$/ { next } \
+			{ \
+				line=$$0; \
+				sub(/^[[:space:]]*/, "", line); \
+				split(line, parts, "="); \
+				k=parts[1]; \
+				if (k != key) next; \
+				val = substr(line, index(line, "=") + 1); \
+				sub(/[[:space:]]*#.*$$/, "", val); \
+				gsub(/^[[:space:]]+|[[:space:]]+$$/, "", val); \
+				print val; \
+			} \
+		' "$$ENV_FILE" | tail -n 1; \
+	}; \
 	strip() { echo "$$1" | sed -e 's/^"//' -e 's/"$$//' -e "s/^'//" -e "s/'$$//"; }; \
 	secret=$$(strip "$$(get_env DJANGO_SECRET_KEY)"); \
 	if [ -z "$$secret" ]; then echo "infra-up-host: DJANGO_SECRET_KEY must be set in infra/.env"; exit 1; fi; \
