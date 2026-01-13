@@ -46,7 +46,18 @@ Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker 
   - `/media/*` → `127.0.0.1:8080`
   - `/api*` → `127.0.0.1:8000`
 
+Host mode: run cloudflared only once (either as a host process or as a container, not both). Recommended: host process pointing to `127.0.0.1` ports.
+If Docker says “address already in use” but `ss` shows nothing, run:
+- `sudo docker compose -f infra/compose.yaml -f infra/compose.host.yaml down --remove-orphans`
+- `sudo systemctl restart docker`
+
+Quick verification:
+- `curl http://127.0.0.1:8000/api/docs/`
+- `curl http://127.0.0.1:8001/api/docs/`
+- `curl http://127.0.0.1:8002/health`
+
 Cloudflare Tunnel routing is first-match wins; keep `/api/v1/mentor/stream*` above `/api*` in `infra/cloudflared/config.yml` or SSE will be misrouted.
+If Ollama runs on another machine (e.g., `192.168.0.102`), set `MENTOR_LLM_BASE_URL=http://192.168.0.102:11434` and ensure Ollama binds to `0.0.0.0:11434` so the host (`192.168.0.104`) can reach it.
 
 ## Dev vs prod server modes
 - `infra/compose.yaml` runs Django via `runserver` for local development.
