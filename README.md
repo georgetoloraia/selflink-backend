@@ -25,7 +25,7 @@ For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 
 ## Quickstart (backend)
 - Clone the repo and copy `infra/.env.example` to `infra/.env` (keep `$$` escapes for Compose)
-- `make infra-up` (starts api + asgi + worker + realtime + postgres + redis + pgbouncer + media)
+- `make infra-up-local` (starts api + asgi + worker + realtime + postgres + redis + pgbouncer + media)
 - `make infra-migrate`
 - `make infra-superuser`
 - `make infra-status` (informational health check)
@@ -34,6 +34,18 @@ For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 - For more, see `README_for_env.md` or `docker_guide.md`
 
 Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker runs. Docker Compose interpolates `$VAR` in `infra/.env`, so escape literal `$` as `$$`. Inside containers, `localhost` does not point to other services; use Docker hostnames like `pgbouncer`, `redis`, and `opensearch`.
+
+## Hosting quickstart (server)
+- Copy `infra/.env.example` to `infra/.env` and set host values (DJANGO_ALLOWED_HOSTS, secrets, etc.).
+- `make infra-up-host` (binds ports to 127.0.0.1 and runs API with gunicorn).
+- `make infra-migrate`
+- Start Cloudflare Tunnel or a reverse proxy on the host to expose:
+  - `/ws*` → `127.0.0.1:8002`
+  - `/api/v1/mentor/stream*` → `127.0.0.1:8001`
+  - `/media/*` → `127.0.0.1:8080`
+  - `/api*` → `127.0.0.1:8000`
+
+Cloudflare Tunnel routing is first-match wins; keep `/api/v1/mentor/stream*` above `/api*` in `infra/cloudflared/config.yml` or SSE will be misrouted.
 
 ## Dev vs prod server modes
 - `infra/compose.yaml` runs Django via `runserver` for local development.
