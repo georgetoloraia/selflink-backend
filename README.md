@@ -1,15 +1,10 @@
-# SelfLink
+# SelfLink - Full opensource unification
 
 click for more [`WHAT-IS-SELFLINK.md`](WHAT-IS-SELFLINK.md)
 
-This repository contains the backend.
-Start here: `START_HERE.md`
-The mobile app lives here: https://github.com/georgetoloraia/selflink-mobile
-
-
 ## How to contribute
 There are three simple ways to help:
-1) Backend (Django / DRF): See CONTRIBUTING.md
+1) Backend (Django / DRF): See [`CONTRIBUTING.md`](CONTRIBUTING.md)
 2) Mobile (React Native / Expo): https://github.com/georgetoloraia/selflink-mobile
 3) Architecture / design feedback: Open an issue — no code required
 If you’re new, start with a good first issue.
@@ -20,6 +15,17 @@ If you’re new, start with a good first issue.
 - Rewards are calculated monthly using deterministic rules
 - Corrections happen via new events, never by rewriting history
 Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
+
+1. [`RUNBOOK.md`](docs/RUNBOOK.md)
+2. [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) – High-level system layout and boundaries
+3. [`domains.md`](docs/architecture/domains.md) – Which modules are allowed to depend on which
+4. [`apps/contrib_rewards/`](apps/contrib_rewards/) – The trust anchor (append-only ledger)
+5. [`apps/core/`](apps/core/) – Identity, social graph, permissions
+6. [`apps/mentor`](apps/mentor) / [`apps/astro`](apps/astro) / [`apps/matching/`](apps/matching/) – Optional intelligence layer
+7. [`infra/`](infra/) – How the system runs in Docker / production
+
+You do **not** need to understand everything to contribute.
+Most contributors work in a single domain.
 
 For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 
@@ -35,71 +41,6 @@ For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 - For more, see `README_for_env.md` or `docker_guide.md`
 
 Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker runs. Docker Compose interpolates `$VAR` in `infra/.env`, so escape literal `$` as `$$`. Inside containers, `localhost` does not point to other services; use Docker hostnames like `pgbouncer`, `redis`, and `opensearch`.
-
-## Hosting quickstart (server)
-- Copy `infra/.env.example` to `infra/.env` and set host values (DJANGO_ALLOWED_HOSTS, secrets, etc.).
-- `make infra-up-host` (binds ports to 127.0.0.1 and runs API with gunicorn).
-- `make infra-migrate`
-- Start Cloudflare Tunnel or a reverse proxy on the host to expose:
-  - `/ws*` → `127.0.0.1:8002`
-  - `/api/v1/mentor/stream*` → `127.0.0.1:8001`
-  - `/media/*` → `127.0.0.1:8080`
-  - `/api*` → `127.0.0.1:8000`
-
-Host mode: run cloudflared only once (either as a host process or as a container, not both). Recommended: host process pointing to `127.0.0.1` ports.
-If Docker says “address already in use” but `ss` shows nothing, run:
-- `sudo docker compose -f infra/compose.yaml -f infra/compose.host.yaml down --remove-orphans`
-- `sudo systemctl restart docker`
-
-Quick verification:
-- `curl http://127.0.0.1:8000/api/docs/`
-- `curl http://127.0.0.1:8001/api/docs/`
-- `curl http://127.0.0.1:8002/health`
-
-Cloudflare Tunnel routing is first-match wins; keep `/api/v1/mentor/stream*` above `/api*` in `infra/cloudflared/config.yml` or SSE will be misrouted.
-If Ollama runs on another machine (e.g., `192.168.0.102`), set `MENTOR_LLM_BASE_URL=http://192.168.0.102:11434` and ensure Ollama binds to `0.0.0.0:11434` so the host (`192.168.0.104`) can reach it.
-
-## Dev vs prod server modes
-- `infra/compose.yaml` runs Django via `runserver` for local development.
-- `infra/docker/Dockerfile.api` defaults to Gunicorn for production-like deployments.
-
-## Realtime / SSE
-- FastAPI realtime gateway (primary): `ws://localhost:8002/ws` (Docker Compose).
-- ASGI dev server: `uvicorn core.asgi:application --host 0.0.0.0 --port 8001` (SSE endpoints like `/api/v1/mentor/stream/`).
-- Django Channels `/ws` is deprecated; to enable legacy support set `REALTIME_CHANNELS_ENABLED=true` and use the ASGI server on port 8001.
-
-## Realtime architecture
-- FastAPI is the primary realtime gateway to keep WebSocket fanout isolated and scalable without coupling to Django request latency.
-- Docker Compose starts it by default; for non-Docker runs, start `uvicorn services.realtime.app:app --host 0.0.0.0 --port 8002` and route `/ws` to that port.
-- Legacy Channels clients can be migrated by switching `/ws` to the FastAPI gateway; keep `REALTIME_CHANNELS_ENABLED=true` only for temporary compatibility.
-
-Quick verify:
-- `curl http://localhost:8002/health` returns `ok`.
-- Ensure `/ws*` routes to host port `8002` (see `infra/cloudflared/config.yml`).
-- `/ws` on ASGI (`8001`) returns 404 unless `REALTIME_CHANNELS_ENABLED=true`.
-
-## Mentor async defaults
-- Non-stream mentor endpoints enqueue Celery tasks by default and return `202` with a `task_id`.
-- Poll `/api/v1/mentor/task-status/<task_id>/` for `pending` or `ready` results.
-- Force sync (debug only) with `X-Sync: true` or `?async=false`.
-- SSE streaming stays synchronous via ASGI at `/api/v1/mentor/stream/`.
-
-Examples:
-```
-curl -X POST http://localhost:8000/api/v1/mentor/chat/ \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"I feel stuck"}'
-
-curl -X POST http://localhost:8000/api/v1/mentor/chat/ \
-  -H "Authorization: Bearer <token>" \
-  -H "X-Sync: true" \
-  -H "Content-Type: application/json" \
-  -d '{"message":"I feel stuck"}'
-
-curl -N "http://localhost:8001/api/v1/mentor/stream/?message=hi" \
-  -H "Authorization: Bearer <token>"
-```
 
 ## License
 Open source. See LICENSE.
