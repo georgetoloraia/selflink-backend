@@ -23,6 +23,7 @@ Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
 5. [`apps/core/`](apps/core/) – Identity, social graph, permissions
 6. [`apps/mentor`](apps/mentor) / [`apps/astro`](apps/astro) / [`apps/matching/`](apps/matching/) – Optional intelligence layer
 7. [`infra/`](infra/) – How the system runs in Docker / production
+8. [`docs/WHY_THIS_STACK.md`](docs/WHY_THIS_STACK.md)
 
 You do **not** need to understand everything to contribute.
 Most contributors work in a single domain.
@@ -38,7 +39,7 @@ For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 - `make infra-status` (informational health check)
 - `make infra-status-strict` (fails if api/asgi/realtime are not healthy)
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
-- For more, see `README_for_env.md` or `docker_guide.md`
+- For more, see [`README_for_env.md`](README_for_env.md), [`docker_guide.md`](docker_guide.md), or [`docs/WHY_THIS_STACK.md`](docs/WHY_THIS_STACK.md)
 
 Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker runs. Docker Compose interpolates `$VAR` in `infra/.env`, so escape literal `$` as `$$`. Inside containers, `localhost` does not point to other services; use Docker hostnames like `pgbouncer`, `redis`, and `opensearch`.
 
