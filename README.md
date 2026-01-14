@@ -16,6 +16,15 @@ If you’re new, start with a good first issue.
 - Corrections happen via new events, never by rewriting history
 Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
 
+## SLC (SelfLink Coin) — internal USD credits
+- Off-chain only: `1 SLC = 1 USD` (integer cents); no withdrawals to fiat/crypto
+- Every user gets an SLC account automatically
+- P2P transfers and internal spending are supported with transfer fees
+- API (under `/api/v1/coin/`): `balance`, `ledger`, `transfer`, `spend`
+
+FOR MORE Click [`wallet.md`](docs/wallet.md)
+
+
 1. [`RUNBOOK.md`](docs/RUNBOOK.md)
 2. [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) – High-level system layout and boundaries
 3. [`domains.md`](docs/architecture/domains.md) – Which modules are allowed to depend on which

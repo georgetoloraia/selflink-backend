@@ -18,6 +18,7 @@ CORE_DIRS = [
     "apps/moderation",
     "apps/config",
     "apps/contrib_rewards",
+    "apps/coin",
     "apps/core_platform",
 ]
 
@@ -76,4 +77,3 @@ def test_core_does_not_import_intelligence_services(path: Path) -> None:
         if any(imp.startswith(prefix) for prefix in DISALLOWED_PREFIXES)
     ]
     assert not violations, f"{path} imports intelligence services/tasks: {violations}"
-
