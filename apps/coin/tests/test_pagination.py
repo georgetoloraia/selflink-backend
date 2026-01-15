@@ -1,12 +1,28 @@
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.coin.models import CoinAccount, CoinLedgerEntry
 from apps.coin.services.ledger import mint_for_payment
+from apps.payments.models import PaymentEvent
 from apps.users.models import User
+
+
+def _create_payment_event(*, user: User, amount_cents: int, provider_event_id: str) -> PaymentEvent:
+    return PaymentEvent.objects.create(
+        provider=PaymentEvent.Provider.STRIPE,
+        provider_event_id=provider_event_id,
+        event_type="checkout.session.completed",
+        user=user,
+        amount_cents=amount_cents,
+        status=PaymentEvent.Status.RECEIVED,
+        raw_body_hash=hashlib.sha256(provider_event_id.encode("utf-8")).hexdigest(),
+        verified_at=timezone.now(),
+    )
 
 
 @pytest.mark.django_db
@@ -17,9 +33,9 @@ def test_coin_ledger_pagination_stable_with_same_timestamp():
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
 
-    mint_for_payment(user=user, amount_cents=100, provider="stripe", external_id="evt_a")
-    mint_for_payment(user=user, amount_cents=200, provider="stripe", external_id="evt_b")
-    mint_for_payment(user=user, amount_cents=300, provider="stripe", external_id="evt_c")
+    mint_for_payment(payment_event=_create_payment_event(user=user, amount_cents=100, provider_event_id="evt_a"))
+    mint_for_payment(payment_event=_create_payment_event(user=user, amount_cents=200, provider_event_id="evt_b"))
+    mint_for_payment(payment_event=_create_payment_event(user=user, amount_cents=300, provider_event_id="evt_c"))
 
     entries = list(
         CoinLedgerEntry.objects.filter(account_key=f"user:{user.id}").order_by("id")
@@ -61,9 +77,9 @@ def test_legacy_numeric_cursor_maps_to_composite_boundary():
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
 
-    mint_for_payment(user=user, amount_cents=100, provider="stripe", external_id="evt_l1")
-    mint_for_payment(user=user, amount_cents=200, provider="stripe", external_id="evt_l2")
-    mint_for_payment(user=user, amount_cents=300, provider="stripe", external_id="evt_l3")
+    mint_for_payment(payment_event=_create_payment_event(user=user, amount_cents=100, provider_event_id="evt_l1"))
+    mint_for_payment(payment_event=_create_payment_event(user=user, amount_cents=200, provider_event_id="evt_l2"))
+    mint_for_payment(payment_event=_create_payment_event(user=user, amount_cents=300, provider_event_id="evt_l3"))
 
     entries = list(
         CoinLedgerEntry.objects.filter(account_key=f"user:{user.id}").order_by("id")
@@ -95,7 +111,7 @@ def test_invalid_cursor_returns_400():
         user=user,
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
-    mint_for_payment(user=user, amount_cents=100, provider="stripe", external_id="evt_bad")
+    mint_for_payment(payment_event=_create_payment_event(user=user, amount_cents=100, provider_event_id="evt_bad"))
 
     client = APIClient()
     client.force_authenticate(user=user)

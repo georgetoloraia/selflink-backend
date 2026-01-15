@@ -1,18 +1,44 @@
 from __future__ import annotations
 
+import hashlib
+
 import pytest
 from django.core.exceptions import ValidationError
+from django.db.models.deletion import ProtectedError
 from django.test import override_settings
+from django.utils import timezone
 
-from apps.coin.models import CoinAccount, CoinEvent, CoinLedgerEntry, SYSTEM_ACCOUNT_FEES, SYSTEM_ACCOUNT_MINT
+from apps.coin.models import (
+    CoinAccount,
+    CoinEvent,
+    CoinLedgerEntry,
+    SYSTEM_ACCOUNT_FEES,
+    SYSTEM_ACCOUNT_MINT,
+    SYSTEM_ACCOUNT_REVENUE,
+)
 from apps.coin.services.ledger import (
     calculate_fee_cents,
+    create_spend,
     create_transfer,
     mint_for_payment,
     post_event_and_entries,
 )
 from apps.coin.services.payments import mint_from_payment_event
+from apps.payments.models import PaymentEvent
 from apps.users.models import User
+
+
+def _create_payment_event(*, user: User, amount_cents: int, provider_event_id: str) -> PaymentEvent:
+    return PaymentEvent.objects.create(
+        provider=PaymentEvent.Provider.STRIPE,
+        provider_event_id=provider_event_id,
+        event_type="checkout.session.completed",
+        user=user,
+        amount_cents=amount_cents,
+        status=PaymentEvent.Status.RECEIVED,
+        raw_body_hash=hashlib.sha256(provider_event_id.encode("utf-8")).hexdigest(),
+        verified_at=timezone.now(),
+    )
 
 
 @pytest.mark.django_db
@@ -24,7 +50,7 @@ def test_balanced_transaction_succeeds():
     )
 
     event = post_event_and_entries(
-        event_type=CoinEvent.EventType.MINT,
+        event_type=CoinEvent.EventType.TRANSFER,
         created_by=None,
         entries=[
             {
@@ -57,7 +83,7 @@ def test_unbalanced_transaction_raises():
     )
     with pytest.raises(ValidationError):
         post_event_and_entries(
-            event_type=CoinEvent.EventType.MINT,
+            event_type=CoinEvent.EventType.TRANSFER,
             created_by=None,
             entries=[
                 {
@@ -86,7 +112,7 @@ def test_immutability():
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
     event = post_event_and_entries(
-        event_type=CoinEvent.EventType.MINT,
+        event_type=CoinEvent.EventType.TRANSFER,
         created_by=None,
         entries=[
             {
@@ -128,7 +154,8 @@ def test_transfer_applies_fee_and_balances():
         defaults={"account_key": CoinAccount.user_account_key(receiver.id)},
     )
 
-    mint_for_payment(user=sender, amount_cents=2000, provider="test", external_id="seed")
+    payment_event = _create_payment_event(user=sender, amount_cents=2000, provider_event_id="seed")
+    mint_for_payment(payment_event=payment_event)
 
     amount_cents = 1000
     fee_cents = calculate_fee_cents(amount_cents)
@@ -175,8 +202,9 @@ def test_idempotent_mint_for_payment():
         user=user,
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
-    event_one = mint_for_payment(user=user, amount_cents=750, provider="stripe", external_id="evt_1")
-    event_two = mint_for_payment(user=user, amount_cents=750, provider="stripe", external_id="evt_1")
+    payment_event = _create_payment_event(user=user, amount_cents=750, provider_event_id="evt_1")
+    event_one = mint_for_payment(payment_event=payment_event)
+    event_two = mint_for_payment(payment_event=payment_event)
     assert event_one.id == event_two.id
     assert CoinEvent.objects.count() == 1
     assert CoinLedgerEntry.objects.count() == 2
@@ -189,21 +217,38 @@ def test_idempotent_mint_from_payment_event():
         user=user,
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
-    event_one = mint_from_payment_event(
-        user=user,
-        amount_cents=500,
-        provider="stripe",
-        provider_event_id="evt_10",
-        metadata={"source": "webhook"},
-    )
-    event_two = mint_from_payment_event(
-        user=user,
-        amount_cents=500,
-        provider="stripe",
-        provider_event_id="evt_10",
-        metadata={"source": "webhook"},
-    )
+    payment_event = _create_payment_event(user=user, amount_cents=500, provider_event_id="evt_10")
+    event_one = mint_from_payment_event(payment_event=payment_event, metadata={"source": "webhook"})
+    event_two = mint_from_payment_event(payment_event=payment_event, metadata={"source": "webhook"})
     assert event_one.id == event_two.id
+
+
+@pytest.mark.django_db
+def test_mint_requires_payment_event():
+    with pytest.raises(ValidationError):
+        mint_from_payment_event(payment_event_id=999999)
+
+
+@pytest.mark.django_db
+def test_unverified_payment_event_blocks_mint():
+    user = User.objects.create_user(
+        email="u_unverified@example.com",
+        password="pass1234",
+        handle="u_unverified",
+        name="User Unverified",
+    )
+    payment_event = PaymentEvent.objects.create(
+        provider=PaymentEvent.Provider.STRIPE,
+        provider_event_id="evt_unverified",
+        event_type="checkout.session.completed",
+        user=user,
+        amount_cents=1000,
+        status=PaymentEvent.Status.RECEIVED,
+        raw_body_hash="hash",
+        verified_at=None,
+    )
+    with pytest.raises(ValidationError):
+        mint_for_payment(payment_event=payment_event)
 
 
 @pytest.mark.django_db
@@ -211,6 +256,95 @@ def test_idempotent_mint_from_payment_event():
 def test_fee_calculation_applies_minimum():
     assert calculate_fee_cents(1000) == 50
     assert calculate_fee_cents(100000) == 2500
+
+
+@pytest.mark.django_db
+def test_spend_posts_to_revenue_account():
+    user = User.objects.create_user(email="spend@example.com", password="pass1234", handle="spend", name="Spend User")
+    payment_event = _create_payment_event(user=user, amount_cents=1200, provider_event_id="evt_spend_1")
+    mint_for_payment(payment_event=payment_event)
+
+    event = create_spend(user=user, amount_cents=200, reference="product:test")
+    entries = list(event.ledger_entries.all())
+    revenue_entry = next(e for e in entries if e.account_key == SYSTEM_ACCOUNT_REVENUE)
+    assert revenue_entry.direction == CoinLedgerEntry.Direction.CREDIT
+    assert revenue_entry.amount_cents == 200
+
+
+@pytest.mark.django_db
+def test_suspended_accounts_cannot_send_or_receive():
+    sender = User.objects.create_user(email="u11@example.com", password="pass1234", handle="u11", name="User Eleven")
+    receiver = User.objects.create_user(
+        email="u12@example.com", password="pass1234", handle="u12", name="User Twelve"
+    )
+    payment_event = _create_payment_event(user=sender, amount_cents=1000, provider_event_id="evt_suspend_1")
+    mint_for_payment(payment_event=payment_event)
+
+    sender_account = CoinAccount.objects.get(user=sender)
+    sender_account.status = CoinAccount.Status.SUSPENDED
+    sender_account.save(update_fields=["status", "updated_at"])
+
+    with pytest.raises(ValidationError):
+        create_transfer(sender=sender, receiver=receiver, amount_cents=200)
+
+    sender_account.status = CoinAccount.Status.ACTIVE
+    sender_account.save(update_fields=["status", "updated_at"])
+
+    receiver_account = CoinAccount.objects.get(user=receiver)
+    receiver_account.status = CoinAccount.Status.SUSPENDED
+    receiver_account.save(update_fields=["status", "updated_at"])
+
+    with pytest.raises(ValidationError):
+        create_transfer(sender=sender, receiver=receiver, amount_cents=200)
+
+
+@pytest.mark.django_db
+def test_suspended_system_account_rejected():
+    sender = User.objects.create_user(email="u13@example.com", password="pass1234", handle="u13", name="User Thirteen")
+    receiver = User.objects.create_user(
+        email="u14@example.com", password="pass1234", handle="u14", name="User Fourteen"
+    )
+    payment_event = _create_payment_event(user=sender, amount_cents=1000, provider_event_id="evt_suspend_2")
+    mint_for_payment(payment_event=payment_event)
+
+    fees_account = CoinAccount.objects.get(account_key=SYSTEM_ACCOUNT_FEES)
+    fees_account.status = CoinAccount.Status.SUSPENDED
+    fees_account.save(update_fields=["status", "updated_at"])
+
+    with pytest.raises(ValidationError):
+        create_transfer(sender=sender, receiver=receiver, amount_cents=200)
+
+
+@pytest.mark.django_db
+def test_system_account_whitelist_rejects_unknown():
+    user = User.objects.create_user(email="u15@example.com", password="pass1234", handle="u15", name="User Fifteen")
+    CoinAccount.objects.get_or_create(
+        user=user,
+        defaults={"account_key": CoinAccount.user_account_key(user.id)},
+    )
+    CoinAccount.objects.get_or_create(
+        account_key="system:bogus",
+        defaults={"label": "Bogus", "is_system": True},
+    )
+    with pytest.raises(ValidationError):
+        post_event_and_entries(
+            event_type=CoinEvent.EventType.TRANSFER,
+            created_by=None,
+            entries=[
+                {
+                    "account_key": "system:bogus",
+                    "amount_cents": 100,
+                    "currency": "SLC",
+                    "direction": CoinLedgerEntry.Direction.DEBIT,
+                },
+                {
+                    "account_key": f"user:{user.id}",
+                    "amount_cents": 100,
+                    "currency": "SLC",
+                    "direction": CoinLedgerEntry.Direction.CREDIT,
+                },
+            ],
+        )
 
 
 @pytest.mark.django_db
@@ -223,7 +357,7 @@ def test_unknown_account_key_rejected():
 
     with pytest.raises(ValidationError):
         post_event_and_entries(
-            event_type=CoinEvent.EventType.MINT,
+            event_type=CoinEvent.EventType.TRANSFER,
             created_by=None,
             entries=[
                 {
@@ -240,3 +374,19 @@ def test_unknown_account_key_rejected():
                 },
             ],
         )
+
+
+@pytest.mark.django_db
+def test_user_delete_is_protected_by_coin_account():
+    user = User.objects.create_user(
+        email="protect@example.com",
+        password="pass1234",
+        handle="protect",
+        name="Protect User",
+    )
+    CoinAccount.objects.get_or_create(
+        user=user,
+        defaults={"account_key": CoinAccount.user_account_key(user.id)},
+    )
+    with pytest.raises(ProtectedError):
+        user.delete()

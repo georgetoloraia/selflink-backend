@@ -14,6 +14,7 @@ USER_ACCOUNT_PREFIX = "user:"
 SYSTEM_ACCOUNT_FEES = "system:fees"
 SYSTEM_ACCOUNT_REVENUE = "system:revenue"
 SYSTEM_ACCOUNT_MINT = "system:mint"
+# Only these system accounts are allowed in ledger postings.
 SYSTEM_ACCOUNT_KEYS = {
     SYSTEM_ACCOUNT_FEES,
     SYSTEM_ACCOUNT_REVENUE,
@@ -28,7 +29,7 @@ class CoinAccount(BaseModel):
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="coin_account",
         null=True,
         blank=True,

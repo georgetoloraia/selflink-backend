@@ -10,12 +10,14 @@ from django.db.models import Case, F, Sum, When
 from apps.coin.models import (
     COIN_CURRENCY,
     SYSTEM_ACCOUNT_FEES,
+    SYSTEM_ACCOUNT_KEYS,
     SYSTEM_ACCOUNT_MINT,
     SYSTEM_ACCOUNT_REVENUE,
     CoinAccount,
     CoinEvent,
     CoinLedgerEntry,
 )
+from apps.payments.models import PaymentEvent
 from apps.users.models import User
 
 
@@ -55,12 +57,32 @@ def _validate_entries(entries: Sequence[dict]) -> None:
     if unbalanced:
         raise ValidationError(f"Unbalanced ledger entries for currency: {unbalanced}")
     if account_keys:
-        existing = set(
-            CoinAccount.objects.filter(account_key__in=account_keys).values_list("account_key", flat=True)
+        invalid_system_keys = sorted(
+            key for key in account_keys if key.startswith("system:") and key not in SYSTEM_ACCOUNT_KEYS
         )
+        if invalid_system_keys:
+            raise ValidationError("System account is not allowed.")
+        accounts = list(
+            CoinAccount.objects.filter(account_key__in=account_keys).values("account_key", "status", "is_system")
+        )
+        existing = {account["account_key"] for account in accounts}
         missing = sorted(account_keys - existing)
         if missing:
             raise ValidationError(f"Unknown account_key(s): {', '.join(missing)}")
+        inactive = sorted(
+            account["account_key"]
+            for account in accounts
+            if account["status"] != CoinAccount.Status.ACTIVE
+        )
+        if inactive:
+            raise ValidationError("Coin account is not active.")
+        disallowed = sorted(
+            account["account_key"]
+            for account in accounts
+            if account["is_system"] and account["account_key"] not in SYSTEM_ACCOUNT_KEYS
+        )
+        if disallowed:
+            raise ValidationError("System account is not allowed.")
 
 
 def get_or_create_user_account(user: User) -> CoinAccount:
@@ -102,6 +124,20 @@ def post_event_and_entries(
     idempotency_key: str | None = None,
     ruleset_version: str = "v1",
 ) -> CoinEvent:
+    if event_type == CoinEvent.EventType.MINT:
+        if not idempotency_key or ":" not in idempotency_key:
+            raise ValidationError("Mint events require a provider:event_id idempotency_key.")
+        provider, external_id = idempotency_key.split(":", 1)
+        payment_event = PaymentEvent.objects.filter(
+            provider=provider,
+            provider_event_id=external_id,
+        ).only("id", "status", "verified_at").first()
+        if not payment_event:
+            raise ValidationError("PaymentEvent not found for mint.")
+        if payment_event.status == PaymentEvent.Status.FAILED:
+            raise ValidationError("PaymentEvent is failed.")
+        if not payment_event.verified_at:
+            raise ValidationError("PaymentEvent is unverified.")
     entry_list: List[dict] = list(entries)
     _validate_entries(entry_list)
 
@@ -238,52 +274,69 @@ def create_spend(*, user: User, amount_cents: int, reference: str, note: str = "
     return event
 
 
-def mint_for_payment(
-    *,
-    user: User,
-    amount_cents: int,
-    provider: str,
-    external_id: str,
-    metadata: dict | None = None,
-) -> CoinEvent:
-    if amount_cents <= 0:
+def mint_for_payment(*, payment_event: PaymentEvent, metadata: dict | None = None) -> CoinEvent:
+    if payment_event is None or payment_event.pk is None:
+        raise ValidationError("PaymentEvent is required.")
+    if payment_event.status == PaymentEvent.Status.FAILED:
+        raise ValidationError("PaymentEvent is failed.")
+    if not payment_event.verified_at:
+        raise ValidationError("PaymentEvent is unverified.")
+    if payment_event.amount_cents <= 0:
         raise ValidationError("Amount must be positive.")
-    idempotency_key = f"{provider}:{external_id}"
+    if payment_event.minted_coin_event_id:
+        if payment_event.status != PaymentEvent.Status.MINTED:
+            payment_event.status = PaymentEvent.Status.MINTED
+            payment_event.save(update_fields=["status", "updated_at"])
+        return payment_event.minted_coin_event  # type: ignore[return-value]
+    idempotency_key = f"{payment_event.provider}:{payment_event.provider_event_id}"
     existing = CoinEvent.objects.filter(idempotency_key=idempotency_key).first()
     if existing:
+        if payment_event.minted_coin_event_id is None:
+            payment_event.minted_coin_event = existing
+            payment_event.status = PaymentEvent.Status.MINTED
+            payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
         return existing
-    account = get_or_create_user_account(user)
+    account = get_or_create_user_account(payment_event.user)
     event_metadata = metadata or {}
     event_metadata.update(
         {
-            "provider": provider,
-            "external_id": external_id,
-            "amount_cents": amount_cents,
+            "provider": payment_event.provider,
+            "external_id": payment_event.provider_event_id,
+            "amount_cents": payment_event.amount_cents,
         }
     )
     try:
-        return post_event_and_entries(
-            event_type=CoinEvent.EventType.MINT,
-            created_by=None,
-            metadata=event_metadata,
-            idempotency_key=idempotency_key,
-            entries=[
-                {
-                    "account_key": SYSTEM_ACCOUNT_MINT,
-                    "amount_cents": amount_cents,
-                    "currency": COIN_CURRENCY,
-                    "direction": CoinLedgerEntry.Direction.DEBIT,
-                },
-                {
-                    "account_key": account.account_key,
-                    "amount_cents": amount_cents,
-                    "currency": COIN_CURRENCY,
-                    "direction": CoinLedgerEntry.Direction.CREDIT,
-                },
-            ],
-        )
+        with transaction.atomic():
+            event = post_event_and_entries(
+                event_type=CoinEvent.EventType.MINT,
+                created_by=None,
+                metadata=event_metadata,
+                idempotency_key=idempotency_key,
+                entries=[
+                    {
+                        "account_key": SYSTEM_ACCOUNT_MINT,
+                        "amount_cents": payment_event.amount_cents,
+                        "currency": COIN_CURRENCY,
+                        "direction": CoinLedgerEntry.Direction.DEBIT,
+                    },
+                    {
+                        "account_key": account.account_key,
+                        "amount_cents": payment_event.amount_cents,
+                        "currency": COIN_CURRENCY,
+                        "direction": CoinLedgerEntry.Direction.CREDIT,
+                    },
+                ],
+            )
+            payment_event.minted_coin_event = event
+            payment_event.status = PaymentEvent.Status.MINTED
+            payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
+            return event
     except IntegrityError:
         existing = CoinEvent.objects.filter(idempotency_key=idempotency_key).first()
         if existing:
+            if payment_event.minted_coin_event_id is None:
+                payment_event.minted_coin_event = existing
+                payment_event.status = PaymentEvent.Status.MINTED
+                payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
             return existing
         raise
