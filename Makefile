@@ -16,7 +16,7 @@ HEALTHCHECK_API = python -c "import urllib.request; urllib.request.urlopen('http
 HEALTHCHECK_ASGI = python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/docs/')"
 HEALTHCHECK_REALTIME = python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"
 
-.PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run infra-up infra-down infra-logs infra-migrate infra-superuser snapshot-month
+.PHONY: install migrate runserver celery-worker celery-beat compose-up compose-down up up-realtime test lint rewards-dry-run infra-up infra-down infra-logs infra-migrate infra-superuser snapshot-month coin-invariant-check
 .PHONY: infra-up-local infra-up-host infra-down-local infra-down-host infra-host-reset
 .PHONY: infra-status infra-status-strict
 
@@ -48,7 +48,19 @@ compose-down:
 	$(COMPOSE_CMD) down
 
 test:
-	@if command -v pytest >/dev/null 2>&1; then pytest; else $(MANAGE) test; fi
+	@if ! command -v pytest >/dev/null 2>&1; then echo "pytest not installed; pip install -r requirements-dev.txt"; exit 1; fi
+	@$(PYTHON) - <<'PY'
+import importlib.util
+import sys
+
+required = ("pytest_django", "django", "rest_framework")
+missing = [name for name in required if importlib.util.find_spec(name) is None]
+if missing:
+    print("Missing test deps: " + ", ".join(missing))
+    print("Run: pip install -r requirements-dev.txt")
+    sys.exit(1)
+PY
+	@pytest
 
 lint:
 	@if command -v ruff >/dev/null 2>&1; then ruff check .; else echo "ruff not installed; pip install ruff to run lint"; fi
@@ -73,6 +85,9 @@ infra-superuser:
 
 snapshot-month:
 	$(COMPOSE_CMD) exec api python manage.py contrib_rewards_snapshot_month --month $(MONTH)
+
+coin-invariant-check:
+	$(MANAGE) coin_invariant_check
 
 infra-status:
 	@$(COMPOSE_CMD) ps

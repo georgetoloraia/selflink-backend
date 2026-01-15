@@ -3,6 +3,7 @@ from __future__ import annotations
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from apps.coin.models import CoinAccount
 from apps.payments.models import Wallet
 from apps.profile.models import UserProfile
 
@@ -14,6 +15,10 @@ def create_related_user_models(sender, instance: User, created: bool, **kwargs) 
     if created:
         UserSettings.objects.get_or_create(user=instance)
         Wallet.objects.get_or_create(user=instance)
+        CoinAccount.objects.get_or_create(
+            user=instance,
+            defaults={"account_key": CoinAccount.user_account_key(instance.id)},
+        )
         UserProfile.objects.get_or_create(user=instance)
     UserPII.objects.update_or_create(
         user=instance,

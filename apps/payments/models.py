@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
@@ -50,3 +51,32 @@ class GiftType(BaseModel):
 
     class Meta:
         ordering = ["price_cents"]
+
+
+class PaymentEvent(BaseModel):
+    class Provider(models.TextChoices):
+        STRIPE = "stripe", "Stripe"
+
+    class Status(models.TextChoices):
+        RECEIVED = "received", "Received"
+        MINTED = "minted", "Minted"
+        FAILED = "failed", "Failed"
+
+    provider = models.CharField(max_length=32, choices=Provider.choices)
+    provider_event_id = models.CharField(max_length=128)
+    event_type = models.CharField(max_length=64, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payment_events")
+    amount_cents = models.PositiveIntegerField()
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.RECEIVED)
+    minted_coin_event = models.ForeignKey(
+        "coin.CoinEvent",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="payment_events",
+    )
+    raw_body_hash = models.CharField(max_length=64)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("provider", "provider_event_id")

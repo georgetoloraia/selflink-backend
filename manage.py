@@ -4,10 +4,13 @@ import sys
 
 
 def main() -> None:
-    os.environ.setdefault(
-        "DJANGO_SETTINGS_MODULE",
-        os.getenv("DJANGO_SETTINGS_MODULE", "core.settings.base"),
-    )
+    settings_module = os.getenv("DJANGO_SETTINGS_MODULE")
+    if not settings_module:
+        if "test" in sys.argv:
+            settings_module = "core.settings.test"
+        else:
+            settings_module = "core.settings.base"
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", settings_module)
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

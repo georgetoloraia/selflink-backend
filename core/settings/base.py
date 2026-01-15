@@ -88,6 +88,7 @@ LOCAL_APPS = [
     "apps.reco",
     "apps.search",
     "apps.contrib_rewards",
+    "apps.coin",
     "apps.realtime",
 ]
 
@@ -158,6 +159,10 @@ RATE_LIMITS_ENABLED = os.getenv("RATE_LIMITS_ENABLED", "false").lower() == "true
 MENTOR_RPS_USER = int(os.getenv("MENTOR_RPS_USER", "2"))
 MENTOR_RPS_GLOBAL = int(os.getenv("MENTOR_RPS_GLOBAL", "20"))
 AUTH_RPS_IP = int(os.getenv("AUTH_RPS_IP", "5"))
+COIN_FEE_BPS = int(os.getenv("COIN_FEE_BPS", "100"))
+COIN_FEE_MIN_CENTS = int(os.getenv("COIN_FEE_MIN_CENTS", "25"))
+COIN_THROTTLE_TRANSFER = os.getenv("COIN_THROTTLE_TRANSFER", "30/min")
+COIN_THROTTLE_SPEND = os.getenv("COIN_THROTTLE_SPEND", "60/min")
 
 AUTH_USER_MODEL = "users.User"
 AUTHENTICATION_BACKENDS = (
@@ -324,6 +329,12 @@ REST_FRAMEWORK = {
         "matching": os.getenv("THROTTLE_MATCHING_RATE", "30/min"),
         "user:matching": os.getenv("THROTTLE_MATCHING_RATE", "30/min"),
         "ip:matching": os.getenv("THROTTLE_MATCHING_RATE", "30/min"),
+        "coin_transfer": COIN_THROTTLE_TRANSFER,
+        "user:coin_transfer": COIN_THROTTLE_TRANSFER,
+        "ip:coin_transfer": COIN_THROTTLE_TRANSFER,
+        "coin_spend": COIN_THROTTLE_SPEND,
+        "user:coin_spend": COIN_THROTTLE_SPEND,
+        "ip:coin_spend": COIN_THROTTLE_SPEND,
     },
 }
 

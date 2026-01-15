@@ -2,6 +2,31 @@
 
 This doc explains why each major component exists in SelfLink backend, what it solves, and how the production stack is wired. All claims are grounded in repo files (paths are cited inline).
 
+## What the backend is (in plain terms)
+SelfLink backend is the system of record for users, social graph, messaging, mentor/astro experiences, contributor rewards, and SLC credits. It exposes REST endpoints under `/api/v1/`, streams mentor responses via SSE, and serves realtime WebSocket updates through a dedicated gateway.
+
+## Why this architecture exists
+We split the stack so long‑lived connections and heavy work never block normal API requests: Django/DRF handles CRUD/auth, ASGI handles SSE, FastAPI handles WebSockets, and Celery handles slow/variable tasks. Postgres (with PgBouncer) stays the source of truth, while Redis supports caching, broker, and realtime pub/sub.
+
+## Roadmap / Where to contribute
+- **Core social features**: profiles, posts, follows, moderation.
+- **Mentor + SSE + LLM**: streaming mentor endpoints, prompt safety, async jobs.
+- **SLC + payments**: off‑chain ledger, payment webhooks, transfer/spend flows.
+- **Contributor rewards**: append‑only ledger + monthly snapshots.
+- **Infra**: routing, Docker/host mode, health checks, Cloudflared.
+
+## Entry points (key files)
+- `core/urls.py` — top‑level routing under `/api/v1/`
+- `core/asgi.py` — ASGI entrypoint for SSE
+- `core/celery.py` — Celery worker/beat config
+- `services/realtime/app.py` — FastAPI WebSocket gateway + `/health`
+- `apps/mentor/api_stream.py` — SSE mentor stream
+- `apps/coin/` — SLC models/services/views
+- `apps/payments/webhook.py` — Stripe webhook verification + mint
+- `apps/contrib_rewards/` — rewards ledger and snapshots
+- `infra/compose.yaml` — local stack definition
+- `infra/cloudflared/config.yml` — host routing rules
+
 ## Quick orientation (local vs host)
 
 - Local contributors run `make infra-up-local` which uses `infra/compose.yaml` (Makefile).
@@ -160,6 +185,7 @@ Use `make infra-status` which probes:
 - `http://127.0.0.1:8001/api/docs/`
 - `http://127.0.0.1:8002/health`
 (`Makefile`)
+Optional SLC invariant check (read-only): `make coin-invariant-check` (`Makefile`).
 
 ### Required env groups (host mode)
 From `infra/.env.example` and `core/settings/base.py`:
@@ -180,17 +206,17 @@ If `/api*` is above the SSE path, `/api/v1/mentor/stream/` will be misrouted.
 
 ## FAQ
 
-**Why not do WebSockets only in Django Channels?**  
+**Why not do WebSockets only in Django Channels?**
 Channels is deprecated here and gated by `REALTIME_CHANNELS_ENABLED` (`core/routing.py`). The FastAPI gateway isolates long‑lived WS connections from Django request latency and scales independently (`services/realtime/app.py`).
 
-**Why not run everything behind one port?**  
+**Why not run everything behind one port?**
 SSE, REST, and WS have different runtime needs. Separate services keep streaming and WS from blocking the main API, and allow independent scaling (`infra/compose.yaml` services `api`, `asgi`, `realtime`).
 
-**Why PgBouncer?**  
+**Why PgBouncer?**
 Django + Celery can create many DB connections. PgBouncer pools them to avoid hitting Postgres limits (`infra/compose.yaml`, `infra/pgbouncer/pgbouncer.ini`).
 
-**What does Redis do here?**  
+**What does Redis do here?**
 Celery broker + results, Django cache (if enabled), and realtime pub/sub (`core/settings/base.py`, `services/realtime/redis_client.py`).
 
-**When should we add OpenSearch/MinIO?**  
+**When should we add OpenSearch/MinIO?**
 Enable OpenSearch when search/indexing features need it (`infra/compose.yaml` profile `search`). Enable MinIO when running S3‑compatible storage locally or in a self‑hosted setup (`infra/compose.yaml` profile `storage`).
