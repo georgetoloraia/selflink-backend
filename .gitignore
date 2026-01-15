@@ -22,10 +22,18 @@ rad.json
 TestResults.xml
 #Database
 db.sqlite3
+#Coverage / test artifacts
+.coverage
+coverage.xml
+htmlcov/
+*.log
 # Python bytecode
-__pycache__
+__pycache__/
+*.pyc
 #venv
-venv
+venv/
+.venv/
+.pytest_cache/
 .ruff_cache/
 
 # for my self
@@ -39,6 +47,7 @@ rebuild.txt
 media
 celerybeat-schedule
 staticfiles/
+tmp/test-media/
 tasts.md
 MASTER-ROADMAP.txt
 continue-roadmap.txt
