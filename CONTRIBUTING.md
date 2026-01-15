@@ -4,14 +4,21 @@ Quickstart
 - Docker: copy `infra/.env.example` to `infra/.env`
 - Local: copy `.env.example` to `.env`
 - Install dev tooling: `pip install -r requirements-dev.txt`
-- `make up`
-- `make migrate`
+- `make infra-up-local`
+- `make infra-migrate`
 - `make test`
 
 How to run tests
-- `make test` (pytest)
+Canonical runner is **pytest** (configured via `pytest.ini` with `core.settings.test`).
+- Full suite: `pytest`
+- Coin-only: `pytest apps/coin/tests`
+- Stripe webhook coin test: `pytest tests/test_payments_webhook_coin.py`
+- SLC invariants: `python manage.py coin_invariant_check` (or `make coin-invariant-check`)
+- `make test` runs `pytest`
 - `make lint` (ruff)
 - `pre-commit install` to enable local checks
+Notes:
+- Tests are designed to be offline; Stripe webhook tests use local payloads/signatures only.
 
 How to open PRs
 - Fork or branch, make focused changes with tests, then open a pull request explaining the change and impact.

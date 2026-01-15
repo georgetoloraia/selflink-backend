@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+from datetime import timezone as dt_timezone
 
 from django.core.exceptions import ValidationError
 from django.db.models import Q
@@ -47,14 +48,14 @@ class CoinLedgerView(APIView):
         if dt is None:
             raise ValueError("Invalid cursor.")
         if timezone.is_naive(dt):
-            dt = timezone.make_aware(dt, timezone.utc)
+            dt = timezone.make_aware(dt, dt_timezone.utc)
         else:
-            dt = dt.astimezone(timezone.utc)
+            dt = dt.astimezone(dt_timezone.utc)
         return dt, entry_id
 
     @staticmethod
     def _encode_cursor(entry: CoinLedgerEntry) -> str:
-        ts = entry.created_at.astimezone(timezone.utc).isoformat()
+        ts = entry.created_at.astimezone(dt_timezone.utc).isoformat()
         payload = json.dumps({"ts": ts, "id": entry.id}, separators=(",", ":"), sort_keys=True).encode("utf-8")
         return base64.urlsafe_b64encode(payload).rstrip(b"=").decode("ascii")
 

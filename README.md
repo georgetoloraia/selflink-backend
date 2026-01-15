@@ -21,18 +21,20 @@ Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
 - Every user gets an SLC account automatically
 - P2P transfers and internal spending are supported with transfer fees
 - API (under `/api/v1/coin/`): `balance`, `ledger`, `transfer`, `spend`
+- Docs: [`docs/coin/WALLET.md`](docs/coin/WALLET.md), [`docs/coin/TECHNICAL_REVIEW.md`](docs/coin/TECHNICAL_REVIEW.md)
 
-FOR MORE Click [`wallet.md`](docs/wallet.md)
 
-
-1. [`RUNBOOK.md`](docs/RUNBOOK.md)
-2. [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) – High-level system layout and boundaries
-3. [`domains.md`](docs/architecture/domains.md) – Which modules are allowed to depend on which
-4. [`apps/contrib_rewards/`](apps/contrib_rewards/) – The trust anchor (append-only ledger)
-5. [`apps/core/`](apps/core/) – Identity, social graph, permissions
-6. [`apps/mentor`](apps/mentor) / [`apps/astro`](apps/astro) / [`apps/matching/`](apps/matching/) – Optional intelligence layer
-7. [`infra/`](infra/) – How the system runs in Docker / production
-8. [`docs/WHY_THIS_STACK.md`](docs/WHY_THIS_STACK.md)
+1. [`START_HERE.md`](START_HERE.md)
+2. [`docs/WHY_THIS_STACK.md`](docs/WHY_THIS_STACK.md)
+3. [`docs/coin/WALLET.md`](docs/coin/WALLET.md)
+4. [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
+5. [`docs/RUNBOOK.md`](docs/RUNBOOK.md)
+6. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) – High-level system layout and boundaries
+7. [`docs/architecture/domains.md`](docs/architecture/domains.md) – Which modules are allowed to depend on which
+8. [`apps/contrib_rewards/`](apps/contrib_rewards/) – The trust anchor (append-only ledger)
+9. [`apps/core/`](apps/core/) – Identity, social graph, permissions
+10. [`apps/mentor`](apps/mentor) / [`apps/astro`](apps/astro) / [`apps/matching/`](apps/matching/) – Optional intelligence layer
+11. [`infra/`](infra/) – How the system runs in Docker / production
 
 You do **not** need to understand everything to contribute.
 Most contributors work in a single domain.
@@ -47,6 +49,7 @@ For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 - `make infra-superuser`
 - `make infra-status` (informational health check)
 - `make infra-status-strict` (fails if api/asgi/realtime are not healthy)
+- `make coin-invariant-check` (verifies SLC ledger invariants; safe to run locally/host)
 - Optional search stack: `docker compose -f infra/compose.yaml --profile search up -d`
 - For more, see [`README_for_env.md`](README_for_env.md), [`docker_guide.md`](docker_guide.md), or [`docs/WHY_THIS_STACK.md`](docs/WHY_THIS_STACK.md)
 

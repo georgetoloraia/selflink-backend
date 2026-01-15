@@ -12,7 +12,6 @@ import libs.idgen
 
 def create_system_and_user_accounts(apps, schema_editor) -> None:
     CoinAccount = apps.get_model("coin", "CoinAccount")
-    User = apps.get_model("users", "User")
 
     system_accounts = [
         ("system:fees", "Fees"),
@@ -23,13 +22,6 @@ def create_system_and_user_accounts(apps, schema_editor) -> None:
         CoinAccount.objects.get_or_create(
             account_key=key,
             defaults={"label": label, "is_system": True},
-        )
-
-    for user in User.objects.all().only("id"):
-        key = f"user:{user.id}"
-        CoinAccount.objects.get_or_create(
-            user_id=user.id,
-            defaults={"account_key": key},
         )
 
 
