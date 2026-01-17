@@ -36,24 +36,12 @@ venv/
 .pytest_cache/
 .ruff_cache/
 
-# for my self
-tasks.txt
-roadmap.txt
-PROJECT_PLAN.md
-PROJECT_PLAN_v2.md
+# files containing secrets
 .env
 infra/.env
-rebuild.txt
 media
 celerybeat-schedule
 staticfiles/
 tmp/test-media/
-tasts.md
-MASTER-ROADMAP.txt
-continue-roadmap.txt
-selflink-feed-phase2-backend.txt
-selflink_llama_prompt.txt
 test_llama.py
-selflink_refactor_reddit_feedback.txt
-idea.txt
-personal.txt
+PROJECT_PLAN_v2.md
