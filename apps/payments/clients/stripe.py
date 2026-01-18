@@ -31,8 +31,39 @@ class StripeClient:
             metadata=metadata or {},
         )
 
+    def create_checkout_payment_session(
+        self,
+        *,
+        amount_cents: int,
+        currency: str,
+        success_url: str,
+        cancel_url: str,
+        reference: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> stripe.checkout.Session:
+        return stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": currency.lower(),
+                        "unit_amount": amount_cents,
+                        "product_data": {"name": "SelfLink Coin (SLC)"},
+                    },
+                    "quantity": 1,
+                }
+            ],
+            client_reference_id=reference,
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata or {},
+        )
+
     def retrieve_subscription(self, subscription_id: str) -> stripe.Subscription:
         return stripe.Subscription.retrieve(subscription_id)
+
+    def retrieve_payment_intent(self, payment_intent_id: str) -> stripe.PaymentIntent:
+        return stripe.PaymentIntent.retrieve(payment_intent_id)
 
     def construct_event(self, payload: bytes, signature: str) -> stripe.Event:
         if not self.webhook_secret:
