@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from apps.coin.models import CoinEvent
 from apps.coin.services.ledger import get_balance_cents, get_or_create_user_account
-from apps.payments.models import PaymentEvent
+from apps.payments.models import PaymentCheckout, PaymentEvent
 from apps.users.models import User
 
 
@@ -25,16 +25,20 @@ class StripeWebhookCoinTests(TestCase):
 
     @patch("apps.payments.webhook.get_stripe_client")
     def test_duplicate_webhook_does_not_double_mint(self, mock_get_client: Mock) -> None:
+        checkout = PaymentCheckout.objects.create(
+            provider=PaymentEvent.Provider.STRIPE,
+            user=self.user,
+            amount_cents=1500,
+            currency="USD",
+        )
         event = {
             "id": "evt_coin_1",
             "type": "checkout.session.completed",
             "data": {
                 "object": {
-                    "metadata": {
-                        "user_id": str(self.user.id),
-                        "coin_amount_cents": "9999",
-                    },
+                    "client_reference_id": checkout.reference,
                     "amount_total": 1500,
+                    "currency": "USD",
                     "payment_status": "paid",
                 }
             },
@@ -87,3 +91,114 @@ class StripeWebhookCoinTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(PaymentEvent.objects.count(), 0)
+
+    @patch("apps.payments.webhook.get_stripe_client")
+    def test_non_paid_event_does_not_mint(self, mock_get_client: Mock) -> None:
+        checkout = PaymentCheckout.objects.create(
+            provider=PaymentEvent.Provider.STRIPE,
+            user=self.user,
+            amount_cents=1500,
+            currency="USD",
+        )
+        event = {
+            "id": "evt_coin_2",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "client_reference_id": checkout.reference,
+                    "amount_total": 1500,
+                    "currency": "USD",
+                    "payment_status": "unpaid",
+                }
+            },
+        }
+        mock_client = Mock()
+        mock_client.construct_event.return_value = event
+        mock_get_client.return_value = mock_client
+
+        response = self.client.post(
+            self.url,
+            data=b"{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="t=1,v1=valid",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(PaymentEvent.objects.count(), 1)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+
+    @patch("apps.payments.webhook.get_stripe_client")
+    def test_unknown_reference_rejected(self, mock_get_client: Mock) -> None:
+        event = {
+            "id": "evt_coin_3",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "client_reference_id": "missing",
+                    "amount_total": 1500,
+                    "currency": "USD",
+                    "payment_status": "paid",
+                }
+            },
+        }
+        mock_client = Mock()
+        mock_client.construct_event.return_value = event
+        mock_get_client.return_value = mock_client
+
+        response = self.client.post(
+            self.url,
+            data=b"{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="t=1,v1=valid",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(PaymentEvent.objects.count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+
+    @patch("apps.payments.webhook.get_stripe_client")
+    def test_payment_event_user_mismatch_rejected(self, mock_get_client: Mock) -> None:
+        other = User.objects.create_user(
+            email="other@example.com",
+            handle="other",
+            name="Other",
+            password="pass12345",
+        )
+        checkout = PaymentCheckout.objects.create(
+            provider=PaymentEvent.Provider.STRIPE,
+            user=self.user,
+            amount_cents=1500,
+            currency="USD",
+        )
+        PaymentEvent.objects.create(
+            provider=PaymentEvent.Provider.STRIPE,
+            provider_event_id="evt_coin_4",
+            event_type="checkout.session.completed",
+            user=other,
+            amount_cents=1500,
+            currency="USD",
+            status=PaymentEvent.Status.RECEIVED,
+            raw_body_hash="hash",
+        )
+        event = {
+            "id": "evt_coin_4",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "client_reference_id": checkout.reference,
+                    "amount_total": 1500,
+                    "currency": "USD",
+                    "payment_status": "paid",
+                }
+            },
+        }
+        mock_client = Mock()
+        mock_client.construct_event.return_value = event
+        mock_get_client.return_value = mock_client
+
+        response = self.client.post(
+            self.url,
+            data=b"{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="t=1,v1=valid",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
