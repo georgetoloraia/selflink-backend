@@ -416,6 +416,21 @@ FEATURE_FLAGS = {
     "payments": os.getenv("FEATURE_PAYMENTS", "true").lower() == "true",
 }
 
+STRIPE_ALLOWED_CURRENCIES = [
+    code.strip().upper()
+    for code in os.getenv("STRIPE_ALLOWED_CURRENCIES", "USD,EUR,GEL").split(",")
+    if code.strip()
+]
+STRIPE_CHECKOUT_MIN_CENTS = int(os.getenv("STRIPE_CHECKOUT_MIN_CENTS", "50"))
+STRIPE_CHECKOUT_SUCCESS_URL = os.getenv(
+    "STRIPE_CHECKOUT_SUCCESS_URL",
+    os.getenv("PAYMENTS_CHECKOUT_SUCCESS_URL", "http://localhost:3000/payments/success"),
+)
+STRIPE_CHECKOUT_CANCEL_URL = os.getenv(
+    "STRIPE_CHECKOUT_CANCEL_URL",
+    os.getenv("PAYMENTS_CHECKOUT_CANCEL_URL", "http://localhost:3000/payments/cancel"),
+)
+
 IPAY_WEBHOOK_SECRET = os.getenv("IPAY_WEBHOOK_SECRET", "")
 IPAY_SIGNATURE_HEADER = os.getenv("IPAY_SIGNATURE_HEADER", "HTTP_X_IPAY_SIGNATURE")
 IPAY_ALLOWED_CURRENCIES = [
