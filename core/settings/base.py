@@ -431,6 +431,29 @@ STRIPE_CHECKOUT_CANCEL_URL = os.getenv(
     os.getenv("PAYMENTS_CHECKOUT_CANCEL_URL", "http://localhost:3000/payments/cancel"),
 )
 
+BTCPAY_BASE_URL = os.getenv("BTCPAY_BASE_URL", "")
+BTCPAY_API_KEY = os.getenv("BTCPAY_API_KEY", "")
+BTCPAY_STORE_ID = os.getenv("BTCPAY_STORE_ID", "")
+BTCPAY_WEBHOOK_SECRET = os.getenv("BTCPAY_WEBHOOK_SECRET", "")
+BTCPAY_SIGNATURE_HEADER = os.getenv("BTCPAY_SIGNATURE_HEADER", "HTTP_BTCPAY_SIG")
+BTCPAY_ALLOWED_CURRENCIES = [
+    code.strip().upper()
+    for code in os.getenv("BTCPAY_ALLOWED_CURRENCIES", "USD,EUR").split(",")
+    if code.strip()
+]
+BTCPAY_PAID_STATUSES = [
+    status.strip().lower()
+    for status in os.getenv("BTCPAY_PAID_STATUSES", "settled").split(",")
+    if status.strip()
+]
+BTCPAY_FAILED_STATUSES = [
+    status.strip().lower()
+    for status in os.getenv("BTCPAY_FAILED_STATUSES", "expired,invalid").split(",")
+    if status.strip()
+]
+BTCPAY_AMOUNT_IN_CENTS = os.getenv("BTCPAY_AMOUNT_IN_CENTS", "false").lower() == "true"
+BTCPAY_TIMEOUT_SECONDS = int(os.getenv("BTCPAY_TIMEOUT_SECONDS", "10"))
+
 IPAY_WEBHOOK_SECRET = os.getenv("IPAY_WEBHOOK_SECRET", "")
 IPAY_SIGNATURE_HEADER = os.getenv("IPAY_SIGNATURE_HEADER", "HTTP_X_IPAY_SIGNATURE")
 IPAY_ALLOWED_CURRENCIES = [

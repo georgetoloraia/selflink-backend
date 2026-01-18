@@ -59,6 +59,7 @@ class PaymentEvent(BaseModel):
     class Provider(models.TextChoices):
         STRIPE = "stripe", "Stripe"
         IPAY = "ipay", "iPay"
+        BTCPAY = "btcpay", "BTCPay"
 
     class Status(models.TextChoices):
         RECEIVED = "received", "Received"
@@ -99,6 +100,7 @@ class PaymentCheckout(BaseModel):
 
     provider = models.CharField(max_length=32, choices=PaymentEvent.Provider.choices)
     reference = models.CharField(max_length=64, unique=True, default=generate_payment_reference)
+    provider_reference = models.CharField(max_length=128, blank=True, null=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payment_checkouts")
     amount_cents = models.PositiveIntegerField()
     currency = models.CharField(max_length=8, default="USD")
