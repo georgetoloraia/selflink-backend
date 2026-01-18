@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -56,6 +58,7 @@ class GiftType(BaseModel):
 class PaymentEvent(BaseModel):
     class Provider(models.TextChoices):
         STRIPE = "stripe", "Stripe"
+        IPAY = "ipay", "iPay"
 
     class Status(models.TextChoices):
         RECEIVED = "received", "Received"
@@ -67,6 +70,7 @@ class PaymentEvent(BaseModel):
     event_type = models.CharField(max_length=64, blank=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payment_events")
     amount_cents = models.PositiveIntegerField()
+    currency = models.CharField(max_length=8, default="USD")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.RECEIVED)
     minted_coin_event = models.ForeignKey(
         "coin.CoinEvent",
@@ -80,3 +84,22 @@ class PaymentEvent(BaseModel):
 
     class Meta:
         unique_together = ("provider", "provider_event_id")
+
+
+def generate_payment_reference() -> str:
+    return uuid.uuid4().hex
+
+
+class PaymentCheckout(BaseModel):
+    class Status(models.TextChoices):
+        CREATED = "created", "Created"
+        PAID = "paid", "Paid"
+        FAILED = "failed", "Failed"
+        CANCELED = "canceled", "Canceled"
+
+    provider = models.CharField(max_length=32, choices=PaymentEvent.Provider.choices)
+    reference = models.CharField(max_length=64, unique=True, default=generate_payment_reference)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payment_checkouts")
+    amount_cents = models.PositiveIntegerField()
+    currency = models.CharField(max_length=8, default="USD")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.CREATED)
