@@ -416,6 +416,30 @@ FEATURE_FLAGS = {
     "payments": os.getenv("FEATURE_PAYMENTS", "true").lower() == "true",
 }
 
+IPAY_WEBHOOK_SECRET = os.getenv("IPAY_WEBHOOK_SECRET", "")
+IPAY_SIGNATURE_HEADER = os.getenv("IPAY_SIGNATURE_HEADER", "HTTP_X_IPAY_SIGNATURE")
+IPAY_ALLOWED_CURRENCIES = [
+    code.strip().upper()
+    for code in os.getenv("IPAY_ALLOWED_CURRENCIES", "USD,EUR,GEL").split(",")
+    if code.strip()
+]
+IPAY_PAID_STATUSES = [
+    status.strip().lower()
+    for status in os.getenv("IPAY_PAID_STATUSES", "paid,success,completed").split(",")
+    if status.strip()
+]
+IPAY_FAILED_STATUSES = [
+    status.strip().lower()
+    for status in os.getenv("IPAY_FAILED_STATUSES", "failed,canceled,expired").split(",")
+    if status.strip()
+]
+IPAY_AMOUNT_IN_CENTS = os.getenv("IPAY_AMOUNT_IN_CENTS", "true").lower() == "true"
+IPAY_FIELD_EVENT_ID = os.getenv("IPAY_FIELD_EVENT_ID", "")
+IPAY_FIELD_REFERENCE = os.getenv("IPAY_FIELD_REFERENCE", "")
+IPAY_FIELD_STATUS = os.getenv("IPAY_FIELD_STATUS", "")
+IPAY_FIELD_AMOUNT = os.getenv("IPAY_FIELD_AMOUNT", "")
+IPAY_FIELD_CURRENCY = os.getenv("IPAY_FIELD_CURRENCY", "")
+
 MODERATION_BANNED_WORDS = [
     word.strip()
     for word in os.getenv("MODERATION_BANNED_WORDS", "spam,scam,offensive").split(",")

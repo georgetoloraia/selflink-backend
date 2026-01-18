@@ -3,7 +3,7 @@ from __future__ import annotations
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import GiftType, Plan, Subscription, Wallet
+from .models import GiftType, PaymentCheckout, PaymentEvent, Plan, Subscription, Wallet
 from .services import CheckoutSessionResult, create_checkout_session
 
 
@@ -65,3 +65,24 @@ class SubscriptionCreateSerializer(serializers.Serializer):
         )
         result = create_checkout_session(request.user, plan, success_url, cancel_url)
         return result
+
+
+class IpayCheckoutCreateSerializer(serializers.Serializer):
+    amount_cents = serializers.IntegerField(min_value=1)
+    currency = serializers.CharField(max_length=8)
+
+    def validate_currency(self, value: str) -> str:
+        currency = value.strip().upper()
+        allowed = getattr(settings, "IPAY_ALLOWED_CURRENCIES", []) or []
+        if allowed and currency not in allowed:
+            raise serializers.ValidationError("Currency not supported for iPay.")
+        return currency
+
+    def save(self) -> PaymentCheckout:
+        request = self.context["request"]
+        return PaymentCheckout.objects.create(
+            provider=PaymentEvent.Provider.IPAY,
+            user=request.user,
+            amount_cents=self.validated_data["amount_cents"],
+            currency=self.validated_data["currency"],
+        )

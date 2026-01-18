@@ -101,6 +101,7 @@ class StripeWebhookView(APIView):
                     logger.warning("coin_mint.rejected provider=stripe reason=missing_event_id")
                     return Response(status=status.HTTP_400_BAD_REQUEST)
                 user = coin_user
+                currency = str(data.get("currency") or "USD").upper()
                 try:
                     amount_cents = _get_stripe_amount_cents(data)
                 except ValidationError as exc:
@@ -121,6 +122,7 @@ class StripeWebhookView(APIView):
                             "event_type": event_type or "",
                             "user": user,
                             "amount_cents": amount_cents,
+                            "currency": currency,
                             "status": PaymentEvent.Status.RECEIVED,
                             "raw_body_hash": raw_body_hash,
                             "verified_at": verified_at,
@@ -135,7 +137,11 @@ class StripeWebhookView(APIView):
                 if not payment_event:
                     return Response(status=status.HTTP_400_BAD_REQUEST)
                 if not created:
-                    if payment_event.user_id != user.id or payment_event.amount_cents != amount_cents:
+                    if (
+                        payment_event.user_id != user.id
+                        or payment_event.amount_cents != amount_cents
+                        or payment_event.currency != currency
+                    ):
                         logger.warning(
                             "coin_mint.rejected provider=stripe event_id=%s reason=metadata_mismatch",
                             provider_event_id,
