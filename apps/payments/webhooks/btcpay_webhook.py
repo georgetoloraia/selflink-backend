@@ -74,7 +74,14 @@ class BtcPayWebhookView(APIView):
             provider=PaymentEvent.Provider.BTCPAY,
             provider_reference=invoice.invoice_id,
         ).first()
-        if not checkout and invoice.reference:
+        if not checkout:
+            if not invoice.reference:
+                logger.warning(
+                    "btcpay_mint.rejected request_id=%s reason=unknown_reference invoice_id=%s",
+                    req_id,
+                    invoice.invoice_id,
+                )
+                return Response({"detail": "Unknown payment reference."}, status=status.HTTP_400_BAD_REQUEST)
             checkout = PaymentCheckout.objects.select_related("user").filter(
                 provider=PaymentEvent.Provider.BTCPAY,
                 reference=invoice.reference,
@@ -96,6 +103,14 @@ class BtcPayWebhookView(APIView):
             )
             return Response({"detail": "Payment reference mismatch."}, status=status.HTTP_400_BAD_REQUEST)
 
+        if checkout.provider_reference and checkout.provider_reference != invoice.invoice_id:
+            logger.warning(
+                "btcpay_mint.rejected request_id=%s reason=provider_reference_mismatch invoice_id=%s",
+                req_id,
+                invoice.invoice_id,
+            )
+            return Response({"detail": "Payment reference mismatch."}, status=status.HTTP_400_BAD_REQUEST)
+
         if checkout.amount_cents != invoice.amount_cents or checkout.currency != invoice.currency:
             logger.warning(
                 "btcpay_mint.rejected request_id=%s reason=amount_mismatch reference=%s expected=%s %s got=%s %s",
@@ -108,7 +123,7 @@ class BtcPayWebhookView(APIView):
             )
             return Response({"detail": "Payment amount mismatch."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if checkout.provider_reference != invoice.invoice_id:
+        if not checkout.provider_reference:
             checkout.provider_reference = invoice.invoice_id
             checkout.save(update_fields=["provider_reference", "updated_at"])
 
