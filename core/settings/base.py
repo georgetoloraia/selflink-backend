@@ -443,7 +443,7 @@ BTCPAY_ALLOWED_CURRENCIES = [
 ]
 BTCPAY_PAID_STATUSES = [
     status.strip().lower()
-    for status in os.getenv("BTCPAY_PAID_STATUSES", "settled,paid").split(",")
+    for status in os.getenv("BTCPAY_PAID_STATUSES", "settled").split(",")
     if status.strip()
 ]
 BTCPAY_FAILED_STATUSES = [
