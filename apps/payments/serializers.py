@@ -113,3 +113,24 @@ class StripeCheckoutCreateSerializer(serializers.Serializer):
             amount_cents=self.validated_data["amount_cents"],
             currency=self.validated_data["currency"],
         )
+
+
+class BtcPayCheckoutCreateSerializer(serializers.Serializer):
+    amount_cents = serializers.IntegerField(min_value=1)
+    currency = serializers.CharField(max_length=8)
+
+    def validate_currency(self, value: str) -> str:
+        currency = value.strip().upper()
+        allowed = getattr(settings, "BTCPAY_ALLOWED_CURRENCIES", []) or []
+        if allowed and currency not in allowed:
+            raise serializers.ValidationError("Currency not supported for BTCPay.")
+        return currency
+
+    def save(self) -> PaymentCheckout:
+        request = self.context["request"]
+        return PaymentCheckout.objects.create(
+            provider=PaymentEvent.Provider.BTCPAY,
+            user=request.user,
+            amount_cents=self.validated_data["amount_cents"],
+            currency=self.validated_data["currency"],
+        )
