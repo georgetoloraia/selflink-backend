@@ -7,7 +7,7 @@ from apps.payments.models import PaymentEvent
 
 
 class Command(BaseCommand):
-    help = "Audit Stripe payment events against SLC mint events."
+    help = "Audit payment events against SLC mint events."
 
     def add_arguments(self, parser) -> None:
         parser.add_argument("--provider", default="stripe", help="Payment provider name (default: stripe).")
