@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from urllib.parse import urlparse
@@ -335,6 +336,9 @@ REST_FRAMEWORK = {
         "coin_spend": COIN_THROTTLE_SPEND,
         "user:coin_spend": COIN_THROTTLE_SPEND,
         "ip:coin_spend": COIN_THROTTLE_SPEND,
+        "iap_verify": IAP_THROTTLE_VERIFY,
+        "user:iap_verify": IAP_THROTTLE_VERIFY,
+        "ip:iap_verify": IAP_THROTTLE_VERIFY,
     },
 }
 
@@ -416,6 +420,11 @@ FEATURE_FLAGS = {
     "payments": os.getenv("FEATURE_PAYMENTS", "true").lower() == "true",
 }
 
+PAYMENTS_PROVIDER_ENABLED_STRIPE = os.getenv("PAYMENTS_PROVIDER_ENABLED_STRIPE", "true").lower() == "true"
+PAYMENTS_PROVIDER_ENABLED_IPAY = os.getenv("PAYMENTS_PROVIDER_ENABLED_IPAY", "true").lower() == "true"
+PAYMENTS_PROVIDER_ENABLED_BTCPAY = os.getenv("PAYMENTS_PROVIDER_ENABLED_BTCPAY", "true").lower() == "true"
+PAYMENTS_PROVIDER_ENABLED_IAP = os.getenv("PAYMENTS_PROVIDER_ENABLED_IAP", "false").lower() == "true"
+
 STRIPE_ALLOWED_CURRENCIES = [
     code.strip().upper()
     for code in os.getenv("STRIPE_ALLOWED_CURRENCIES", "USD,EUR,GEL").split(",")
@@ -477,6 +486,38 @@ IPAY_FIELD_REFERENCE = os.getenv("IPAY_FIELD_REFERENCE", "")
 IPAY_FIELD_STATUS = os.getenv("IPAY_FIELD_STATUS", "")
 IPAY_FIELD_AMOUNT = os.getenv("IPAY_FIELD_AMOUNT", "")
 IPAY_FIELD_CURRENCY = os.getenv("IPAY_FIELD_CURRENCY", "")
+
+IAP_THROTTLE_VERIFY = os.getenv("IAP_THROTTLE_VERIFY", "20/min")
+IAP_SKU_MAP_DEFAULT = {
+    "com.selflink.slc.499": {"amount_cents": 499, "currency": "USD"},
+    "com.selflink.slc.999": {"amount_cents": 999, "currency": "USD"},
+}
+_iap_sku_map_raw = os.getenv("IAP_SKU_MAP", "")
+if _iap_sku_map_raw:
+    try:
+        _iap_sku_map_candidate = json.loads(_iap_sku_map_raw)
+    except json.JSONDecodeError:
+        _iap_sku_map_candidate = None
+else:
+    _iap_sku_map_candidate = None
+
+if isinstance(_iap_sku_map_candidate, dict):
+    IAP_SKU_MAP = {
+        str(key): {
+            "amount_cents": int(value.get("amount_cents")),
+            "currency": str(value.get("currency", "USD")).upper(),
+        }
+        for key, value in _iap_sku_map_candidate.items()
+        if isinstance(value, dict) and value.get("amount_cents") is not None
+    }
+else:
+    IAP_SKU_MAP = IAP_SKU_MAP_DEFAULT
+
+APPLE_IAP_BUNDLE_ID = os.getenv("APPLE_IAP_BUNDLE_ID", "")
+APPLE_IAP_SHARED_SECRET = os.getenv("APPLE_IAP_SHARED_SECRET", "")
+APPLE_IAP_ENV = os.getenv("APPLE_IAP_ENV", "production")
+GOOGLE_IAP_PACKAGE_NAME = os.getenv("GOOGLE_IAP_PACKAGE_NAME", "")
+GOOGLE_IAP_SERVICE_ACCOUNT_JSON = os.getenv("GOOGLE_IAP_SERVICE_ACCOUNT_JSON", "")
 
 MODERATION_BANNED_WORDS = [
     word.strip()
