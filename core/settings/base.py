@@ -336,9 +336,9 @@ REST_FRAMEWORK = {
         "coin_spend": COIN_THROTTLE_SPEND,
         "user:coin_spend": COIN_THROTTLE_SPEND,
         "ip:coin_spend": COIN_THROTTLE_SPEND,
-        "iap_verify": IAP_THROTTLE_VERIFY,
-        "user:iap_verify": IAP_THROTTLE_VERIFY,
-        "ip:iap_verify": IAP_THROTTLE_VERIFY,
+        "iap_verify": os.getenv("IAP_THROTTLE_VERIFY", "20/min"),
+        "user:iap_verify": os.getenv("IAP_THROTTLE_VERIFY", "20/min"),
+        "ip:iap_verify": os.getenv("IAP_THROTTLE_VERIFY", "20/min"),
     },
 }
 
