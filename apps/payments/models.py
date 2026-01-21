@@ -60,6 +60,8 @@ class PaymentEvent(BaseModel):
         STRIPE = "stripe", "Stripe"
         IPAY = "ipay", "iPay"
         BTCPAY = "btcpay", "BTCPay"
+        APPLE_IAP = "apple_iap", "Apple IAP"
+        GOOGLE_IAP = "google_iap", "Google IAP"
 
     class Status(models.TextChoices):
         RECEIVED = "received", "Received"
