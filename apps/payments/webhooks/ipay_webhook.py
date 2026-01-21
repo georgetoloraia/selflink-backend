@@ -15,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.coin.services.payments import mint_from_payment_event
-from apps.payments.feature_flag import payments_enabled
+from apps.payments.feature_flag import provider_enabled
 from apps.payments.models import PaymentCheckout, PaymentEvent
 from apps.payments.providers.ipay import parse_event, verify_webhook_signature
 
@@ -32,7 +32,7 @@ class IpayWebhookView(APIView):
     permission_classes: list = []
 
     def post(self, request: Request) -> Response:
-        if not payments_enabled():
+        if not provider_enabled("ipay"):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         req_id = _request_id(request)

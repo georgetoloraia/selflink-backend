@@ -134,3 +134,19 @@ class BtcPayCheckoutCreateSerializer(serializers.Serializer):
             amount_cents=self.validated_data["amount_cents"],
             currency=self.validated_data["currency"],
         )
+
+
+class IapVerifySerializer(serializers.Serializer):
+    platform = serializers.ChoiceField(choices=["ios", "android"])
+    product_id = serializers.CharField(max_length=128)
+    transaction_id = serializers.CharField(max_length=128)
+    receipt = serializers.CharField(required=False, allow_blank=True)
+    purchase_token = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs: dict) -> dict:
+        platform = attrs.get("platform")
+        if platform == "ios" and not attrs.get("receipt"):
+            raise serializers.ValidationError({"receipt": "Receipt is required for iOS."})
+        if platform == "android" and not attrs.get("purchase_token"):
+            raise serializers.ValidationError({"purchase_token": "Purchase token is required for Android."})
+        return attrs
