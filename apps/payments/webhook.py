@@ -17,7 +17,7 @@ from apps.coin.services.payments import mint_from_payment_event
 from apps.payments.clients import get_stripe_client
 from apps.payments.models import PaymentCheckout, PaymentEvent
 from apps.payments.services import update_subscription_from_stripe
-from .feature_flag import payments_enabled
+from .feature_flag import provider_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,9 @@ class StripeWebhookView(APIView):
     permission_classes: list = []
 
     def post(self, request: Request) -> Response:
-        client = get_stripe_client()
-        if not payments_enabled():
+        if not provider_enabled("stripe"):
             return Response(status=status.HTTP_403_FORBIDDEN)
+        client = get_stripe_client()
         signature = request.META.get("HTTP_STRIPE_SIGNATURE")
         if not signature:
             return Response(status=status.HTTP_400_BAD_REQUEST)
