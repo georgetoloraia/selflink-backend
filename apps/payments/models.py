@@ -46,9 +46,19 @@ class Wallet(BaseModel):
 
 
 class GiftType(BaseModel):
+    class Kind(models.TextChoices):
+        STATIC = "static", "Static"
+        ANIMATED = "animated", "Animated"
+
+    key = models.CharField(max_length=64, unique=True, null=True, blank=True)
     name = models.CharField(max_length=64, unique=True)
     price_cents = models.PositiveIntegerField()
+    price_slc_cents = models.PositiveIntegerField(default=0)
+    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.STATIC)
     art_url = models.URLField(blank=True)
+    media_url = models.URLField(blank=True)
+    animation_url = models.URLField(blank=True)
+    is_active = models.BooleanField(default=True)
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:

@@ -17,7 +17,19 @@ class PlanSerializer(serializers.ModelSerializer):
 class GiftTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = GiftType
-        fields = ["id", "name", "price_cents", "art_url", "metadata"]
+        fields = [
+            "id",
+            "key",
+            "name",
+            "kind",
+            "price_cents",
+            "price_slc_cents",
+            "art_url",
+            "media_url",
+            "animation_url",
+            "is_active",
+            "metadata",
+        ]
 
 
 class WalletSerializer(serializers.ModelSerializer):
