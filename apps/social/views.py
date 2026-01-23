@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
@@ -10,14 +9,19 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 
+from django.core.exceptions import ValidationError
+
+from apps.coin.services.ledger import create_spend, get_balance_cents, get_or_create_user_account
+from apps.payments.models import GiftType
 from apps.feed.cache import FeedCache
 from apps.feed.composer import compose_home_feed_items, extract_cursor_from_url
-from .models import Comment, Gift, Like, Post, Timeline
+from .models import Comment, CommentLike, Gift, PaidReaction, Post, PostLike, Timeline
 from apps.moderation.autoflag import auto_report_post
 from .serializers import (
     CommentSerializer,
     FeedRequestSerializer,
     GiftSerializer,
+    PaidReactionSerializer,
     PostSerializer,
     TimelineSerializer,
 )
@@ -42,34 +46,107 @@ class PostViewSet(viewsets.ModelViewSet):
     @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated])
     def like(self, request: Request, pk: str | None = None) -> Response:
         post = self.get_object()
-        content_type = ContentType.objects.get_for_model(Post)
-        like, created = Like.objects.get_or_create(
-            user=request.user,
-            content_type=content_type,
-            object_id=post.id,
-        )
+        like, created = PostLike.objects.get_or_create(user=request.user, post=post)
         if created:
             Post.objects.filter(pk=post.pk).update(like_count=models.F("like_count") + 1)
             FeedCache.invalidate_first_page(request.user.id)
             FeedCache.invalidate_first_page(post.author_id)
-        return Response({"liked": True})
+        like_count = Post.objects.filter(pk=post.pk).values_list("like_count", flat=True).first() or 0
+        return Response({"liked": True, "like_count": like_count})
 
-    @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated])
+    @action(methods=["post", "delete"], detail=True, permission_classes=[permissions.IsAuthenticated])
     def unlike(self, request: Request, pk: str | None = None) -> Response:
         post = self.get_object()
-        content_type = ContentType.objects.get_for_model(Post)
-        deleted, _ = Like.objects.filter(
-            user=request.user,
-            content_type=content_type,
-            object_id=post.id,
-        ).delete()
+        deleted, _ = PostLike.objects.filter(user=request.user, post=post).delete()
         if deleted:
             Post.objects.filter(pk=post.pk, like_count__gt=0).update(
                 like_count=models.F("like_count") - 1
             )
             FeedCache.invalidate_first_page(request.user.id)
             FeedCache.invalidate_first_page(post.author_id)
-        return Response({"liked": False})
+        like_count = Post.objects.filter(pk=post.pk).values_list("like_count", flat=True).first() or 0
+        return Response({"liked": False, "like_count": like_count})
+
+    @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated], url_path="gifts")
+    def gifts(self, request: Request, pk: str | None = None) -> Response:
+        post = self.get_object()
+        gift_type_id = request.data.get("gift_type_id")
+        quantity = int(request.data.get("quantity") or 1)
+        note = str(request.data.get("note") or "")
+        idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY")
+
+        if quantity < 1 or quantity > 50:
+            return Response({"detail": "Quantity must be between 1 and 50."}, status=400)
+        try:
+            gift_type = GiftType.objects.get(id=gift_type_id)
+        except GiftType.DoesNotExist:
+            return Response({"detail": "GiftType not found."}, status=404)
+        if not gift_type.is_active:
+            return Response({"detail": "GiftType inactive."}, status=400)
+
+        price_cents = gift_type.price_slc_cents or gift_type.price_cents
+        total_amount_cents = price_cents * quantity
+        if total_amount_cents <= 0:
+            return Response({"detail": "invalid_amount", "code": "invalid_amount"}, status=400)
+
+        existing = None
+        if idempotency_key:
+            existing = PaidReaction.objects.filter(idempotency_key=idempotency_key).select_related(
+                "gift_type", "coin_event"
+            ).first()
+            if existing:
+                if existing.sender_id != request.user.id or existing.post_id != post.id:
+                    return Response({"detail": "Idempotency key conflict."}, status=409)
+                account = get_or_create_user_account(request.user)
+                balance_cents = get_balance_cents(account.account_key)
+                return Response(
+                    {
+                        "reaction": PaidReactionSerializer(existing, context={"request": request}).data,
+                        "slc_balance_cents": balance_cents,
+                        "currency": "SLC",
+                    }
+                )
+
+        reference = f"gift:post:{post.id}:{gift_type.key or gift_type.id}"
+        note_text = note or f"gift:{gift_type.key or gift_type.id} x{quantity}"
+        try:
+            coin_event = create_spend(
+                user=request.user,
+                amount_cents=total_amount_cents,
+                reference=reference,
+                note=note_text,
+            )
+        except ValidationError as exc:
+            detail = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            code_map = {
+                "insufficient_funds": "insufficient_funds",
+                "Amount must be positive.": "invalid_amount",
+                "Coin account is not active.": "account_inactive",
+                "User coin accounts cannot be system accounts.": "account_invalid",
+            }
+            code = code_map.get(detail, "coin_error")
+            return Response({"detail": detail, "code": code}, status=400)
+
+        reaction = PaidReaction.objects.create(
+            sender=request.user,
+            target_type=PaidReaction.TargetType.POST,
+            post=post,
+            gift_type=gift_type,
+            quantity=quantity,
+            total_amount_cents=total_amount_cents,
+            coin_event=coin_event,
+            idempotency_key=idempotency_key or None,
+        )
+        account = get_or_create_user_account(request.user)
+        balance_cents = get_balance_cents(account.account_key)
+        return Response(
+            {
+                "reaction": PaidReactionSerializer(reaction, context={"request": request}).data,
+                "slc_balance_cents": balance_cents,
+                "currency": "SLC",
+            },
+            status=201,
+        )
 
 
 @method_decorator(ratelimit(key="user", rate="60/min", method="POST", block=True), name="create")
@@ -93,6 +170,105 @@ class CommentViewSet(viewsets.ModelViewSet):
         comment = serializer.save()
         FeedCache.invalidate_first_page(comment.author_id)
         FeedCache.invalidate_first_page(comment.post.author_id)
+
+    @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated])
+    def like(self, request: Request, pk: str | None = None) -> Response:
+        comment = self.get_object()
+        like, created = CommentLike.objects.get_or_create(user=request.user, comment=comment)
+        if created:
+            Comment.objects.filter(pk=comment.pk).update(like_count=models.F("like_count") + 1)
+        like_count = Comment.objects.filter(pk=comment.pk).values_list("like_count", flat=True).first() or 0
+        return Response({"liked": True, "like_count": like_count})
+
+    @action(methods=["post", "delete"], detail=True, permission_classes=[permissions.IsAuthenticated])
+    def unlike(self, request: Request, pk: str | None = None) -> Response:
+        comment = self.get_object()
+        deleted, _ = CommentLike.objects.filter(user=request.user, comment=comment).delete()
+        if deleted:
+            Comment.objects.filter(pk=comment.pk, like_count__gt=0).update(like_count=models.F("like_count") - 1)
+        like_count = Comment.objects.filter(pk=comment.pk).values_list("like_count", flat=True).first() or 0
+        return Response({"liked": False, "like_count": like_count})
+
+    @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated], url_path="gifts")
+    def gifts(self, request: Request, pk: str | None = None) -> Response:
+        comment = self.get_object()
+        gift_type_id = request.data.get("gift_type_id")
+        quantity = int(request.data.get("quantity") or 1)
+        note = str(request.data.get("note") or "")
+        idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY")
+
+        if quantity < 1 or quantity > 50:
+            return Response({"detail": "Quantity must be between 1 and 50."}, status=400)
+        try:
+            gift_type = GiftType.objects.get(id=gift_type_id)
+        except GiftType.DoesNotExist:
+            return Response({"detail": "GiftType not found."}, status=404)
+        if not gift_type.is_active:
+            return Response({"detail": "GiftType inactive."}, status=400)
+
+        price_cents = gift_type.price_slc_cents or gift_type.price_cents
+        total_amount_cents = price_cents * quantity
+        if total_amount_cents <= 0:
+            return Response({"detail": "invalid_amount", "code": "invalid_amount"}, status=400)
+
+        existing = None
+        if idempotency_key:
+            existing = PaidReaction.objects.filter(idempotency_key=idempotency_key).select_related(
+                "gift_type", "coin_event"
+            ).first()
+            if existing:
+                if existing.sender_id != request.user.id or existing.comment_id != comment.id:
+                    return Response({"detail": "Idempotency key conflict."}, status=409)
+                account = get_or_create_user_account(request.user)
+                balance_cents = get_balance_cents(account.account_key)
+                return Response(
+                    {
+                        "reaction": PaidReactionSerializer(existing, context={"request": request}).data,
+                        "slc_balance_cents": balance_cents,
+                        "currency": "SLC",
+                    }
+                )
+
+        reference = f"gift:comment:{comment.id}:{gift_type.key or gift_type.id}"
+        note_text = note or f"gift:{gift_type.key or gift_type.id} x{quantity}"
+        try:
+            coin_event = create_spend(
+                user=request.user,
+                amount_cents=total_amount_cents,
+                reference=reference,
+                note=note_text,
+            )
+        except ValidationError as exc:
+            detail = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            code_map = {
+                "insufficient_funds": "insufficient_funds",
+                "Amount must be positive.": "invalid_amount",
+                "Coin account is not active.": "account_inactive",
+                "User coin accounts cannot be system accounts.": "account_invalid",
+            }
+            code = code_map.get(detail, "coin_error")
+            return Response({"detail": detail, "code": code}, status=400)
+
+        reaction = PaidReaction.objects.create(
+            sender=request.user,
+            target_type=PaidReaction.TargetType.COMMENT,
+            comment=comment,
+            gift_type=gift_type,
+            quantity=quantity,
+            total_amount_cents=total_amount_cents,
+            coin_event=coin_event,
+            idempotency_key=idempotency_key or None,
+        )
+        account = get_or_create_user_account(request.user)
+        balance_cents = get_balance_cents(account.account_key)
+        return Response(
+            {
+                "reaction": PaidReactionSerializer(reaction, context={"request": request}).data,
+                "slc_balance_cents": balance_cents,
+                "currency": "SLC",
+            },
+            status=201,
+        )
 
 
 class GiftViewSet(viewsets.ModelViewSet):

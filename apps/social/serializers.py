@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import List
 
 from django.http import QueryDict
-from django.contrib.contenttypes.models import ContentType
 from django.db import models, transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -15,11 +14,14 @@ from apps.users.serializers import UserSerializer
 from .models import (
     Comment,
     CommentImage,
+    CommentLike,
     Follow,
     Gift,
+    PaidReaction,
     Like,
     Post,
     PostImage,
+    PostLike,
     PostVideo,
     Timeline,
 )
@@ -101,6 +103,8 @@ class PostSerializer(serializers.ModelSerializer):
         allow_null=True,
     )
     liked = serializers.SerializerMethodField()
+    viewer_has_liked = serializers.SerializerMethodField()
+    recent_gifts = serializers.SerializerMethodField()
 
     class Meta:
         model = Post
@@ -120,6 +124,8 @@ class PostSerializer(serializers.ModelSerializer):
             "like_count",
             "comment_count",
             "liked",
+            "viewer_has_liked",
+            "recent_gifts",
             "created_at",
         ]
         read_only_fields = [
@@ -132,18 +138,23 @@ class PostSerializer(serializers.ModelSerializer):
             "like_count",
             "comment_count",
             "liked",
+            "viewer_has_liked",
+            "recent_gifts",
             "created_at",
         ]
 
     def get_liked(self, obj: Post) -> bool:
+        return self.get_viewer_has_liked(obj)
+
+    def get_viewer_has_liked(self, obj: Post) -> bool:
         request = self.context.get("request")
         if not request or request.user.is_anonymous:
             return False
-        return Like.objects.filter(
-            user=request.user,
-            content_type=ContentType.objects.get_for_model(Post),
-            object_id=obj.id,
-        ).exists()
+        return PostLike.objects.filter(user=request.user, post=obj).exists()
+
+    def get_recent_gifts(self, obj: Post) -> list[dict]:
+        recent = list(obj.paid_reactions.all()[:5]) if hasattr(obj, "paid_reactions") else []
+        return PaidReactionSerializer(recent, many=True, context=self.context).data
 
     def create(self, validated_data: dict) -> Post:
         media_ids: List[int] = validated_data.pop("media_ids", [])
@@ -254,6 +265,9 @@ class CommentSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True,
     )
+    like_count = serializers.IntegerField(read_only=True)
+    viewer_has_liked = serializers.SerializerMethodField()
+    recent_gifts = serializers.SerializerMethodField()
 
     class Meta:
         model = Comment
@@ -266,9 +280,21 @@ class CommentSerializer(serializers.ModelSerializer):
             "images",
             "image_urls",
             "images_upload",
+            "like_count",
+            "viewer_has_liked",
+            "recent_gifts",
             "created_at",
         ]
-        read_only_fields = ["id", "author", "images", "image_urls", "created_at"]
+        read_only_fields = [
+            "id",
+            "author",
+            "images",
+            "image_urls",
+            "like_count",
+            "viewer_has_liked",
+            "recent_gifts",
+            "created_at",
+        ]
 
     def to_internal_value(self, data):
         if isinstance(data, QueryDict):
@@ -294,6 +320,16 @@ class CommentSerializer(serializers.ModelSerializer):
                 url = request.build_absolute_uri(url)
             urls.append(url)
         return urls
+
+    def get_viewer_has_liked(self, obj: Comment) -> bool:
+        request = self.context.get("request")
+        if not request or request.user.is_anonymous:
+            return False
+        return CommentLike.objects.filter(user=request.user, comment=obj).exists()
+
+    def get_recent_gifts(self, obj: Comment) -> list[dict]:
+        recent = list(obj.paid_reactions.all()[:5]) if hasattr(obj, "paid_reactions") else []
+        return PaidReactionSerializer(recent, many=True, context=self.context).data
 
     def create(self, validated_data: dict) -> Comment:
         images = validated_data.pop("images_upload", [])
@@ -361,6 +397,31 @@ class GiftSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Authentication required")
         gift = Gift.objects.create(sender=sender, **validated_data)
         return gift
+
+
+class PaidReactionSerializer(serializers.ModelSerializer):
+    gift_type = serializers.SerializerMethodField()
+    sender_id = serializers.IntegerField(source="sender.id", read_only=True)
+
+    class Meta:
+        model = PaidReaction
+        fields = [
+            "id",
+            "sender_id",
+            "target_type",
+            "post",
+            "comment",
+            "gift_type",
+            "quantity",
+            "total_amount_cents",
+            "created_at",
+            "idempotency_key",
+        ]
+
+    def get_gift_type(self, obj: PaidReaction) -> dict:
+        from apps.payments.serializers import GiftTypeSerializer
+
+        return GiftTypeSerializer(obj.gift_type, context=self.context).data
 
 
 class TimelineSerializer(serializers.ModelSerializer):

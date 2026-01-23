@@ -67,6 +67,7 @@ class Comment(BaseModel):
     parent = models.ForeignKey(
         "self", on_delete=models.CASCADE, related_name="replies", null=True, blank=True
     )
+    like_count = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["created_at"]
@@ -117,3 +118,46 @@ class Timeline(BaseModel):
     class Meta:
         unique_together = ("user", "post")
         ordering = ["-score", "-created_at"]
+
+
+class PostLike(BaseModel):
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="post_likes")
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="likes")
+
+    class Meta:
+        unique_together = ("user", "post")
+
+
+class CommentLike(BaseModel):
+    user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="comment_likes")
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name="likes")
+
+    class Meta:
+        unique_together = ("user", "comment")
+
+
+class PaidReaction(BaseModel):
+    class TargetType(models.TextChoices):
+        POST = "post", "Post"
+        COMMENT = "comment", "Comment"
+
+    sender = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="paid_reactions_sent")
+    target_type = models.CharField(max_length=16, choices=TargetType.choices)
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, null=True, blank=True, related_name="paid_reactions")
+    comment = models.ForeignKey(
+        Comment,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="paid_reactions",
+    )
+    gift_type = models.ForeignKey("payments.GiftType", on_delete=models.PROTECT, related_name="paid_reactions")
+    quantity = models.PositiveIntegerField(default=1)
+    total_amount_cents = models.PositiveIntegerField()
+    coin_event = models.ForeignKey("coin.CoinEvent", on_delete=models.PROTECT, related_name="paid_reactions")
+    idempotency_key = models.UUIDField(unique=True, null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["target_type", "created_at"]),
+        ]
