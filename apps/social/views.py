@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from django.db import models
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
@@ -25,6 +27,12 @@ from .serializers import (
     PostSerializer,
     TimelineSerializer,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _request_id(request: Request) -> str:
+    return request.META.get("HTTP_X_REQUEST_ID", "")
 
 
 @method_decorator(ratelimit(key="user", rate="30/min", method="POST", block=True), name="create")
@@ -67,7 +75,13 @@ class PostViewSet(viewsets.ModelViewSet):
         like_count = Post.objects.filter(pk=post.pk).values_list("like_count", flat=True).first() or 0
         return Response({"liked": False, "like_count": like_count})
 
-    @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated], url_path="gifts")
+    @action(
+        methods=["post"],
+        detail=True,
+        permission_classes=[permissions.IsAuthenticated],
+        url_path="gifts",
+        throttle_scope="paid_reaction",
+    )
     def gifts(self, request: Request, pk: str | None = None) -> Response:
         post = self.get_object()
         gift_type_id = request.data.get("gift_type_id")
@@ -76,13 +90,16 @@ class PostViewSet(viewsets.ModelViewSet):
         idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY")
 
         if quantity < 1 or quantity > 50:
-            return Response({"detail": "Quantity must be between 1 and 50."}, status=400)
+            return Response(
+                {"detail": "Quantity must be between 1 and 50.", "code": "invalid_quantity"},
+                status=400,
+            )
         try:
             gift_type = GiftType.objects.get(id=gift_type_id)
         except GiftType.DoesNotExist:
-            return Response({"detail": "GiftType not found."}, status=404)
+            return Response({"detail": "GiftType not found.", "code": "invalid_gift_type"}, status=404)
         if not gift_type.is_active:
-            return Response({"detail": "GiftType inactive."}, status=400)
+            return Response({"detail": "GiftType inactive.", "code": "gift_inactive"}, status=400)
 
         price_cents = gift_type.price_slc_cents or gift_type.price_cents
         total_amount_cents = price_cents * quantity
@@ -95,8 +112,16 @@ class PostViewSet(viewsets.ModelViewSet):
                 "gift_type", "coin_event"
             ).first()
             if existing:
-                if existing.sender_id != request.user.id or existing.post_id != post.id:
-                    return Response({"detail": "Idempotency key conflict."}, status=409)
+                if (
+                    existing.sender_id != request.user.id
+                    or existing.post_id != post.id
+                    or existing.gift_type_id != gift_type.id
+                    or existing.quantity != quantity
+                ):
+                    return Response(
+                        {"detail": "Idempotency key conflict.", "code": "idempotency_conflict"},
+                        status=400,
+                    )
                 account = get_or_create_user_account(request.user)
                 balance_cents = get_balance_cents(account.account_key)
                 return Response(
@@ -139,6 +164,18 @@ class PostViewSet(viewsets.ModelViewSet):
         )
         account = get_or_create_user_account(request.user)
         balance_cents = get_balance_cents(account.account_key)
+        logger.info(
+            "gift_spend.created request_id=%s user_id=%s target=post target_id=%s gift_type_id=%s "
+            "quantity=%s amount_cents=%s reference=%s coin_event_id=%s",
+            _request_id(request),
+            request.user.id,
+            post.id,
+            gift_type.id,
+            quantity,
+            total_amount_cents,
+            reference,
+            coin_event.id,
+        )
         return Response(
             {
                 "reaction": PaidReactionSerializer(reaction, context={"request": request}).data,
@@ -189,7 +226,13 @@ class CommentViewSet(viewsets.ModelViewSet):
         like_count = Comment.objects.filter(pk=comment.pk).values_list("like_count", flat=True).first() or 0
         return Response({"liked": False, "like_count": like_count})
 
-    @action(methods=["post"], detail=True, permission_classes=[permissions.IsAuthenticated], url_path="gifts")
+    @action(
+        methods=["post"],
+        detail=True,
+        permission_classes=[permissions.IsAuthenticated],
+        url_path="gifts",
+        throttle_scope="paid_reaction",
+    )
     def gifts(self, request: Request, pk: str | None = None) -> Response:
         comment = self.get_object()
         gift_type_id = request.data.get("gift_type_id")
@@ -198,13 +241,16 @@ class CommentViewSet(viewsets.ModelViewSet):
         idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY")
 
         if quantity < 1 or quantity > 50:
-            return Response({"detail": "Quantity must be between 1 and 50."}, status=400)
+            return Response(
+                {"detail": "Quantity must be between 1 and 50.", "code": "invalid_quantity"},
+                status=400,
+            )
         try:
             gift_type = GiftType.objects.get(id=gift_type_id)
         except GiftType.DoesNotExist:
-            return Response({"detail": "GiftType not found."}, status=404)
+            return Response({"detail": "GiftType not found.", "code": "invalid_gift_type"}, status=404)
         if not gift_type.is_active:
-            return Response({"detail": "GiftType inactive."}, status=400)
+            return Response({"detail": "GiftType inactive.", "code": "gift_inactive"}, status=400)
 
         price_cents = gift_type.price_slc_cents or gift_type.price_cents
         total_amount_cents = price_cents * quantity
@@ -217,8 +263,16 @@ class CommentViewSet(viewsets.ModelViewSet):
                 "gift_type", "coin_event"
             ).first()
             if existing:
-                if existing.sender_id != request.user.id or existing.comment_id != comment.id:
-                    return Response({"detail": "Idempotency key conflict."}, status=409)
+                if (
+                    existing.sender_id != request.user.id
+                    or existing.comment_id != comment.id
+                    or existing.gift_type_id != gift_type.id
+                    or existing.quantity != quantity
+                ):
+                    return Response(
+                        {"detail": "Idempotency key conflict.", "code": "idempotency_conflict"},
+                        status=400,
+                    )
                 account = get_or_create_user_account(request.user)
                 balance_cents = get_balance_cents(account.account_key)
                 return Response(
@@ -261,6 +315,18 @@ class CommentViewSet(viewsets.ModelViewSet):
         )
         account = get_or_create_user_account(request.user)
         balance_cents = get_balance_cents(account.account_key)
+        logger.info(
+            "gift_spend.created request_id=%s user_id=%s target=comment target_id=%s gift_type_id=%s "
+            "quantity=%s amount_cents=%s reference=%s coin_event_id=%s",
+            _request_id(request),
+            request.user.id,
+            comment.id,
+            gift_type.id,
+            quantity,
+            total_amount_cents,
+            reference,
+            coin_event.id,
+        )
         return Response(
             {
                 "reaction": PaidReactionSerializer(reaction, context={"request": request}).data,
