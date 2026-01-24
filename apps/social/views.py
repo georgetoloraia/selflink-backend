@@ -39,6 +39,7 @@ def _request_id(request: Request) -> str:
 class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    throttle_scope = None
     queryset = (
         Post.objects.select_related("author", "author__settings")
         .select_related("video")
@@ -190,6 +191,7 @@ class PostViewSet(viewsets.ModelViewSet):
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    throttle_scope = None
     queryset = (
         Comment.objects.select_related("author", "post", "parent")
         .prefetch_related("images")
