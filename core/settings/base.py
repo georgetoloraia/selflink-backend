@@ -164,6 +164,7 @@ COIN_FEE_BPS = int(os.getenv("COIN_FEE_BPS", "100"))
 COIN_FEE_MIN_CENTS = int(os.getenv("COIN_FEE_MIN_CENTS", "25"))
 COIN_THROTTLE_TRANSFER = os.getenv("COIN_THROTTLE_TRANSFER", "30/min")
 COIN_THROTTLE_SPEND = os.getenv("COIN_THROTTLE_SPEND", "60/min")
+PAID_REACTION_THROTTLE = os.getenv("PAID_REACTION_THROTTLE", "30/min")
 
 AUTH_USER_MODEL = "users.User"
 AUTHENTICATION_BACKENDS = (
@@ -336,6 +337,9 @@ REST_FRAMEWORK = {
         "coin_spend": COIN_THROTTLE_SPEND,
         "user:coin_spend": COIN_THROTTLE_SPEND,
         "ip:coin_spend": COIN_THROTTLE_SPEND,
+        "paid_reaction": PAID_REACTION_THROTTLE,
+        "user:paid_reaction": PAID_REACTION_THROTTLE,
+        "ip:paid_reaction": PAID_REACTION_THROTTLE,
         "iap_verify": os.getenv("IAP_THROTTLE_VERIFY", "20/min"),
         "user:iap_verify": os.getenv("IAP_THROTTLE_VERIFY", "20/min"),
         "ip:iap_verify": os.getenv("IAP_THROTTLE_VERIFY", "20/min"),
