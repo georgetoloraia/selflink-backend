@@ -15,6 +15,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.social.models import Follow
+from apps.coin.services.ledger import get_or_create_user_account
 from services.reco.jobs import rebuild_user_timeline
 
 from apps.core_platform.rate_limit import get_client_ip, is_rate_limited
@@ -122,6 +123,11 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(UserSerializer(user, context={"request": request}).data)
+
+    @action(methods=["get"], detail=False, url_path="me/recipient-id")
+    def recipient_id(self, request: Request) -> Response:
+        account = get_or_create_user_account(request.user)
+        return Response({"account_key": account.account_key})
 
     @action(methods=["post", "delete"], detail=True, url_path="follow")
     def follow(self, request: Request, *args, **kwargs) -> Response:

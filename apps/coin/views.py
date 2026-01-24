@@ -9,6 +9,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import permissions, status
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -116,7 +117,15 @@ class CoinTransferView(APIView):
 
     def post(self, request: Request) -> Response:
         serializer = CoinTransferSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except DRFValidationError as exc:
+            detail = getattr(exc, "detail", None)
+            if isinstance(detail, dict) and ("receiver_account_key" in detail or "to_user_id" in detail):
+                return Response({"detail": "invalid_receiver", "code": "invalid_receiver"}, status=400)
+            if detail == "invalid_receiver":
+                return Response({"detail": "invalid_receiver", "code": "invalid_receiver"}, status=400)
+            raise
         receiver = serializer.validated_data["receiver_user"]
         amount_cents = int(serializer.validated_data["amount_cents"])
         fee_cents = int(serializer.validated_data["fee_cents"])
