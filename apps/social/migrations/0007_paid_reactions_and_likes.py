@@ -163,7 +163,7 @@ class Migration(migrations.Migration):
             ],
             options={
                 "abstract": False,
-                "indexes": [models.Index(fields=["target_type", "created_at"])],
+                "indexes": [models.Index(fields=["target_type", "created_at"], name="paidreaction_target_created_idx")],
             },
         ),
     ]
