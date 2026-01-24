@@ -18,6 +18,9 @@ It is not a blockchain token and has no withdrawals or on-chain representation.
 - Endpoint: `POST /api/v1/coin/transfer/` in `apps/coin/views.py`.
 - Posts sender debit + receiver credit + fee credit to `system:fees`.
 - Fee is `COIN_FEE_BPS` with `COIN_FEE_MIN_CENTS`.
+- Recipient ID: use `account_key` (format `user:<id>`). Get your own via:
+  - `GET /api/v1/users/me/recipient-id/`
+  - `GET /api/v1/coin/balance/` (returns `account_key`)
 
 3) Spend on internal goods/services
 - Endpoint: `POST /api/v1/coin/spend/` in `apps/coin/views.py`.
