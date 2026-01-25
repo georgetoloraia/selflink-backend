@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import random
 
+import logging
+
 from django.conf import settings
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +15,8 @@ from apps.matching.services.soulmatch import calculate_soulmatch
 from apps.matching.tasks import soulmatch_compute_score_task
 from apps.core_platform.async_mode import should_run_async
 from apps.users.models import User
+
+logger = logging.getLogger(__name__)
 
 
 class SoulmatchWithView(APIView):
@@ -57,7 +61,9 @@ class SoulmatchRecommendationsView(APIView):
 
     def get(self, request):
         current_user: User = request.user
+        include_meta = request.query_params.get("include_meta") in {"1", "true", "yes"}
         candidates = list(User.objects.exclude(id=current_user.id).order_by("id")[:50])
+        candidate_count = len(candidates)
         random.shuffle(candidates)
 
         recommendations = []
@@ -69,4 +75,56 @@ class SoulmatchRecommendationsView(APIView):
         recommendations.sort(key=lambda item: item["score"], reverse=True)
         top_results = recommendations[:20]
         serializer = SoulmatchResultSerializer(top_results, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        data = serializer.data
+
+        if include_meta:
+            missing_requirements = []
+            if not current_user.birth_date:
+                missing_requirements.append("birth_date")
+            if not current_user.birth_time:
+                missing_requirements.append("birth_time")
+            if not current_user.birth_place:
+                missing_requirements.append("birth_place")
+
+            reason = None
+            if candidate_count == 0:
+                reason = "no_candidates"
+            elif len(data) == 0:
+                reason = "no_results"
+            elif missing_requirements:
+                reason = "chart_incomplete"
+
+            if settings.DEBUG:
+                logger.debug(
+                    "Soulmatch recommendations meta",
+                    extra={
+                        "user_id": current_user.id,
+                        "candidate_count": candidate_count,
+                        "result_count": len(data),
+                        "missing_requirements": missing_requirements,
+                        "reason": reason,
+                    },
+                )
+
+            return Response(
+                {
+                    "results": data,
+                    "meta": {
+                        "missing_requirements": missing_requirements,
+                        "reason": reason,
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        if settings.DEBUG:
+            logger.debug(
+                "Soulmatch recommendations",
+                extra={
+                    "user_id": current_user.id,
+                    "candidate_count": candidate_count,
+                    "result_count": len(data),
+                },
+            )
+
+        return Response(data, status=status.HTTP_200_OK)
