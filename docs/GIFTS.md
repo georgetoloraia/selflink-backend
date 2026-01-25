@@ -106,6 +106,10 @@ python manage.py seed_demo
 This seeds two example gifts: "Starlight" and "Aurora".
 Verified from code: `apps/core/management/commands/seed_demo.py: _ensure_gift_types`.
 
+Option C: Migration-seeded test gift (always present)
+- A single test gift is seeded in migrations with key `test_heart_1usd` and price 100 cents.
+- Verified from code: `apps/payments/migrations/0011_seed_test_gift.py`.
+
 ## 5-minute quickstart
 
 1) Create a GiftType via shell (see above).
