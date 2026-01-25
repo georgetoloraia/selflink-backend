@@ -15,6 +15,10 @@ class PlanSerializer(serializers.ModelSerializer):
 
 
 class GiftTypeSerializer(serializers.ModelSerializer):
+    art_url = serializers.SerializerMethodField()
+    media_url = serializers.SerializerMethodField()
+    animation_url = serializers.SerializerMethodField()
+
     class Meta:
         model = GiftType
         fields = [
@@ -30,6 +34,23 @@ class GiftTypeSerializer(serializers.ModelSerializer):
             "is_active",
             "metadata",
         ]
+
+    def _absolute_url(self, url: str) -> str:
+        if not url:
+            return url
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(url)
+        return url
+
+    def get_art_url(self, obj: GiftType) -> str:
+        return self._absolute_url(obj.art_url or "")
+
+    def get_media_url(self, obj: GiftType) -> str:
+        return self._absolute_url(obj.media_url or "")
+
+    def get_animation_url(self, obj: GiftType) -> str:
+        return self._absolute_url(obj.animation_url or "")
 
 
 class WalletSerializer(serializers.ModelSerializer):

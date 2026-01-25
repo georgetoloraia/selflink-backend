@@ -26,6 +26,7 @@ GET /api/v1/payments/gifts/
 
 Returns `GiftType` objects used by clients to render gifts.
 Only `is_active=true` gifts are returned.
+`media_url` and `animation_url` are returned as absolute URLs when the request context is available.
 
 ### Send gift to a post
 
@@ -42,7 +43,7 @@ Body:
 }
 ```
 
-Headers (optional but recommended):
+Headers (required):
 ```
 Idempotency-Key: <uuid>
 ```
@@ -71,6 +72,7 @@ These are **not** paid; they simply toggle a like and return `{liked, like_count
 ### Post serializer gift field
 
 `PostSerializer` exposes **only** `recent_gifts` (no `gift_summary` field exists).
+`recent_gifts` is limited to the newest 5 gifts.
 
 Example: post with no gifts
 ```json
@@ -122,6 +124,7 @@ Example: post with gifts
 ### Comment serializer gift field
 
 `CommentSerializer` also exposes only `recent_gifts`.
+`recent_gifts` is limited to the newest 5 gifts.
 
 Example: comment with gifts
 ```json
@@ -168,6 +171,7 @@ Gift endpoints accept `Idempotency-Key` (UUID recommended):
 
 - Same key + identical payload (same target, gift_type, quantity) → **no double spend**.
 - Same key + different payload → **400** `{detail, code: "idempotency_conflict"}`.
+If the header is missing, the server returns `400` with `code=invalid_request`.
 
 ## Rate limits
 
