@@ -71,6 +71,7 @@ class SoulmatchAPITests(BaseAPITestCase):
         self.assertIn("results", resp.data)
         self.assertIn("meta", resp.data)
         self.assertGreaterEqual(len(resp.data["results"]), 1)
+        self.assertEqual(resp.data["meta"]["candidate_count"], len(resp.data["results"]))
 
     @mock.patch("apps.matching.views.calculate_soulmatch")
     def test_recommendations_include_meta_missing_requirements(self, mock_calc) -> None:

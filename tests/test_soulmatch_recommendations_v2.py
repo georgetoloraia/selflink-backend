@@ -27,3 +27,15 @@ def test_diversify_caps_dominant_lens() -> None:
         lens_counts[item["lens"]] = lens_counts.get(item["lens"], 0) + 1
     assert lens_counts.get("SOUL_RESONANCE", 0) <= 4  # 40% of 10
     assert lens_counts.get("GROWTH_CATALYST", 0) >= 1
+
+
+def test_assign_lens_with_missing_score_is_safe() -> None:
+    lens, label, reason = assign_lens(
+        score=0,
+        components={},
+        tags=[],
+        timing_score=0,
+    )
+    assert lens
+    assert label
+    assert reason
