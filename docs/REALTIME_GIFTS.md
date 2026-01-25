@@ -5,9 +5,10 @@ This document describes the realtime event emitted when a paid gift is sent.
 ## Event
 
 - **Type:** `gift.received`
-- **Channels:**
-  - `post:{post_id}` for post gifts
-  - `comment:{comment_id}` for comment gifts
+- **Channels (strict):**
+  - `post:{post_id}`
+  - `comment:{comment_id}`
+  - `post`/`comment` IDs must be positive integers.
 
 ### Payload
 
@@ -45,9 +46,13 @@ This document describes the realtime event emitted when a paid gift is sent.
 2) If `REALTIME_PUBLISH_URL` is configured, it sends:
    - `POST {REALTIME_PUBLISH_URL}/internal/publish`
    - Body: `{ "channel": "...", "payload": {...} }`
-   - Header: `Authorization: Bearer <REALTIME_PUBLISH_TOKEN>` (if configured)
-3) If HTTP publish is not configured or fails, it falls back to Redis publish on
-   `PUBSUB_REDIS_URL`.
+   - Header: `Authorization: Bearer <REALTIME_PUBLISH_TOKEN>` (**required**)
+3) If HTTP publish fails, it falls back to Redis publish on `PUBSUB_REDIS_URL`.
+
+### Internal endpoint security
+- **Token is required** (`REALTIME_PUBLISH_TOKEN`).
+- Rejects unknown channels and unknown event types.
+- Recommended to keep the endpoint internal/private.
 
 ## Local testing
 
