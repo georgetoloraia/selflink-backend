@@ -21,7 +21,7 @@ Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
 - Every user gets an SLC account automatically
 - P2P transfers and internal spending are supported with transfer fees
 - API (under `/api/v1/coin/`): `balance`, `ledger`, `transfer`, `spend`
-- Docs: [`docs/coin/WALLET.md`](docs/coin/WALLET.md), [`docs/coin/TECHNICAL_REVIEW.md`](docs/coin/TECHNICAL_REVIEW.md), [`docs/PAYMENTS_IPAY.md`](docs/PAYMENTS_IPAY.md), [`docs/PAYMENTS_STRIPE.md`](docs/PAYMENTS_STRIPE.md), [`docs/PAYMENTS_BTCPAY.md`](docs/PAYMENTS_BTCPAY.md), [`docs/PAYMENTS_IAP.md`](docs/PAYMENTS_IAP.md), [`docs/GIFTS.md`](docs/GIFTS.md), [`docs/GIFTS_MEDIA_SPEC.md`](docs/GIFTS_MEDIA_SPEC.md), [`docs/GIFTS_SLC_PRICING.md`](docs/GIFTS_SLC_PRICING.md), [`docs/FEED_GIFTS.md`](docs/FEED_GIFTS.md)
+- Docs: [`docs/coin/WALLET.md`](docs/coin/WALLET.md), [`docs/coin/TECHNICAL_REVIEW.md`](docs/coin/TECHNICAL_REVIEW.md), [`docs/PAYMENTS_IPAY.md`](docs/PAYMENTS_IPAY.md), [`docs/PAYMENTS_STRIPE.md`](docs/PAYMENTS_STRIPE.md), [`docs/PAYMENTS_BTCPAY.md`](docs/PAYMENTS_BTCPAY.md), [`docs/PAYMENTS_IAP.md`](docs/PAYMENTS_IAP.md), [`docs/GIFTS.md`](docs/GIFTS.md), [`docs/GIFTS_MEDIA_SPEC.md`](docs/GIFTS_MEDIA_SPEC.md), [`docs/GIFTS_SLC_PRICING.md`](docs/GIFTS_SLC_PRICING.md), [`docs/FEED_GIFTS.md`](docs/FEED_GIFTS.md), [`docs/REALTIME_GIFTS.md`](docs/REALTIME_GIFTS.md)
 
 
 1. [`START_HERE.md`](START_HERE.md)
