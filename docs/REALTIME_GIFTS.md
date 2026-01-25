@@ -1,68 +1,67 @@
-# Realtime Gift Events
+# Realtime Gifts (Backend)
 
-This document describes the realtime event emitted when a paid gift is sent, so the client can trigger an immediate burst/animation without waiting for a feed refresh.
+This document describes the realtime event emitted when a paid gift is sent.
 
-Verified from code:
-- Gift send endpoints: `apps/social/views.py:PostViewSet.gifts`, `CommentViewSet.gifts`
-- Publish helper: `apps/social/events.py:publish_gift_received`
-- Realtime pubsub: `apps/core/pubsub.py:publish_event`
-- Realtime WS subscription: `services/realtime/app.py` (`channels` query param)
+## Event
 
-## Event contract
+- **Type:** `gift.received`
+- **Channels:**
+  - `post:{post_id}` for post gifts
+  - `comment:{comment_id}` for comment gifts
 
-**Event type:** `gift.received`
+### Payload
 
-Payload shape:
 ```json
 {
   "type": "gift.received",
-  "id": 12345,
-  "target": { "type": "post", "id": 777 },
+  "id": 123,
+  "target": { "type": "post", "id": 456 },
   "sender": { "id": 42 },
   "gift_type": {
     "id": 7,
     "key": "test_heart_1usd",
     "name": "Test Heart",
     "kind": "static",
-    "media_url": "https://your.host/media/gifts/test-heart.png",
+    "media_url": "https://api.example.com/media/gifts/test-heart.png",
     "animation_url": "",
     "price_slc_cents": 100,
     "is_active": true
   },
-  "quantity": 2,
-  "total_amount_cents": 200,
-  "created_at": "2026-01-25T10:15:30Z"
+  "quantity": 1,
+  "total_amount_cents": 100,
+  "created_at": "2025-01-25T12:00:00Z"
 }
 ```
 
-## Channels
+## Emit timing
 
-The backend publishes to **target‑scoped channels**:
+- Emitted **after** SLC spend succeeds and **after** `PaidReaction` is created.
+- Uses `transaction.on_commit` to ensure the DB commit has completed.
+- Best‑effort: failures to publish do **not** block the gift transaction.
 
-- `post:{post_id}`
-- `comment:{comment_id}`
+## Publish path
 
-Clients should subscribe to the channel matching the item they’re viewing.
-
-## When it fires
-
-The event is published only **after**:
-1) SLC spend succeeds, and
-2) `PaidReaction` row is created, and
-3) the DB transaction commits (`transaction.on_commit`).
-
-If publish fails (Redis/realtime down), the gift still succeeds. Emission is **best‑effort**.
-
-## How to subscribe (WS)
-
-Realtime WebSocket supports `channels` query param:
-
-```
-ws://<realtime-host>/ws?token=<jwt>&channels=post:123,comment:456
-```
+1) Django calls `apps.realtime.publish.publish_realtime_event`.
+2) If `REALTIME_PUBLISH_URL` is configured, it sends:
+   - `POST {REALTIME_PUBLISH_URL}/internal/publish`
+   - Body: `{ "channel": "...", "payload": {...} }`
+   - Header: `Authorization: Bearer <REALTIME_PUBLISH_TOKEN>` (if configured)
+3) If HTTP publish is not configured or fails, it falls back to Redis publish on
+   `PUBSUB_REDIS_URL`.
 
 ## Local testing
 
-1) Connect a WebSocket client with `channels=post:<id>`.
-2) Send a gift to that post.
-3) Verify you receive a `gift.received` event on the socket.
+- Start realtime service (FastAPI) so `/internal/publish` is reachable.
+- Use curl to simulate:
+
+```bash
+curl -X POST "http://localhost:8002/internal/publish" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <REALTIME_PUBLISH_TOKEN>" \
+  -d '{"channel":"post:123","payload":{"type":"gift.received"}}'
+```
+
+- Connect a websocket client to:
+  `ws://localhost:8001/ws?token=<jwt>&channels=post:123`
+
+You should receive the payload immediately.

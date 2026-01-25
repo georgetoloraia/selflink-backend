@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 
 from apps.coin.services.ledger import mint_for_payment
 from apps.payments.models import GiftType, PaymentEvent
-from apps.social.models import Post
+from apps.social.models import Comment, Post
 from apps.users.models import User
 
 
@@ -45,7 +45,7 @@ def test_gift_publish_event_payload_post() -> None:
     client = APIClient()
     client.force_authenticate(user=sender)
 
-    with patch("apps.social.events.publish_event") as mocked_publish:
+    with patch("apps.social.events.publish_realtime_event") as mocked_publish:
         with capture_on_commit_callbacks(execute=True):
             response = client.post(
                 f"/api/v1/posts/{post.id}/gifts/",
@@ -68,6 +68,41 @@ def test_gift_publish_event_payload_post() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
+def test_gift_publish_event_payload_comment() -> None:
+    sender = User.objects.create_user(email="rt3@example.com", password="pass1234", handle="rt3", name="RT Three")
+    post = Post.objects.create(author=sender, text="hello")
+    comment = Comment.objects.create(author=sender, post=post, text="hi")
+    gift_type = GiftType.objects.create(
+        key="rt_comment",
+        name="RT Comment Gift",
+        price_cents=200,
+        price_slc_cents=200,
+        is_active=True,
+    )
+    _mint_slc(sender, amount_cents=1000, provider_event_id="evt_rt_3")
+
+    client = APIClient()
+    client.force_authenticate(user=sender)
+
+    with patch("apps.social.events.publish_realtime_event") as mocked_publish:
+        with capture_on_commit_callbacks(execute=True):
+            response = client.post(
+                f"/api/v1/comments/{comment.id}/gifts/",
+                data={"gift_type_id": gift_type.id, "quantity": 1},
+                format="json",
+                HTTP_IDEMPOTENCY_KEY="6c9e2a5a-1b63-4e3e-8a7f-4d3d4b6a9a1b",
+            )
+        assert response.status_code == 201
+        assert mocked_publish.call_count == 1
+        channel, payload = mocked_publish.call_args[0]
+        assert channel == f"comment:{comment.id}"
+        assert payload["type"] == "gift.received"
+        assert payload["target"]["type"] == "comment"
+        assert payload["target"]["id"] == comment.id
+        assert payload["gift_type"]["id"] == gift_type.id
+
+
+@pytest.mark.django_db(transaction=True)
 def test_gift_publish_failure_does_not_block() -> None:
     sender = User.objects.create_user(email="rt2@example.com", password="pass1234", handle="rt2", name="RT Two")
     post = Post.objects.create(author=sender, text="hello")
@@ -83,7 +118,7 @@ def test_gift_publish_failure_does_not_block() -> None:
     client = APIClient()
     client.force_authenticate(user=sender)
 
-    with patch("apps.social.events.publish_event", side_effect=Exception("boom")):
+    with patch("apps.social.events.publish_realtime_event", side_effect=Exception("boom")):
         with capture_on_commit_callbacks(execute=True):
             response = client.post(
                 f"/api/v1/posts/{post.id}/gifts/",
