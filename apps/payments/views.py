@@ -28,7 +28,7 @@ class PlanViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class GiftTypeViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = GiftType.objects.all()
+    queryset = GiftType.objects.filter(is_active=True)
     serializer_class = GiftTypeSerializer
     permission_classes = [permissions.AllowAny]
 

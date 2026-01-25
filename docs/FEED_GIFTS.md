@@ -25,6 +25,7 @@ GET /api/v1/payments/gifts/
 ```
 
 Returns `GiftType` objects used by clients to render gifts.
+Only `is_active=true` gifts are returned.
 
 ### Send gift to a post
 
