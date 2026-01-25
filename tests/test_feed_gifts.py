@@ -110,10 +110,12 @@ def test_comment_gift_inactive_rejected() -> None:
 
     client = APIClient()
     client.force_authenticate(user=sender)
+    headers = {"HTTP_IDEMPOTENCY_KEY": "b2d35f48-3ae7-4b3a-ae0a-5f6e3f4e0c0d"}
     response = client.post(
         f"/api/v1/comments/{comment.id}/gifts/",
         data={"gift_type_id": gift_type.id, "quantity": 1},
         format="json",
+        **headers,
     )
     assert response.status_code == 400
     assert response.data.get("code") == "gift_inactive"
@@ -136,10 +138,12 @@ def test_gift_spend_records_reference_metadata() -> None:
 
     client = APIClient()
     client.force_authenticate(user=sender)
+    headers = {"HTTP_IDEMPOTENCY_KEY": "c3e8b7b6-74a8-4ccf-86d7-4f9e2f0a3a2c"}
     response = client.post(
         f"/api/v1/posts/{post.id}/gifts/",
         data={"gift_type_id": gift_type.id, "quantity": 1},
         format="json",
+        **headers,
     )
     assert response.status_code == 201
     reaction = PaidReaction.objects.get(id=response.data["reaction"]["id"])
@@ -162,10 +166,38 @@ def test_gift_insufficient_funds_returns_code() -> None:
 
     client = APIClient()
     client.force_authenticate(user=sender)
+    headers = {"HTTP_IDEMPOTENCY_KEY": "d8f12e60-8a3b-4c3f-9d62-6a9ad1e2b1a1"}
+    response = client.post(
+        f"/api/v1/posts/{post.id}/gifts/",
+        data={"gift_type_id": gift_type.id, "quantity": 1},
+        format="json",
+        **headers,
+    )
+    assert response.status_code == 400
+    assert response.data.get("code") == "insufficient_funds"
+
+
+@pytest.mark.django_db
+def test_gift_requires_idempotency_key() -> None:
+    sender = User.objects.create_user(
+        email="gift6@example.com", password="pass1234", handle="gift6", name="Gift Six"
+    )
+    post = Post.objects.create(author=sender, text="hello")
+    gift_type = GiftType.objects.create(
+        key="sun",
+        name="Sun",
+        price_cents=100,
+        price_slc_cents=100,
+        is_active=True,
+    )
+    _mint_slc(sender, amount_cents=1000, provider_event_id="evt_gift_6")
+
+    client = APIClient()
+    client.force_authenticate(user=sender)
     response = client.post(
         f"/api/v1/posts/{post.id}/gifts/",
         data={"gift_type_id": gift_type.id, "quantity": 1},
         format="json",
     )
     assert response.status_code == 400
-    assert response.data.get("code") == "insufficient_funds"
+    assert response.data.get("code") == "invalid_request"

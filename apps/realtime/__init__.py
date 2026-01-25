@@ -1,1 +1,1 @@
-"""Realtime websocket support."""
+# Realtime helper package.

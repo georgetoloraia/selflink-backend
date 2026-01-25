@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import generics, permissions, viewsets
@@ -15,6 +15,7 @@ from django.core.exceptions import ValidationError
 
 from apps.coin.services.ledger import create_spend, get_balance_cents, get_or_create_user_account
 from apps.payments.models import GiftType
+from apps.payments.feature_flag import payments_enabled
 from apps.feed.cache import FeedCache
 from apps.feed.composer import compose_home_feed_items, extract_cursor_from_url
 from .models import Comment, CommentLike, Gift, PaidReaction, Post, PostLike, Timeline
@@ -27,6 +28,7 @@ from .serializers import (
     PostSerializer,
     TimelineSerializer,
 )
+from .events import publish_gift_received
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +86,15 @@ class PostViewSet(viewsets.ModelViewSet):
         throttle_scope="paid_reaction",
     )
     def gifts(self, request: Request, pk: str | None = None) -> Response:
+        if not payments_enabled():
+            return Response({"detail": "Payments disabled"}, status=403)
         post = self.get_object()
         gift_type_id = request.data.get("gift_type_id")
         quantity = int(request.data.get("quantity") or 1)
         note = str(request.data.get("note") or "")
         idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY")
+        if not idempotency_key:
+            return Response({"detail": "Idempotency-Key required.", "code": "invalid_request"}, status=400)
 
         if quantity < 1 or quantity > 50:
             return Response(
@@ -163,6 +169,9 @@ class PostViewSet(viewsets.ModelViewSet):
             coin_event=coin_event,
             idempotency_key=idempotency_key or None,
         )
+        transaction.on_commit(
+            lambda: publish_gift_received(reaction=reaction, channel=f"post:{post.id}", request=request)
+        )
         account = get_or_create_user_account(request.user)
         balance_cents = get_balance_cents(account.account_key)
         logger.info(
@@ -236,11 +245,15 @@ class CommentViewSet(viewsets.ModelViewSet):
         throttle_scope="paid_reaction",
     )
     def gifts(self, request: Request, pk: str | None = None) -> Response:
+        if not payments_enabled():
+            return Response({"detail": "Payments disabled"}, status=403)
         comment = self.get_object()
         gift_type_id = request.data.get("gift_type_id")
         quantity = int(request.data.get("quantity") or 1)
         note = str(request.data.get("note") or "")
         idempotency_key = request.META.get("HTTP_IDEMPOTENCY_KEY")
+        if not idempotency_key:
+            return Response({"detail": "Idempotency-Key required.", "code": "invalid_request"}, status=400)
 
         if quantity < 1 or quantity > 50:
             return Response(
@@ -314,6 +327,13 @@ class CommentViewSet(viewsets.ModelViewSet):
             total_amount_cents=total_amount_cents,
             coin_event=coin_event,
             idempotency_key=idempotency_key or None,
+        )
+        transaction.on_commit(
+            lambda: publish_gift_received(
+                reaction=reaction,
+                channel=f"comment:{comment.id}",
+                request=request,
+            )
         )
         account = get_or_create_user_account(request.user)
         balance_cents = get_balance_cents(account.account_key)
