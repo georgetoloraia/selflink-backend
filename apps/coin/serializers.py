@@ -74,9 +74,7 @@ class CoinTransferSerializer(serializers.Serializer):
         if request and getattr(request, "user", None) == receiver:
             raise serializers.ValidationError({"to_user_id": "Cannot transfer to yourself."})
         amount_cents = int(attrs.get("amount_cents") or 0)
-        fee_cents = calculate_fee_cents(amount_cents)
-        if amount_cents <= fee_cents:
-            raise serializers.ValidationError({"amount_cents": "Amount must be greater than the transfer fee."})
+        fee_cents = 0
         attrs["receiver_user"] = receiver
         attrs["fee_cents"] = fee_cents
         return attrs

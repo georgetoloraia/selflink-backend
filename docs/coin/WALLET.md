@@ -16,8 +16,7 @@ It is not a blockchain token and has no withdrawals or on-chain representation.
 
 2) P2P transfer
 - Endpoint: `POST /api/v1/coin/transfer/` in `apps/coin/views.py`.
-- Posts sender debit + receiver credit + fee credit to `system:fees`.
-- Fee is `COIN_FEE_BPS` with `COIN_FEE_MIN_CENTS`.
+- Posts sender debit + receiver credit (no transfer fee).
 - Recipient ID: use `account_key` (format `user:<id>`). Get your own via:
   - `GET /api/v1/users/me/recipient-id/`
   - `GET /api/v1/coin/balance/` (returns `account_key`)

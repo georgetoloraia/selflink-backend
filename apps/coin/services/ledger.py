@@ -188,15 +188,11 @@ def create_transfer(
         raise ValidationError("Cannot transfer to the same user.")
     if amount_cents <= 0:
         raise ValidationError("Amount must be positive.")
-    fee = fee_cents if fee_cents is not None else calculate_fee_cents(amount_cents)
-    if fee < 0:
-        raise ValidationError("Fee must be non-negative.")
-    if amount_cents <= fee:
-        raise ValidationError("Amount must be greater than the transfer fee.")
+    fee = 0
 
     sender_account = get_or_create_user_account(sender)
     receiver_account = get_or_create_user_account(receiver)
-    total_debit = amount_cents + fee
+    total_debit = amount_cents
 
     with transaction.atomic():
         CoinAccount.objects.select_for_update().filter(id=sender_account.id).get()
@@ -223,12 +219,6 @@ def create_transfer(
                 {
                     "account_key": receiver_account.account_key,
                     "amount_cents": amount_cents,
-                    "currency": COIN_CURRENCY,
-                    "direction": CoinLedgerEntry.Direction.CREDIT,
-                },
-                {
-                    "account_key": SYSTEM_ACCOUNT_FEES,
-                    "amount_cents": fee,
                     "currency": COIN_CURRENCY,
                     "direction": CoinLedgerEntry.Direction.CREDIT,
                 },
