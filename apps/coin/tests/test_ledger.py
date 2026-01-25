@@ -142,7 +142,7 @@ def test_immutability():
 
 
 @pytest.mark.django_db
-def test_transfer_applies_fee_and_balances():
+def test_transfer_balances_without_fee():
     sender = User.objects.create_user(email="u4@example.com", password="pass1234", handle="u4", name="User Four")
     receiver = User.objects.create_user(email="u5@example.com", password="pass1234", handle="u5", name="User Five")
     CoinAccount.objects.get_or_create(
@@ -158,24 +158,20 @@ def test_transfer_applies_fee_and_balances():
     mint_for_payment(payment_event=payment_event)
 
     amount_cents = 1000
-    fee_cents = calculate_fee_cents(amount_cents)
-    event = create_transfer(sender=sender, receiver=receiver, amount_cents=amount_cents, fee_cents=fee_cents)
+    event = create_transfer(sender=sender, receiver=receiver, amount_cents=amount_cents, fee_cents=0)
 
     entries = list(event.ledger_entries.all())
-    assert len(entries) == 3
+    assert len(entries) == 2
     totals = sum(entry.signed_amount() for entry in entries)
     assert totals == 0
 
     sender_entry = next(e for e in entries if e.account_key == f"user:{sender.id}")
     receiver_entry = next(e for e in entries if e.account_key == f"user:{receiver.id}")
-    fee_entry = next(e for e in entries if e.account_key == SYSTEM_ACCOUNT_FEES)
 
-    assert sender_entry.amount_cents == amount_cents + fee_cents
+    assert sender_entry.amount_cents == amount_cents
     assert sender_entry.direction == CoinLedgerEntry.Direction.DEBIT
     assert receiver_entry.amount_cents == amount_cents
     assert receiver_entry.direction == CoinLedgerEntry.Direction.CREDIT
-    assert fee_entry.amount_cents == fee_cents
-    assert fee_entry.direction == CoinLedgerEntry.Direction.CREDIT
 
 
 @pytest.mark.django_db
