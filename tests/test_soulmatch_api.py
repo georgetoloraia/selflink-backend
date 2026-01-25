@@ -88,3 +88,22 @@ class SoulmatchAPITests(BaseAPITestCase):
         self.assertIn("birth_date", missing)
         self.assertIn("birth_time", missing)
         self.assertIn("birth_place", missing)
+        self.assertEqual(meta.get("reason"), "missing_birth_data")
+
+    @mock.patch("apps.matching.views.calculate_soulmatch")
+    def test_recommendations_explain_level_includes_fields(self, mock_calc) -> None:
+        mock_calc.return_value = {
+            "user_id": self.other.id,
+            "score": 70,
+            "components": {"astro": 20, "matrix": 15, "psychology": 12, "lifestyle": 8},
+            "tags": ["values_aligned"],
+        }
+
+        resp = self.client.get("/api/v1/soulmatch/recommendations/?explain=premium")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        item = resp.data[0]
+        self.assertIn("lens", item)
+        self.assertIn("lens_label", item)
+        self.assertIn("lens_reason_short", item)
+        self.assertEqual(item.get("explanation_level"), "premium")
+        self.assertIn("explanation", item)
