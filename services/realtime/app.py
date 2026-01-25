@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
+import re
 from contextlib import suppress
 from datetime import datetime
 
-from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect, status
 from redis.exceptions import RedisError
 
 from .auth import AuthError, decode_token
@@ -54,25 +56,120 @@ def _parse_channels(raw: str | None) -> list[str]:
 def _verify_publish_token(authorization: str | None) -> None:
     token = settings.realtime_publish_token
     if not token or not token.strip():
-        return
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
     provided = authorization.split(" ", 1)[1].strip()
-    if provided != token:
+    if not provided:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+    if not hmac.compare_digest(provided, token):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token")
+
+
+def _request_id(request: Request) -> str:
+    return request.headers.get("x-request-id", "")
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    client = request.client
+    return getattr(client, "host", "") or "unknown"
+
+
+def _validate_channel(channel: str) -> None:
+    if not re.match(r"^(post|comment):[1-9]\d*$", channel):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid channel")
+
+
+def _validate_payload(payload: dict) -> None:
+    event_type = payload.get("type")
+    if event_type != "gift.received":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid event type")
+
+
+def _parse_rate_limit(value: str | None) -> tuple[int, int] | None:
+    if not value:
+        return None
+    raw = value.strip()
+    if not raw:
+        return None
+    if "/" not in raw:
+        return None
+    count_str, unit = raw.split("/", 1)
+    try:
+        count = int(count_str)
+    except ValueError:
+        return None
+    unit = unit.strip().lower()
+    window = 60
+    if unit in {"s", "sec", "second", "seconds"}:
+        window = 1
+    elif unit in {"m", "min", "minute", "minutes"}:
+        window = 60
+    elif unit in {"h", "hour", "hours"}:
+        window = 3600
+    else:
+        return None
+    if count <= 0:
+        return None
+    return count, window
+
+
+async def _enforce_rate_limit(request: Request) -> None:
+    limit = _parse_rate_limit(settings.realtime_publish_rate_limit)
+    if not limit:
+        return
+    count, window = limit
+    client_ip = _client_ip(request)
+    key = f"realtime:publish:rl:{client_ip}"
+    redis = get_async_redis()
+    try:
+        current = await redis.incr(key)
+        if current == 1:
+            await redis.expire(key, window)
+        if current > count:
+            raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
+    except HTTPException:
+        raise
+    except RedisError:
+        return
 
 
 @app.post("/internal/publish")
 async def internal_publish(
     request: PublishRequest,
+    http_request: Request,
     authorization: str | None = Header(default=None),
 ) -> dict:
     _verify_publish_token(authorization)
+    await _enforce_rate_limit(http_request)
+    _validate_channel(request.channel)
+    if not isinstance(request.payload, dict):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid payload")
+    _validate_payload(request.payload)
+    req_id = _request_id(http_request)
     try:
         await publish(request.channel, request.payload)
+        logger.info(
+            "gift_realtime.publish_success",
+            extra={
+                "channel": request.channel,
+                "event_type": request.payload.get("type"),
+                "request_id": req_id,
+            },
+        )
         return {"status": "ok"}
     except RedisError:
-        logger.warning("realtime: publish failed", extra={"channel": request.channel})
+        logger.warning(
+            "gift_realtime.publish_failure",
+            extra={
+                "channel": request.channel,
+                "event_type": request.payload.get("type"),
+                "request_id": req_id,
+            },
+        )
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Publish failed")
 
 

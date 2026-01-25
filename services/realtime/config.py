@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     jwt_signing_key: str | None = Field(None, alias="JWT_SIGNING_KEY")
     realtime_jwt_secret: str | None = Field(None, alias="REALTIME_JWT_SECRET")
     realtime_publish_token: str | None = Field(None, alias="REALTIME_PUBLISH_TOKEN")
+    realtime_publish_rate_limit: str | None = Field(None, alias="REALTIME_PUBLISH_RATE_LIMIT")
 
     class Config:
         env_file = ".env"

@@ -17,12 +17,14 @@ def get_redis_client() -> Redis:
     return Redis.from_url(url)
 
 
-def publish_event(channel: str, payload: dict) -> None:
+def publish_event(channel: str, payload: dict) -> bool:
     try:
         client = get_redis_client()
         client.publish(channel, json.dumps(payload))
+        return True
     except RedisError as exc:  # pragma: no cover - log and continue
         logger.warning("Failed to publish event on %s: %s", channel, exc)
+        return False
 
 
 def publish_events(channels: list[str], payload: dict) -> None:

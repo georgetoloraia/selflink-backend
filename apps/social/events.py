@@ -19,6 +19,9 @@ def _format_timestamp(dt) -> str:
 
 def publish_gift_received(*, reaction: PaidReaction, channel: str, request=None) -> None:
     try:
+        request_id = ""
+        if request is not None:
+            request_id = request.META.get("HTTP_X_REQUEST_ID", "")
         gift_type_data = GiftTypeSerializer(reaction.gift_type, context={"request": request}).data
         price_slc = gift_type_data.get("price_slc_cents") or gift_type_data.get("price_cents")
         gift_type_payload = {
@@ -43,6 +46,13 @@ def publish_gift_received(*, reaction: PaidReaction, channel: str, request=None)
             "total_amount_cents": reaction.total_amount_cents,
             "created_at": _format_timestamp(reaction.created_at),
         }
-        publish_realtime_event(channel, payload)
+        context = {
+            "event_id": reaction.id,
+            "target_type": target_type,
+            "target_id": target_id,
+            "sender_id": reaction.sender_id,
+            "request_id": request_id,
+        }
+        publish_realtime_event(channel, payload, context=context)
     except Exception as exc:  # pragma: no cover - best effort
         logger.warning("gift_received publish failed channel=%s reaction_id=%s error=%s", channel, reaction.id, exc)
