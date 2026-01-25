@@ -108,7 +108,6 @@ class CoinTransferView(APIView):
             "insufficient_funds": "insufficient_funds",
             "Cannot transfer to the same user.": "invalid_receiver",
             "Amount must be positive.": "invalid_amount",
-            "Amount must be greater than the transfer fee.": "invalid_amount",
             "Coin account is not active.": "account_inactive",
             "User coin accounts cannot be system accounts.": "account_invalid",
         }
