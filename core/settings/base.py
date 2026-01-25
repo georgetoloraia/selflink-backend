@@ -393,6 +393,8 @@ CELERY_BEAT_SCHEDULE = {
 # Prefer explicit PUBSUB_REDIS_URL; default to docker redis hostname to avoid localhost lookups
 PUBSUB_REDIS_URL = os.getenv("PUBSUB_REDIS_URL", "redis://redis:6379/1")
 REALTIME_CHANNELS_ENABLED = os.getenv("REALTIME_CHANNELS_ENABLED", "false").lower() == "true"
+REALTIME_PUBLISH_URL = os.getenv("REALTIME_PUBLISH_URL", "")
+REALTIME_PUBLISH_TOKEN = os.getenv("REALTIME_PUBLISH_TOKEN", "")
 
 CHANNEL_LAYERS = {
     "default": {

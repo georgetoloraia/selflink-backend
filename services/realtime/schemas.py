@@ -29,3 +29,8 @@ class AckEvent(BaseModel):
 
 
 RealtimeEvent = PresenceEvent | MessageEvent | AckEvent
+
+
+class PublishRequest(BaseModel):
+    channel: str
+    payload: dict

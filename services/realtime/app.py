@@ -6,14 +6,14 @@ import logging
 from contextlib import suppress
 from datetime import datetime
 
-from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, status
 from redis.exceptions import RedisError
 
 from .auth import AuthError, decode_token
 from .config import settings
 from .manager import manager
 from .redis_client import get_async_redis, publish
-from .schemas import AckEvent, MessageEvent, PresenceEvent
+from .schemas import AckEvent, MessageEvent, PresenceEvent, PublishRequest
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,31 @@ def _parse_channels(raw: str | None) -> list[str]:
         if value.startswith("post:") or value.startswith("comment:"):
             channels.append(value)
     return channels[:20]
+
+
+def _verify_publish_token(authorization: str | None) -> None:
+    token = settings.realtime_publish_token
+    if not token or not token.strip():
+        return
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
+    provided = authorization.split(" ", 1)[1].strip()
+    if provided != token:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token")
+
+
+@app.post("/internal/publish")
+async def internal_publish(
+    request: PublishRequest,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    _verify_publish_token(authorization)
+    try:
+        await publish(request.channel, request.payload)
+        return {"status": "ok"}
+    except RedisError:
+        logger.warning("realtime: publish failed", extra={"channel": request.channel})
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Publish failed")
 
 
 @app.websocket("/ws")
