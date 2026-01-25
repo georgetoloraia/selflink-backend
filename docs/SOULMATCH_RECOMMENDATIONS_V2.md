@@ -59,6 +59,15 @@ If `include_meta=1`, response wraps:
 }
 ```
 
+### Debug counters (optional)
+
+If `?debug_v2=1` is passed, meta also includes:
+
+- `raw_candidate_count`
+- `filtered_candidate_count`
+- `returned_count`
+- `invalid_counts` (missing_user_id, missing_score, etc.)
+
 ## Sample response (single item)
 
 ```json
