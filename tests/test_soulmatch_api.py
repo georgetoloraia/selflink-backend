@@ -55,3 +55,36 @@ class SoulmatchAPITests(BaseAPITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         ids = [item["user"]["id"] for item in resp.data]
         self.assertNotIn(self.user["id"], ids)
+
+    @mock.patch("apps.matching.views.calculate_soulmatch")
+    def test_recommendations_include_meta_returns_results(self, mock_calc) -> None:
+        User.objects.create_user(email="fourth@example.com", password="pass123", handle="fourth", name="Fourth")
+        mock_calc.return_value = {
+            "user_id": self.other.id,
+            "score": 55,
+            "components": {"astro": 15, "matrix": 15, "psychology": 10, "lifestyle": 10},
+            "tags": ["neutral"],
+        }
+
+        resp = self.client.get("/api/v1/soulmatch/recommendations/?include_meta=1")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn("results", resp.data)
+        self.assertIn("meta", resp.data)
+        self.assertGreaterEqual(len(resp.data["results"]), 1)
+
+    @mock.patch("apps.matching.views.calculate_soulmatch")
+    def test_recommendations_include_meta_missing_requirements(self, mock_calc) -> None:
+        mock_calc.return_value = {
+            "user_id": self.other.id,
+            "score": 60,
+            "components": {"astro": 15, "matrix": 15, "psychology": 10, "lifestyle": 10},
+            "tags": ["neutral"],
+        }
+
+        resp = self.client.get("/api/v1/soulmatch/recommendations/?include_meta=1")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        meta = resp.data.get("meta", {})
+        missing = meta.get("missing_requirements", [])
+        self.assertIn("birth_date", missing)
+        self.assertIn("birth_time", missing)
+        self.assertIn("birth_place", missing)
