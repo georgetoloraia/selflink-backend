@@ -11,6 +11,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.matching.serializers import SoulmatchResultSerializer, SoulmatchUserSerializer
+from apps.matching.services.personalization import get_following_ids, personalization_adjustment
+from apps.matching.services.recommendations_v2 import assign_lens, diversify, explanation_for
+from apps.matching.services.timing import evaluate_timing
 from apps.matching.services.soulmatch import calculate_soulmatch
 from apps.matching.tasks import soulmatch_compute_score_task
 from apps.core_platform.async_mode import should_run_async
@@ -62,19 +65,48 @@ class SoulmatchRecommendationsView(APIView):
     def get(self, request):
         current_user: User = request.user
         include_meta = request.query_params.get("include_meta") in {"1", "true", "yes"}
+        explain_level = request.query_params.get("explain") or "free"
+        if explain_level not in {"free", "premium", "premium_plus"}:
+            explain_level = "free"
         candidates = list(User.objects.exclude(id=current_user.id).order_by("id")[:50])
         candidate_count = len(candidates)
         random.shuffle(candidates)
 
         recommendations = []
+        following_ids = get_following_ids(current_user)
         for candidate in candidates:
             # TODO: batch this via Celery if we keep computing many matches per request.
             result = calculate_soulmatch(current_user, candidate)
-            recommendations.append({"user": SoulmatchUserSerializer(candidate).data, **result})
+            timing = evaluate_timing(current_user, candidate)
+            lens, lens_label, lens_reason_short = assign_lens(
+                result["score"],
+                result.get("components", {}),
+                result.get("tags", []),
+                timing.timing_score,
+            )
+            personalization = personalization_adjustment(current_user, candidate, following_ids)
+            rank_score = result["score"] + personalization + (timing.timing_score / 20.0)
+            payload = {
+                "user": SoulmatchUserSerializer(candidate).data,
+                **result,
+                "lens": lens,
+                "lens_label": lens_label,
+                "lens_reason_short": lens_reason_short,
+                "timing_score": timing.timing_score,
+                "timing_window": timing.timing_window,
+                "timing_summary": timing.timing_summary,
+                "compatibility_trend": timing.compatibility_trend,
+                "explanation_level": explain_level,
+                "explanation": explanation_for(lens, explain_level),
+                "_rank_score": rank_score,
+            }
+            recommendations.append(payload)
 
-        recommendations.sort(key=lambda item: item["score"], reverse=True)
-        top_results = recommendations[:20]
-        serializer = SoulmatchResultSerializer(top_results, many=True)
+        recommendations.sort(key=lambda item: item["_rank_score"], reverse=True)
+        diversified = diversify(recommendations, limit=20)
+        for item in diversified:
+            item.pop("_rank_score", None)
+        serializer = SoulmatchResultSerializer(diversified, many=True)
         data = serializer.data
 
         if include_meta:
@@ -92,7 +124,7 @@ class SoulmatchRecommendationsView(APIView):
             elif len(data) == 0:
                 reason = "no_results"
             elif missing_requirements:
-                reason = "chart_incomplete"
+                reason = "missing_birth_data"
 
             if settings.DEBUG:
                 logger.debug(
@@ -112,6 +144,7 @@ class SoulmatchRecommendationsView(APIView):
                     "meta": {
                         "missing_requirements": missing_requirements,
                         "reason": reason,
+                        "candidate_count": candidate_count,
                     },
                 },
                 status=status.HTTP_200_OK,
