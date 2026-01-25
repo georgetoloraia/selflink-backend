@@ -68,15 +68,27 @@ class SoulmatchRecommendationsView(APIView):
         explain_level = request.query_params.get("explain") or "free"
         if explain_level not in {"free", "premium", "premium_plus"}:
             explain_level = "free"
+        debug_v2 = request.query_params.get("debug_v2") in {"1", "true", "yes"}
         candidates = list(User.objects.exclude(id=current_user.id).order_by("id")[:50])
         candidate_count = len(candidates)
         random.shuffle(candidates)
 
         recommendations = []
         following_ids = get_following_ids(current_user)
+        invalid_counts = {
+            "missing_user": 0,
+            "missing_user_id": 0,
+            "missing_score": 0,
+        }
         for candidate in candidates:
             # TODO: batch this via Celery if we keep computing many matches per request.
             result = calculate_soulmatch(current_user, candidate)
+            if not candidate or not candidate.id:
+                invalid_counts["missing_user_id"] += 1
+                continue
+            if result is None or result.get("score") is None:
+                invalid_counts["missing_score"] += 1
+                continue
             timing = evaluate_timing(current_user, candidate)
             lens, lens_label, lens_reason_short = assign_lens(
                 result["score"],
@@ -102,7 +114,7 @@ class SoulmatchRecommendationsView(APIView):
             }
             recommendations.append(payload)
 
-        recommendations.sort(key=lambda item: item["_rank_score"], reverse=True)
+        recommendations.sort(key=lambda item: (item["_rank_score"], item["user"]["id"]), reverse=True)
         diversified = diversify(recommendations, limit=20)
         for item in diversified:
             item.pop("_rank_score", None)
@@ -138,14 +150,24 @@ class SoulmatchRecommendationsView(APIView):
                     },
                 )
 
+            meta = {
+                "missing_requirements": missing_requirements,
+                "reason": reason,
+                "candidate_count": len(data),
+            }
+            if debug_v2:
+                meta.update(
+                    {
+                        "raw_candidate_count": candidate_count,
+                        "filtered_candidate_count": len(recommendations),
+                        "returned_count": len(data),
+                        "invalid_counts": invalid_counts,
+                    }
+                )
             return Response(
                 {
                     "results": data,
-                    "meta": {
-                        "missing_requirements": missing_requirements,
-                        "reason": reason,
-                        "candidate_count": candidate_count,
-                    },
+                    "meta": meta,
                 },
                 status=status.HTTP_200_OK,
             )
