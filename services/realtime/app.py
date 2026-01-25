@@ -38,6 +38,19 @@ def get_user_id(websocket: WebSocket) -> int:
     return int(user_id)
 
 
+def _parse_channels(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    channels = []
+    for value in raw.split(","):
+        value = value.strip()
+        if not value:
+            continue
+        if value.startswith("post:") or value.startswith("comment:"):
+            channels.append(value)
+    return channels[:20]
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_user_id)) -> None:
     token_sub = getattr(websocket.state, "token_sub", None)
@@ -50,6 +63,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_us
     redis = get_async_redis()
     pubsub = redis.pubsub()
     channels = [f"user:{user_id}", "broadcast"]
+    channels.extend(_parse_channels(websocket.query_params.get("channels")))
     await pubsub.subscribe(*channels)
     pubsub_task = asyncio.create_task(_forward_pubsub(pubsub, websocket))
     await _publish_presence(user_id, "online")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from django.db import models
+from django.db import models, transaction
 from django.utils.decorators import method_decorator
 from django_ratelimit.decorators import ratelimit
 from rest_framework import generics, permissions, viewsets
@@ -28,6 +28,7 @@ from .serializers import (
     PostSerializer,
     TimelineSerializer,
 )
+from .events import publish_gift_received
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,9 @@ class PostViewSet(viewsets.ModelViewSet):
             total_amount_cents=total_amount_cents,
             coin_event=coin_event,
             idempotency_key=idempotency_key or None,
+        )
+        transaction.on_commit(
+            lambda: publish_gift_received(reaction=reaction, channel=f"post:{post.id}", request=request)
         )
         account = get_or_create_user_account(request.user)
         balance_cents = get_balance_cents(account.account_key)
@@ -323,6 +327,13 @@ class CommentViewSet(viewsets.ModelViewSet):
             total_amount_cents=total_amount_cents,
             coin_event=coin_event,
             idempotency_key=idempotency_key or None,
+        )
+        transaction.on_commit(
+            lambda: publish_gift_received(
+                reaction=reaction,
+                channel=f"comment:{comment.id}",
+                request=request,
+            )
         )
         account = get_or_create_user_account(request.user)
         balance_cents = get_balance_cents(account.account_key)
