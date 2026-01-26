@@ -43,3 +43,8 @@ This document defines the optional `effects` field on `GiftType`. The backend **
 - `effects` is always returned (default `{}`).
 - Effects are optional; clients should treat unknown types as no‑ops.
 - Media URLs are absolute (preferred).
+
+## Snowfall preset (example)
+- Lottie asset: `apps/payments/static/gifts/snowfall.json` → served as `/static/gifts/snowfall.json`
+- Preset JSON: `apps/payments/fixtures/gift_effects/snowfall_in_post.json`
+- Seed command: `python manage.py seed_gift_types` (creates/updates `winter_snow`)
