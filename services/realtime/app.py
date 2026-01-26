@@ -209,7 +209,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_us
                 with suppress(RedisError):
                     await publish(f"user:{payload.sender_id}", response.model_dump())
             else:
-                await websocket.send_text(AckEvent(message="ignored").model_dump_json())
+                await manager.safe_send_text(websocket, AckEvent(message="ignored").model_dump_json())
     except AuthError as exc:
         logger.warning("WebSocket auth error for user_id=%s: %s", user_id, exc)
         manager.disconnect(user_id, websocket)
@@ -220,7 +220,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int = Depends(get_us
         manager.disconnect(user_id, websocket)
         await _publish_presence(user_id, "offline")
     except json.JSONDecodeError:
-        await websocket.send_text(AckEvent(message="invalid-json").model_dump_json())
+        await manager.safe_send_text(websocket, AckEvent(message="invalid-json").model_dump_json())
     finally:
         manager.disconnect(user_id, websocket)
         pubsub_task.cancel()
@@ -241,11 +241,13 @@ async def _forward_pubsub(pubsub, websocket: WebSocket) -> None:
             data = message.get("data")
             if isinstance(data, bytes):
                 data = data.decode("utf-8")
-            await websocket.send_text(data)
+            ok = await manager.safe_send_text(websocket, data)
+            if not ok:
+                break
     except asyncio.CancelledError:
         raise
     except RedisError:
-        await websocket.send_text(AckEvent(message="realtime-error").model_dump_json())
+        await manager.safe_send_text(websocket, AckEvent(message="realtime-error").model_dump_json())
 
 
 async def _publish_presence(user_id: int, status: str) -> None:
