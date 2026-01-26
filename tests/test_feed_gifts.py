@@ -148,6 +148,8 @@ def test_gift_spend_records_reference_metadata() -> None:
     assert response.status_code == 201
     reaction = PaidReaction.objects.get(id=response.data["reaction"]["id"])
     assert reaction.coin_event.metadata.get("reference") == f"gift:post:{post.id}:{gift_type.key}"
+    gift_payload = response.data["reaction"]["gift_type"]
+    assert "effects" in gift_payload
 
 
 @pytest.mark.django_db

@@ -19,6 +19,7 @@ def test_gift_catalog_includes_seeded_test_gift() -> None:
     assert test_gift is not None
     assert test_gift.get("price_cents") == 100
     assert test_gift.get("price_slc_cents") == 100
+    assert "effects" in test_gift
 
 
 @pytest.mark.django_db
