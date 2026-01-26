@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from django import forms
 from django.contrib import admin
+from django.utils.html import format_html
 
 from apps.payments.models import GiftType, PaymentCheckout, PaymentEvent, Plan, Subscription, Wallet
 
@@ -15,6 +16,19 @@ class GiftTypeAdminForm(forms.ModelForm):
         model = GiftType
         fields = "__all__"
 
+    def clean(self):
+        cleaned = super().clean()
+        media_file = cleaned.get("media_file")
+        media_url = (cleaned.get("media_url") or "").strip()
+        animation_file = cleaned.get("animation_file")
+        animation_url = (cleaned.get("animation_url") or "").strip()
+
+        if media_file and media_url:
+            self.add_error("media_url", "Provide either media file OR media URL, not both.")
+        if animation_file and animation_url:
+            self.add_error("animation_url", "Provide either animation file OR animation URL, not both.")
+        return cleaned
+
 
 @admin.register(GiftType)
 class GiftTypeAdmin(admin.ModelAdmin):
@@ -23,6 +37,7 @@ class GiftTypeAdmin(admin.ModelAdmin):
     list_filter = ("kind", "is_active")
     search_fields = ("key", "name")
     ordering = ("price_slc_cents", "name")
+    readonly_fields = ("media_preview_link", "animation_preview_link")
     fields = (
         "key",
         "name",
@@ -31,13 +46,47 @@ class GiftTypeAdmin(admin.ModelAdmin):
         "kind",
         "media_file",
         "media_url",
+        "media_preview_link",
         "animation_file",
         "animation_url",
+        "animation_preview_link",
         "art_url",
         "is_active",
         "effects",
         "metadata",
     )
+
+    def _normalize_href(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        value = value.strip()
+        if value.startswith("http://") or value.startswith("https://"):
+            return value
+        if not value.startswith("/"):
+            return f"/{value}"
+        return value
+
+    def media_preview_link(self, obj: GiftType) -> str:
+        href = None
+        if obj.media_file and getattr(obj.media_file, "url", ""):
+            href = obj.media_file.url
+        elif obj.media_url:
+            href = obj.media_url
+        href = self._normalize_href(href)
+        if not href:
+            return "-"
+        return format_html('<a href="{}" target="_blank" rel="noopener">Open media</a>', href)
+
+    def animation_preview_link(self, obj: GiftType) -> str:
+        href = None
+        if obj.animation_file and getattr(obj.animation_file, "url", ""):
+            href = obj.animation_file.url
+        elif obj.animation_url:
+            href = obj.animation_url
+        href = self._normalize_href(href)
+        if not href:
+            return "-"
+        return format_html('<a href="{}" target="_blank" rel="noopener">Open animation</a>', href)
 
 
 @admin.register(Plan)

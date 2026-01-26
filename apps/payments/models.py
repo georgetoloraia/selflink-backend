@@ -63,8 +63,8 @@ class GiftType(BaseModel):
         validators=[FileExtensionValidator(["png"])],
         help_text="Upload a .png file (optional).",
     )
-    art_url = models.URLField(blank=True)
-    media_url = models.URLField(blank=True)
+    art_url = models.CharField(max_length=500, blank=True, default="")
+    media_url = models.CharField(max_length=500, blank=True, default="")
     animation_file = models.FileField(
         upload_to="gifts/",
         blank=True,
@@ -72,13 +72,27 @@ class GiftType(BaseModel):
         validators=[FileExtensionValidator(["json"])],
         help_text="Upload a .json Lottie file (optional).",
     )
-    animation_url = models.URLField(blank=True)
+    animation_url = models.CharField(max_length=500, blank=True, default="")
     is_active = models.BooleanField(default=True)
     effects = models.JSONField(default=dict, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["price_cents"]
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        needs_media = bool(self.media_file and not self.media_url)
+        needs_animation = bool(self.animation_file and not self.animation_url)
+        super().save(*args, **kwargs)
+        updates = {}
+        if needs_media and self.media_file and not self.media_url:
+            updates["media_url"] = self.media_file.url
+        if needs_animation and self.animation_file and not self.animation_url:
+            updates["animation_url"] = self.animation_file.url
+        if updates:
+            GiftType.objects.filter(pk=self.pk).update(**updates)
+            for key, value in updates.items():
+                setattr(self, key, value)
 
 
 class PaymentEvent(BaseModel):
