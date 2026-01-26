@@ -48,9 +48,13 @@ class GiftTypeSerializer(serializers.ModelSerializer):
         return self._absolute_url(obj.art_url or "")
 
     def get_media_url(self, obj: GiftType) -> str:
+        if obj.media_file and getattr(obj.media_file, "url", ""):
+            return self._absolute_url(obj.media_file.url)
         return self._absolute_url(obj.media_url or "")
 
     def get_animation_url(self, obj: GiftType) -> str:
+        if obj.animation_file and getattr(obj.animation_file, "url", ""):
+            return self._absolute_url(obj.animation_file.url)
         return self._absolute_url(obj.animation_url or "")
 
 
