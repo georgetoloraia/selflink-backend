@@ -11,6 +11,21 @@ class GiftTypeAdmin(admin.ModelAdmin):
     list_filter = ("kind", "is_active")
     search_fields = ("key", "name")
     ordering = ("price_slc_cents", "name")
+    fields = (
+        "key",
+        "name",
+        "price_cents",
+        "price_slc_cents",
+        "kind",
+        "media_file",
+        "media_url",
+        "animation_file",
+        "animation_url",
+        "art_url",
+        "is_active",
+        "effects",
+        "metadata",
+    )
 
 
 @admin.register(Plan)

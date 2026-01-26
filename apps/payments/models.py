@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from django.conf import settings
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
 from apps.core.models import BaseModel
@@ -55,8 +56,22 @@ class GiftType(BaseModel):
     price_cents = models.PositiveIntegerField()
     price_slc_cents = models.PositiveIntegerField(default=0)
     kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.STATIC)
+    media_file = models.ImageField(
+        upload_to="gifts/",
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(["png"])],
+        help_text="Upload a .png file (optional).",
+    )
     art_url = models.URLField(blank=True)
     media_url = models.URLField(blank=True)
+    animation_file = models.FileField(
+        upload_to="gifts/",
+        blank=True,
+        null=True,
+        validators=[FileExtensionValidator(["json"])],
+        help_text="Upload a .json Lottie file (optional).",
+    )
     animation_url = models.URLField(blank=True)
     is_active = models.BooleanField(default=True)
     effects = models.JSONField(default=dict, blank=True)
