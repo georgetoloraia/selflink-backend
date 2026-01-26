@@ -32,6 +32,7 @@ class GiftTypeSerializer(serializers.ModelSerializer):
             "media_url",
             "animation_url",
             "is_active",
+            "effects",
             "metadata",
         ]
 

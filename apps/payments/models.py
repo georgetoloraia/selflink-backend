@@ -59,6 +59,7 @@ class GiftType(BaseModel):
     media_url = models.URLField(blank=True)
     animation_url = models.URLField(blank=True)
     is_active = models.BooleanField(default=True)
+    effects = models.JSONField(default=dict, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
