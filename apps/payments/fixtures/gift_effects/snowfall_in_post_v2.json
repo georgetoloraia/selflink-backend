@@ -1,0 +1,8 @@
+{
+  "effects": [
+    { "type": "overlay", "scope": "post", "clip_to_bounds": true, "z_index": 5, "opacity": 0.9, "animation": "/static/gifts/snowfall.json", "fit": "cover", "loop": true, "duration_ms": 12000, "scale": 1.0 },
+    { "type": "highlight", "color": "#EAF6FF" }
+  ],
+  "persist": { "mode": "window", "window_seconds": 18 },
+  "version": 2
+}

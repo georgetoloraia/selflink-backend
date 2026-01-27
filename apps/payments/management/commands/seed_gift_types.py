@@ -13,7 +13,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         base_dir = Path(__file__).resolve().parents[2]
-        preset_path = base_dir / "fixtures" / "gift_effects" / "snowfall_in_post.json"
+        preset_path = base_dir / "fixtures" / "gift_effects" / "snowfall_in_post_v2.json"
         if not preset_path.exists():
             self.stderr.write(f"Missing preset file: {preset_path}")
             return

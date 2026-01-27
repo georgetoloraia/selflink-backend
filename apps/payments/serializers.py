@@ -57,6 +57,13 @@ class GiftTypeSerializer(serializers.ModelSerializer):
             return self._absolute_url(obj.animation_file.url)
         return self._absolute_url(obj.animation_url or "")
 
+    def to_representation(self, instance):  # type: ignore[override]
+        from apps.payments.effects import normalize_gift_effects
+
+        data = super().to_representation(instance)
+        data["effects"] = normalize_gift_effects(data.get("effects"))
+        return data
+
 
 class WalletSerializer(serializers.ModelSerializer):
     class Meta:
