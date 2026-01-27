@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "persist": { "mode": "window", "window_seconds": 86400 },
+  "effects": [
+    {
+      "type": "overlay",
+      "scope": "post",
+      "clip_to_bounds": true,
+      "z_index": 5,
+      "opacity": 0.9,
+      "animation": "/media/gifts/super-like.json",
+      "fit": "cover",
+      "loop": true,
+      "duration_ms": 12000
+    },
+    { "type": "highlight", "color": "#FF4D6D" },
+    { "type": "badge", "text": "Super Like" }
+  ]
+}
