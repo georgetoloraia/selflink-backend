@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
 
@@ -93,6 +94,15 @@ class GiftType(BaseModel):
             GiftType.objects.filter(pk=self.pk).update(**updates)
             for key, value in updates.items():
                 setattr(self, key, value)
+
+    def clean(self):  # type: ignore[override]
+        from apps.payments.effects import validate_gift_effects
+
+        try:
+            normalized = validate_gift_effects(self.effects)
+        except ValidationError:
+            raise
+        self.effects = normalized
 
 
 class PaymentEvent(BaseModel):

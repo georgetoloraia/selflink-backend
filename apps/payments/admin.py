@@ -27,6 +27,14 @@ class GiftTypeAdminForm(forms.ModelForm):
             self.add_error("media_url", "Provide either media file OR media URL, not both.")
         if animation_file and animation_url:
             self.add_error("animation_url", "Provide either animation file OR animation URL, not both.")
+        effects = cleaned.get("effects")
+        if effects not in (None, ""):
+            from apps.payments.effects import validate_gift_effects
+
+            try:
+                cleaned["effects"] = validate_gift_effects(effects)
+            except Exception as exc:  # noqa: BLE001
+                self.add_error("effects", str(exc))
         return cleaned
 
 
