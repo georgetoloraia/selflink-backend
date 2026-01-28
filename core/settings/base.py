@@ -36,6 +36,7 @@ ALLOWED_HOSTS: List[str] = [
     for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
     if host.strip()
 ]
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
 
 SITE_ID = 1
 

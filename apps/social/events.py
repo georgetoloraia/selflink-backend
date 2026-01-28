@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from datetime import timedelta
 from django.utils import timezone
 
 from apps.realtime.publish import publish_realtime_event
@@ -27,6 +28,7 @@ def publish_gift_received(*, reaction: PaidReaction, channel: str, request=None)
         gift_type_payload["price_slc_cents"] = price_slc
         target_type = reaction.target_type
         target_id = reaction.post_id if target_type == PaidReaction.TargetType.POST else reaction.comment_id
+        server_time = timezone.now()
         payload = {
             "type": "gift.received",
             "id": reaction.id,
@@ -36,8 +38,18 @@ def publish_gift_received(*, reaction: PaidReaction, channel: str, request=None)
             "quantity": reaction.quantity,
             "total_amount_cents": reaction.total_amount_cents,
             "created_at": _format_timestamp(reaction.created_at),
-            "server_time": _format_timestamp(timezone.now()),
+            "server_time": _format_timestamp(server_time),
         }
+        effects = gift_type_payload.get("effects") or {}
+        persist = effects.get("persist") if isinstance(effects, dict) else {}
+        if isinstance(persist, dict) and persist.get("mode") == "window":
+            try:
+                window_seconds = int(persist.get("window_seconds") or 0)
+            except (TypeError, ValueError):
+                window_seconds = 0
+            if window_seconds > 0:
+                expires_at = server_time + timedelta(seconds=window_seconds)
+                payload["expires_at"] = _format_timestamp(expires_at)
         context = {
             "event_id": reaction.id,
             "target_type": target_type,

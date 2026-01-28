@@ -39,9 +39,16 @@ class GiftTypeSerializer(serializers.ModelSerializer):
     def _absolute_url(self, url: str) -> str:
         if not url:
             return url
+        if url.startswith("http://") or url.startswith("https://"):
+            return url
         request = self.context.get("request")
         if request:
             return request.build_absolute_uri(url)
+        public_base = getattr(settings, "PUBLIC_BASE_URL", "") or ""
+        if public_base:
+            if url.startswith("/"):
+                return f"{public_base}{url}"
+            return f"{public_base}/{url}"
         return url
 
     def get_art_url(self, obj: GiftType) -> str:
