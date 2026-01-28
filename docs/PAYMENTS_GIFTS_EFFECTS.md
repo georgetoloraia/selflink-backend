@@ -47,6 +47,7 @@ This document defines the optional `effects` field on `GiftType`. The backend **
 ## Notes
 - `effects` is always returned (default `{version: 2, effects: [], persist: {…}}`).
 - Media URLs can be absolute or relative (e.g., `/media/...`).
+- Realtime `gift.received` now includes full `gift_type` with normalized effects and may include `expires_at` for windowed effects.
 
 ## Presets (examples)
 - Snowfall: `apps/payments/fixtures/gift_effects/snowfall_in_post_v2.json`
