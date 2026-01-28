@@ -46,6 +46,7 @@ class GiftTypeAdmin(admin.ModelAdmin):
     search_fields = ("key", "name")
     ordering = ("price_slc_cents", "name")
     readonly_fields = ("media_preview_link", "animation_preview_link")
+    actions = ("deactivate_gifts",)
     fields = (
         "key",
         "name",
@@ -63,6 +64,12 @@ class GiftTypeAdmin(admin.ModelAdmin):
         "effects",
         "metadata",
     )
+
+    def deactivate_gifts(self, request, queryset):  # type: ignore[override]
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f"Deactivated {updated} gift(s).")
+
+    deactivate_gifts.short_description = "Deactivate selected gifts (soft delete)"
 
     def _normalize_href(self, value: str | None) -> str | None:
         if not value:
