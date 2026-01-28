@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 from django.test.utils import capture_on_commit_callbacks
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -66,6 +67,7 @@ def test_gift_publish_event_payload_post() -> None:
         assert "effects" in payload["gift_type"]
         assert payload["gift_type"]["effects"].get("version") == 2
         assert "server_time" in payload
+        assert "expires_at" in payload
         assert payload["quantity"] == 1
         assert payload["total_amount_cents"] == 100
 
@@ -106,6 +108,7 @@ def test_gift_publish_event_payload_comment() -> None:
         assert "effects" in payload["gift_type"]
         assert payload["gift_type"]["effects"].get("version") == 2
         assert "server_time" in payload
+        assert "expires_at" in payload
 
 
 @pytest.mark.django_db(transaction=True)
@@ -136,6 +139,7 @@ def test_gift_publish_failure_does_not_block() -> None:
 
 
 @pytest.mark.django_db
+@override_settings(PUBLIC_BASE_URL="https://api.example.com")
 def test_gift_publish_without_request_context() -> None:
     sender = User.objects.create_user(email="rt4@example.com", password="pass1234", handle="rt4", name="RT Four")
     post = Post.objects.create(author=sender, text="hello")
@@ -172,5 +176,5 @@ def test_gift_publish_without_request_context() -> None:
         publish_gift_received(reaction=reaction, channel=f"post:{post.id}", request=None)
         assert mocked_publish.call_count == 1
         _, payload = mocked_publish.call_args[0]
-        assert payload["gift_type"]["media_url"] == "/media/gifts/test-heart.png"
+        assert payload["gift_type"]["media_url"] == "https://api.example.com/media/gifts/test-heart.png"
         assert "effects" in payload["gift_type"]
