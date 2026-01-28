@@ -22,18 +22,9 @@ def publish_gift_received(*, reaction: PaidReaction, channel: str, request=None)
         request_id = ""
         if request is not None:
             request_id = request.META.get("HTTP_X_REQUEST_ID", "")
-        gift_type_data = GiftTypeSerializer(reaction.gift_type, context={"request": request}).data
-        price_slc = gift_type_data.get("price_slc_cents") or gift_type_data.get("price_cents")
-        gift_type_payload = {
-            "id": gift_type_data.get("id"),
-            "key": gift_type_data.get("key"),
-            "name": gift_type_data.get("name"),
-            "kind": gift_type_data.get("kind"),
-            "media_url": gift_type_data.get("media_url") or "",
-            "animation_url": gift_type_data.get("animation_url") or "",
-            "price_slc_cents": price_slc,
-            "is_active": gift_type_data.get("is_active", True),
-        }
+        gift_type_payload = GiftTypeSerializer(reaction.gift_type, context={"request": request}).data
+        price_slc = gift_type_payload.get("price_slc_cents") or gift_type_payload.get("price_cents")
+        gift_type_payload["price_slc_cents"] = price_slc
         target_type = reaction.target_type
         target_id = reaction.post_id if target_type == PaidReaction.TargetType.POST else reaction.comment_id
         payload = {
@@ -45,6 +36,7 @@ def publish_gift_received(*, reaction: PaidReaction, channel: str, request=None)
             "quantity": reaction.quantity,
             "total_amount_cents": reaction.total_amount_cents,
             "created_at": _format_timestamp(reaction.created_at),
+            "server_time": _format_timestamp(timezone.now()),
         }
         context = {
             "event_id": reaction.id,
