@@ -40,6 +40,13 @@ venv/
 .env
 infra/.env
 media
+!media/
+!media/gifts/
+!media/gifts/trendy/
+!media/gifts/trendy/**
+media/avatars/
+media/messages/
+media/posts/
 celerybeat-schedule
 staticfiles/
 tmp/test-media/
