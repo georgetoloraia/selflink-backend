@@ -107,6 +107,52 @@ docker compose -f infra/compose.yaml down -v
 ```
 
 ---
+## 🛑🛑 REMOVE ALL Containers
+1. 1️⃣ Stop all running containers
+```
+sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+```
+
+2. 2️⃣ Remove all containers
+```
+sudo docker rm $(sudo docker ps -aq) 2>/dev/null || true
+
+```
+
+3. 3️⃣ Remove all images
+```
+sudo docker rmi -f $(sudo docker images -aq) 2>/dev/null || true
+```
+
+4. 4️⃣ Remove all volumes (⚠️ this wipes Postgres data)
+```
+sudo docker volume rm $(sudo docker volume ls -q) 2>/dev/null || true
+```
+
+5. 5️⃣ Remove all networks
+```
+sudo docker network rm $(sudo docker network ls -q) 2>/dev/null || true
+```
+
+6. 6️⃣ Prune build cache
+```
+sudo docker system prune -af --volumes
+
+```
+
+## ✅ Option B — One-liner (same effect, faster)
+```
+sudo docker system prune -af --volumes
+```
+This removes:
+- stopped containers
+- unused images
+- unused volumes
+- unused networks
+- build cache
+(Still destructive.)
+
+---
 
 ## ⚙️ Environment Notes
 
