@@ -17,9 +17,50 @@ from apps.matching.services.timing import evaluate_timing
 from apps.matching.services.soulmatch import calculate_soulmatch
 from apps.matching.tasks import soulmatch_compute_score_task
 from apps.core_platform.async_mode import should_run_async
-from apps.users.models import User
+from apps.users.models import Block, Mute, User
+from apps.profile.models import UserProfile
 
 logger = logging.getLogger(__name__)
+
+
+def _get_profile(user: User) -> UserProfile | None:
+    profile = UserProfile.objects.filter(user_id=user.id).first()
+    if profile and profile.is_empty():
+        return None
+    return profile
+
+
+def _get_location_value(user: User, profile: UserProfile | None) -> str | None:
+    if user.birth_place:
+        return user.birth_place
+    if profile and profile.birth_city:
+        return profile.birth_city
+    if profile and profile.birth_country:
+        return profile.birth_country
+    return None
+
+
+def _missing_profile_requirements(user: User) -> list[str]:
+    profile = _get_profile(user)
+    missing: list[str] = []
+    if not profile or not profile.gender:
+        missing.append("gender")
+    if not profile or not profile.orientation:
+        missing.append("orientation")
+    if not _get_location_value(user, profile):
+        missing.append("location")
+    return missing
+
+
+def _build_candidate_queryset(current_user: User):
+    queryset = User.objects.exclude(id=current_user.id).filter(is_active=True)
+    blocked_ids = Block.objects.filter(user=current_user).values_list("target_id", flat=True)
+    muted_ids = Mute.objects.filter(user=current_user).values_list("target_id", flat=True)
+    if blocked_ids:
+        queryset = queryset.exclude(id__in=blocked_ids)
+    if muted_ids:
+        queryset = queryset.exclude(id__in=muted_ids)
+    return queryset
 
 
 class SoulmatchWithView(APIView):
@@ -28,6 +69,10 @@ class SoulmatchWithView(APIView):
 
     def get(self, request, user_id: int):
         current_user: User = request.user
+        mode = request.query_params.get("mode") or "compat"
+        if mode not in {"compat", "dating"}:
+            mode = "compat"
+        include_meta = request.query_params.get("include_meta") in {"1", "true", "yes"}
         if current_user.id == user_id:
             return Response({"detail": "Cannot compute SoulMatch with yourself."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -35,6 +80,14 @@ class SoulmatchWithView(APIView):
             target = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if mode == "dating":
+            if not target.is_active:
+                return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            if Block.objects.filter(user=current_user, target=target).exists():
+                return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            if Mute.objects.filter(user=current_user, target=target).exists():
+                return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if should_run_async(request):
             pair_key = f"{min(current_user.id, target.id)}:{max(current_user.id, target.id)}"
@@ -55,6 +108,23 @@ class SoulmatchWithView(APIView):
 
         result = calculate_soulmatch(current_user, target)
         payload = {"user": SoulmatchUserSerializer(target).data, **result}
+        if include_meta:
+            missing_requirements: list[str] = []
+            if not current_user.birth_date:
+                missing_requirements.append("birth_date")
+            if not current_user.birth_time:
+                missing_requirements.append("birth_time")
+            if not current_user.birth_place:
+                missing_requirements.append("birth_place")
+            if mode == "dating":
+                missing_requirements.extend(_missing_profile_requirements(current_user))
+            payload["meta"] = {
+                "mode": mode,
+                "eligibility": {
+                    "eligible": not missing_requirements,
+                    "missing_requirements": missing_requirements,
+                },
+            }
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -68,19 +138,30 @@ class SoulmatchRecommendationsView(APIView):
         explain_level = request.query_params.get("explain") or "free"
         if explain_level not in {"free", "premium", "premium_plus"}:
             explain_level = "free"
+        mode = request.query_params.get("mode") or "compat"
+        if mode not in {"compat", "dating"}:
+            mode = "compat"
         debug_v2 = request.query_params.get("debug_v2") in {"1", "true", "yes"}
-        candidates = list(User.objects.exclude(id=current_user.id).order_by("id")[:50])
+        candidate_queryset = _build_candidate_queryset(current_user).order_by("id")
+        candidates = list(candidate_queryset[:50])
         candidate_count = len(candidates)
         random.shuffle(candidates)
 
         recommendations = []
         following_ids = get_following_ids(current_user)
+        missing_profile_requirements = _missing_profile_requirements(current_user) if mode == "dating" else []
         invalid_counts = {
             "missing_user": 0,
             "missing_user_id": 0,
             "missing_score": 0,
         }
         for candidate in candidates:
+            if mode == "dating":
+                candidate_profile = _get_profile(candidate)
+                if not candidate_profile or not candidate_profile.gender or not candidate_profile.orientation:
+                    continue
+                if not _get_location_value(candidate, candidate_profile):
+                    continue
             # TODO: batch this via Celery if we keep computing many matches per request.
             result = calculate_soulmatch(current_user, candidate)
             if not candidate or not candidate.id:
@@ -129,14 +210,18 @@ class SoulmatchRecommendationsView(APIView):
                 missing_requirements.append("birth_time")
             if not current_user.birth_place:
                 missing_requirements.append("birth_place")
+            if mode == "dating":
+                missing_requirements.extend(missing_profile_requirements)
 
             reason = None
-            if candidate_count == 0:
+            if missing_requirements and any(item in {"birth_date", "birth_time", "birth_place"} for item in missing_requirements):
+                reason = "missing_birth_data"
+            elif mode == "dating" and missing_profile_requirements:
+                reason = "missing_profile_fields"
+            elif candidate_count == 0:
                 reason = "no_candidates"
             elif len(data) == 0:
                 reason = "no_results"
-            elif missing_requirements:
-                reason = "missing_birth_data"
 
             if settings.DEBUG:
                 logger.debug(
@@ -154,6 +239,7 @@ class SoulmatchRecommendationsView(APIView):
                 "missing_requirements": missing_requirements,
                 "reason": reason,
                 "candidate_count": len(data),
+                "mode": mode,
             }
             if debug_v2:
                 meta.update(
