@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import date, time
 
+from django.core.exceptions import FieldDoesNotExist
 from rest_framework.test import APIClient
 
 from apps.profile.models import UserProfile
-from apps.users.models import User
+from apps.users.models import Block, User
+from apps.matching.views import _ordering_fields
 
 
 def _create_user(email: str, handle: str, name: str) -> User:
@@ -55,6 +57,7 @@ def test_recommendations_dating_missing_profile_fields_reason(db):
     assert response.status_code == 200
     payload = response.json()
     assert payload.get("meta", {}).get("reason") == "missing_profile_fields"
+    assert "location" not in payload.get("meta", {}).get("missing_requirements", [])
 
 
 def test_with_dating_includes_meta_eligibility(db):
@@ -75,4 +78,29 @@ def test_with_dating_includes_meta_eligibility(db):
     payload = response.json()
     assert payload.get("meta", {}).get("eligibility", {}).get("eligible") is False
     missing = payload.get("meta", {}).get("eligibility", {}).get("missing_requirements", [])
-    assert "gender" in missing or "orientation" in missing or "location" in missing
+    assert "gender" in missing or "orientation" in missing
+
+
+def test_with_returns_404_for_blocked_target(db):
+    user = _create_user("blocker@example.com", "blocker", "Blocker")
+    target = _create_user("blocked@example.com", "blocked", "Blocked")
+    UserProfile.objects.create(user=user, gender="male", orientation="hetero", birth_city="Tbilisi")
+    UserProfile.objects.create(user=target, gender="female", orientation="hetero", birth_city="Tbilisi")
+    Block.objects.create(user=user, target=target)
+
+    client = APIClient()
+    client.force_authenticate(user=user)
+    response = client.get(f"/api/v1/soulmatch/with/{target.id}/?mode=compat")
+    assert response.status_code == 404
+
+
+def test_ordering_fields_fallback(monkeypatch):
+    original_get_field = User._meta.get_field
+
+    def get_field(name):
+        if name in {"created_at", "date_joined"}:
+            raise FieldDoesNotExist
+        return original_get_field(name)
+
+    monkeypatch.setattr(User._meta, "get_field", get_field)
+    assert _ordering_fields(User) == ["id"]
