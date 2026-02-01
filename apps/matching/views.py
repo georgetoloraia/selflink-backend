@@ -5,6 +5,7 @@ import random
 import logging
 
 from django.conf import settings
+from django.core.exceptions import FieldDoesNotExist
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -31,12 +32,6 @@ def _get_profile(user: User) -> UserProfile | None:
 
 
 def _get_location_value(user: User, profile: UserProfile | None) -> str | None:
-    if user.birth_place:
-        return user.birth_place
-    if profile and profile.birth_city:
-        return profile.birth_city
-    if profile and profile.birth_country:
-        return profile.birth_country
     return None
 
 
@@ -47,8 +42,6 @@ def _missing_profile_requirements(user: User) -> list[str]:
         missing.append("gender")
     if not profile or not profile.orientation:
         missing.append("orientation")
-    if not _get_location_value(user, profile):
-        missing.append("location")
     return missing
 
 
@@ -61,6 +54,18 @@ def _build_candidate_queryset(current_user: User):
     if muted_ids:
         queryset = queryset.exclude(id__in=muted_ids)
     return queryset
+
+
+def _ordering_fields(model) -> list[str]:
+    ordered: list[str] = []
+    for field_name in ("created_at", "date_joined"):
+        try:
+            model._meta.get_field(field_name)
+        except FieldDoesNotExist:
+            continue
+        ordered.append(f"-{field_name}")
+    ordered.append("id")
+    return ordered
 
 
 class SoulmatchWithView(APIView):
@@ -81,13 +86,12 @@ class SoulmatchWithView(APIView):
         except User.DoesNotExist:
             return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if mode == "dating":
-            if not target.is_active:
-                return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-            if Block.objects.filter(user=current_user, target=target).exists():
-                return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-            if Mute.objects.filter(user=current_user, target=target).exists():
-                return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not target.is_active:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        if Block.objects.filter(user=current_user, target=target).exists():
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        if Mute.objects.filter(user=current_user, target=target).exists():
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
         if should_run_async(request):
             pair_key = f"{min(current_user.id, target.id)}:{max(current_user.id, target.id)}"
@@ -142,8 +146,8 @@ class SoulmatchRecommendationsView(APIView):
         if mode not in {"compat", "dating"}:
             mode = "compat"
         debug_v2 = request.query_params.get("debug_v2") in {"1", "true", "yes"}
-        candidate_queryset = _build_candidate_queryset(current_user).order_by("id")
-        candidates = list(candidate_queryset[:50])
+        candidate_queryset = _build_candidate_queryset(current_user).order_by(*_ordering_fields(User))
+        candidates = list(candidate_queryset[:500])
         candidate_count = len(candidates)
         random.shuffle(candidates)
 
@@ -159,8 +163,6 @@ class SoulmatchRecommendationsView(APIView):
             if mode == "dating":
                 candidate_profile = _get_profile(candidate)
                 if not candidate_profile or not candidate_profile.gender or not candidate_profile.orientation:
-                    continue
-                if not _get_location_value(candidate, candidate_profile):
                     continue
             # TODO: batch this via Celery if we keep computing many matches per request.
             result = calculate_soulmatch(current_user, candidate)
