@@ -4,6 +4,7 @@ import random
 
 import logging
 
+from celery import group
 from django.conf import settings
 from django.core.exceptions import FieldDoesNotExist
 from rest_framework import status
@@ -159,13 +160,26 @@ class SoulmatchRecommendationsView(APIView):
             "missing_user_id": 0,
             "missing_score": 0,
         }
-        for candidate in candidates:
-            if mode == "dating":
+        eligible_candidates: list[User] = []
+        if mode == "dating":
+            for candidate in candidates:
                 candidate_profile = _get_profile(candidate)
                 if not candidate_profile or not candidate_profile.gender or not candidate_profile.orientation:
                     continue
-            # TODO: batch this via Celery if we keep computing many matches per request.
-            result = calculate_soulmatch(current_user, candidate)
+                eligible_candidates.append(candidate)
+        else:
+            eligible_candidates = candidates
+
+        batch_results: list[dict[str, object] | None] = []
+        if eligible_candidates:
+            rules_version = getattr(settings, "MATCH_RULES_VERSION", "v1")
+            task_group = group(
+                soulmatch_compute_score_task.s(current_user.id, candidate.id, rules_version=rules_version)
+                for candidate in eligible_candidates
+            )
+            batch_results = task_group.apply_async().get()
+
+        for candidate, result in zip(eligible_candidates, batch_results):
             if not candidate or not candidate.id:
                 invalid_counts["missing_user_id"] += 1
                 continue
