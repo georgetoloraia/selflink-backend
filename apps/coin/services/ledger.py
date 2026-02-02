@@ -9,7 +9,7 @@ from django.db.models import Case, F, Sum, When
 
 from apps.coin.models import (
     COIN_CURRENCY,
-    SYSTEM_ACCOUNT_FEES,
+    # SYSTEM_ACCOUNT_FEES,
     SYSTEM_ACCOUNT_KEYS,
     SYSTEM_ACCOUNT_MINT,
     SYSTEM_ACCOUNT_REVENUE,

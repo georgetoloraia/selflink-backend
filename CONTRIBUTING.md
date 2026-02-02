@@ -32,3 +32,12 @@ Architecture
 
 RFCs
 - Use `docs/rfc/template.md` for proposals that impact domains, data models, or infra.
+
+
+
+### Beginner-Friendly Local Setup
+
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/georgetoloraia/selflink-backend.git
+   cd selflink-backend

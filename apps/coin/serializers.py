@@ -3,7 +3,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from apps.coin.models import CoinLedgerEntry
-from apps.coin.services.ledger import calculate_fee_cents
+# from apps.coin.services.ledger import calculate_fee_cents
 from apps.coin.models import CoinAccount
 from apps.users.models import User
 
@@ -73,7 +73,7 @@ class CoinTransferSerializer(serializers.Serializer):
         request = self.context.get("request")
         if request and getattr(request, "user", None) == receiver:
             raise serializers.ValidationError({"to_user_id": "Cannot transfer to yourself."})
-        amount_cents = int(attrs.get("amount_cents") or 0)
+        # amount_cents = int(attrs.get("amount_cents") or 0)
         fee_cents = 0
         attrs["receiver_user"] = receiver
         attrs["fee_cents"] = fee_cents
