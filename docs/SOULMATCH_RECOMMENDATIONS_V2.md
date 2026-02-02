@@ -44,6 +44,32 @@ Each result includes:
   - `full` (premium+)
   - `strategy` (premium_plus)
 
+## Versioned Payload Guarantees (v1/v2)
+
+**Core guarantees (all rules versions):**
+- `user` object with fields: `id`, `handle`, `name`, `photo`
+- `score` (int)
+- `components` object with keys: `astro`, `matrix`, `psychology`, `lifestyle`
+- `tags` (array of strings)
+
+**Optional/best-effort enrichments (may be absent):**
+- `lens`, `lens_label`, `lens_reason_short`
+- `timing_score`, `timing_window`, `timing_summary`, `compatibility_trend`
+- `explanation_level`, `explanation`
+
+**/with/ async (202) guarantees:**
+- `task_id`, `pair_key`, `rules_version`, `user` (same user fields as above)
+
+**include_meta wrapper (recommendations):**
+- When `include_meta=1`, response is `{results, meta}`
+- `meta` includes: `mode`, `reason`, `missing_requirements`, `candidate_count`
+- `candidate_count` currently equals `len(results)`
+- `reason` is one of: `missing_birth_data`, `missing_profile_fields`, `no_candidates`, `no_results`, or `null`
+
+**Change-control**
+- Only fields documented above are guaranteed stable.
+- In **200 OK** responses, keys beyond `user`, `user_id`, `score`, `components`, `tags` are produced by `calculate_soulmatch(...)` and may evolve; clients should treat them as stable only if documented.
+
 ## Empty reasons (meta)
 
 If `include_meta=1`, response wraps:

@@ -1,3 +1,7 @@
+
+[![Join our Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/PkqyuWq2Zd)
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 # SelfLink - Full opensource unification
 
 click for more [`WHAT-IS-SELFLINK.md`](WHAT-IS-SELFLINK.md)
@@ -21,7 +25,7 @@ Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
 - Every user gets an SLC account automatically
 - P2P transfers and internal spending are supported with transfer fees
 - API (under `/api/v1/coin/`): `balance`, `ledger`, `transfer`, `spend`
-- Docs: [`docs/coin/WALLET.md`](docs/coin/WALLET.md), [`docs/coin/TECHNICAL_REVIEW.md`](docs/coin/TECHNICAL_REVIEW.md), [`docs/PAYMENTS_IPAY.md`](docs/PAYMENTS_IPAY.md), [`docs/PAYMENTS_STRIPE.md`](docs/PAYMENTS_STRIPE.md), [`docs/PAYMENTS_BTCPAY.md`](docs/PAYMENTS_BTCPAY.md), [`docs/PAYMENTS_IAP.md`](docs/PAYMENTS_IAP.md), [`docs/GIFTS.md`](docs/GIFTS.md), [`docs/GIFTS_MEDIA_SPEC.md`](docs/GIFTS_MEDIA_SPEC.md), [`docs/GIFTS_SLC_PRICING.md`](docs/GIFTS_SLC_PRICING.md), [`docs/PAYMENTS_GIFTS_ADMIN.md`](docs/PAYMENTS_GIFTS_ADMIN.md), [`docs/GIFTS_ADMIN_CHECKLIST.md`](docs/GIFTS_ADMIN_CHECKLIST.md), [`docs/PAYMENTS_GIFTS_EFFECTS.md`](docs/PAYMENTS_GIFTS_EFFECTS.md), [`docs/FEED_GIFTS.md`](docs/FEED_GIFTS.md), [`docs/REALTIME_GIFTS.md`](docs/REALTIME_GIFTS.md)
+- Docs: [`docs/`](docs/)
 
 
 1. [`START_HERE.md`](START_HERE.md)
@@ -38,8 +42,6 @@ Full details: [`CONTRIBUTOR_REWARDS.md`](CONTRIBUTOR_REWARDS.md)
 
 You do **not** need to understand everything to contribute.
 Most contributors work in a single domain.
-
-For questions or collaboration, join the Discord: https://discord.gg/GQdQagsw
 
 ## Quickstart (backend)
 - Prereq (Ubuntu/Debian): `sudo apt-get install -y docker-compose-plugin`
