@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import base64
 import json
-from datetime import timezone as dt_timezone
+from datetime import timedelta, timezone as dt_timezone
 
 from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -14,9 +15,32 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.coin.models import CoinLedgerEntry
-from apps.coin.serializers import CoinLedgerEntrySerializer, CoinSpendSerializer, CoinTransferSerializer
-from apps.coin.services.ledger import create_spend, create_transfer, get_balance_cents, get_or_create_user_account
+from apps.coin.models import (
+    COIN_CURRENCY,
+    SYSTEM_ACCOUNT_REVENUE,
+    CoinAccount,
+    CoinEvent,
+    CoinLedgerEntry,
+    EntitlementKey,
+    PaidProduct,
+    UserEntitlement,
+)
+from apps.coin.serializers import (
+    CoinLedgerEntrySerializer,
+    CoinPurchaseSerializer,
+    CoinSpendSerializer,
+    CoinTransferSerializer,
+    EntitlementSerializer,
+    PaidProductSerializer,
+    empty_entitlements_payload,
+)
+from apps.coin.services.ledger import (
+    create_spend,
+    create_transfer,
+    get_balance_cents,
+    get_or_create_user_account,
+    post_event_and_entries,
+)
 
 
 class CoinBalanceView(APIView):
@@ -203,3 +227,218 @@ class CoinSpendView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class CoinProductsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        products = PaidProduct.objects.filter(is_active=True).order_by("sort_order", "price_slc")
+        serializer = PaidProductSerializer(products, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class CoinPurchaseView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "coin_spend"
+
+    @staticmethod
+    def _error_payload(detail: str, code: str | None = None) -> dict:
+        return {"detail": detail, "code": code or detail}
+
+    def _build_entitlements_payload(self, user) -> dict[str, dict[str, object]]:
+        payload = empty_entitlements_payload()
+        entitlements = UserEntitlement.objects.filter(
+            user=user,
+            key__in=[EntitlementKey.PREMIUM, EntitlementKey.PREMIUM_PLUS],
+        )
+        serializer = EntitlementSerializer(entitlements, many=True)
+        for entry in serializer.data:
+            key = entry.get("key")
+            if key:
+                payload[key] = {
+                    "active": entry.get("active", False),
+                    "active_until": entry.get("active_until"),
+                }
+        return payload
+
+    def _apply_entitlement(
+        self,
+        *,
+        user,
+        key: str,
+        duration_days: int | None,
+        quantity: int,
+        meta: dict,
+        source: str = "slc",
+    ) -> UserEntitlement:
+        now = timezone.now()
+        entitlement = UserEntitlement.objects.select_for_update().filter(user=user, key=key).first()
+        base_time = now
+        if entitlement and entitlement.active_until and entitlement.active_until > now:
+            base_time = entitlement.active_until
+        if duration_days is None:
+            active_until = None
+        else:
+            active_until = base_time + timedelta(days=duration_days * quantity)
+        if entitlement:
+            entitlement.active_until = active_until
+            entitlement.source = source
+            entitlement.meta = meta
+            entitlement.save(update_fields=["active_until", "source", "meta", "updated_at"])
+            return entitlement
+        return UserEntitlement.objects.create(
+            user=user,
+            key=key,
+            active_until=active_until,
+            source=source,
+            meta=meta,
+        )
+
+    def post(self, request: Request) -> Response:
+        serializer = CoinPurchaseSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        product_code = serializer.validated_data["product_code"]
+        quantity = int(serializer.validated_data.get("quantity") or 1)
+        idempotency_key = serializer.validated_data["idempotency_key"].strip()
+
+        product = PaidProduct.objects.filter(code=product_code, is_active=True).first()
+        if not product:
+            return Response({"detail": "Product not found."}, status=status.HTTP_404_NOT_FOUND)
+        if quantity < 1 or quantity > 12:
+            return Response(self._error_payload("invalid_quantity", "invalid_quantity"), status=400)
+        if not idempotency_key:
+            return Response(self._error_payload("idempotency_key_required", "idempotency_key_required"), status=400)
+
+        total_price = int(product.price_slc) * quantity
+        if total_price <= 0:
+            return Response(self._error_payload("invalid_amount", "invalid_amount"), status=400)
+
+        account = get_or_create_user_account(request.user)
+        purchase_idempotency = f"purchase:{request.user.id}:{idempotency_key}"
+        existing = CoinEvent.objects.filter(idempotency_key=purchase_idempotency).first()
+        if existing:
+            meta = existing.metadata or {}
+            if meta.get("product_code") and meta.get("product_code") != product.code:
+                return Response(
+                    self._error_payload("idempotency_conflict", "idempotency_conflict"),
+                    status=status.HTTP_409_CONFLICT,
+                )
+            entitlements = self._build_entitlements_payload(request.user)
+            balance = get_balance_cents(account.account_key)
+            charged_slc = int(meta.get("total_price_slc") or total_price)
+            return Response(
+                {
+                    "ok": True,
+                    "product_code": product.code,
+                    "charged_slc": charged_slc,
+                    "balance_slc": balance,
+                    "entitlements": entitlements,
+                    "ledger_tx_id": str(existing.id),
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        try:
+            with transaction.atomic():
+                CoinAccount.objects.select_for_update().filter(id=account.id).get()
+                balance = get_balance_cents(account.account_key)
+                if balance < total_price:
+                    return Response(self._error_payload("insufficient_funds", "insufficient_funds"), status=402)
+
+                event_meta = {
+                    "user_id": request.user.id,
+                    "product_code": product.code,
+                    "entitlement_key": product.entitlement_key,
+                    "quantity": quantity,
+                    "unit_price_slc": int(product.price_slc),
+                    "total_price_slc": total_price,
+                    "reference": f"product:{product.code}",
+                }
+                try:
+                    event = post_event_and_entries(
+                        event_type=CoinEvent.EventType.SPEND,
+                        created_by=request.user,
+                        idempotency_key=purchase_idempotency,
+                        metadata=event_meta,
+                        entries=[
+                            {
+                                "account_key": account.account_key,
+                                "amount_cents": total_price,
+                                "currency": COIN_CURRENCY,
+                                "direction": CoinLedgerEntry.Direction.DEBIT,
+                            },
+                            {
+                                "account_key": SYSTEM_ACCOUNT_REVENUE,
+                                "amount_cents": total_price,
+                                "currency": COIN_CURRENCY,
+                                "direction": CoinLedgerEntry.Direction.CREDIT,
+                            },
+                        ],
+                    )
+                except IntegrityError:
+                    event = CoinEvent.objects.filter(idempotency_key=purchase_idempotency).first()
+                    if not event:
+                        raise
+
+                meta = {
+                    "product_code": product.code,
+                    "quantity": quantity,
+                    "unit_price_slc": int(product.price_slc),
+                    "total_price_slc": total_price,
+                }
+                entitlement = self._apply_entitlement(
+                    user=request.user,
+                    key=product.entitlement_key,
+                    duration_days=product.duration_days,
+                    quantity=quantity,
+                    meta=meta,
+                )
+                if product.entitlement_key == EntitlementKey.PREMIUM_PLUS:
+                    premium = self._apply_entitlement(
+                        user=request.user,
+                        key=EntitlementKey.PREMIUM,
+                        duration_days=product.duration_days,
+                        quantity=quantity,
+                        meta={"source": "premium_plus"},
+                    )
+                    if entitlement.active_until and premium.active_until and premium.active_until < entitlement.active_until:
+                        premium.active_until = entitlement.active_until
+                        premium.save(update_fields=["active_until", "updated_at"])
+        except ValidationError as exc:
+            detail = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
+            return Response(self._error_payload(detail), status=status.HTTP_400_BAD_REQUEST)
+
+        entitlements = self._build_entitlements_payload(request.user)
+        balance = get_balance_cents(account.account_key)
+        return Response(
+            {
+                "ok": True,
+                "product_code": product.code,
+                "charged_slc": total_price,
+                "balance_slc": balance,
+                "entitlements": entitlements,
+                "ledger_tx_id": str(event.id) if event else None,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class MeEntitlementsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        entitlements = UserEntitlement.objects.filter(
+            user=request.user,
+            key__in=[EntitlementKey.PREMIUM, EntitlementKey.PREMIUM_PLUS],
+        )
+        serializer = EntitlementSerializer(entitlements, many=True)
+        payload = empty_entitlements_payload()
+        for entry in serializer.data:
+            key = entry.get("key")
+            if key:
+                payload[key] = {
+                    "active": entry.get("active", False),
+                    "active_until": entry.get("active_until"),
+                }
+        return Response(payload, status=status.HTTP_200_OK)
