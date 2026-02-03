@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from apps.coin.models import CoinLedgerEntry
-from apps.coin.services.ledger import calculate_fee_cents
-from apps.coin.models import CoinAccount
+from apps.coin.models import CoinAccount, CoinLedgerEntry, EntitlementKey, PaidProduct, UserEntitlement
 from apps.users.models import User
 
 
@@ -73,7 +71,6 @@ class CoinTransferSerializer(serializers.Serializer):
         request = self.context.get("request")
         if request and getattr(request, "user", None) == receiver:
             raise serializers.ValidationError({"to_user_id": "Cannot transfer to yourself."})
-        amount_cents = int(attrs.get("amount_cents") or 0)
         fee_cents = 0
         attrs["receiver_user"] = receiver
         attrs["fee_cents"] = fee_cents
@@ -84,3 +81,43 @@ class CoinSpendSerializer(serializers.Serializer):
     amount_cents = serializers.IntegerField(min_value=1)
     reference = serializers.CharField(max_length=128)
     note = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+
+class PaidProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaidProduct
+        fields = [
+            "code",
+            "title",
+            "description",
+            "price_slc",
+            "duration_days",
+            "entitlement_key",
+            "is_active",
+        ]
+        read_only_fields = fields
+
+
+class CoinPurchaseSerializer(serializers.Serializer):
+    product_code = serializers.CharField(max_length=64)
+    quantity = serializers.IntegerField(min_value=1, max_value=12, required=False, default=1)
+    idempotency_key = serializers.CharField(max_length=255)
+
+
+class EntitlementSerializer(serializers.ModelSerializer):
+    active = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UserEntitlement
+        fields = ["key", "active", "active_until"]
+        read_only_fields = fields
+
+    def get_active(self, obj: UserEntitlement) -> bool:
+        return obj.is_active
+
+
+def empty_entitlements_payload() -> dict[str, dict[str, object]]:
+    return {
+        EntitlementKey.PREMIUM: {"active": False, "active_until": None},
+        EntitlementKey.PREMIUM_PLUS: {"active": False, "active_until": None},
+    }

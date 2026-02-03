@@ -62,3 +62,72 @@ Run: `python manage.py coin_payment_audit --show`
 ## Pagination
 `/api/v1/coin/ledger/` uses an opaque cursor (`next_cursor`), ordered by `(created_at, id)`.
 Treat the cursor as an opaque string; it is base64url JSON (`{"ts": "...", "id": ...}`) and legacy numeric cursors are accepted.
+
+## Paid products (SLC-only)
+
+SLC top-ups come from external providers, but all paid features inside the app are purchased with SLC.
+
+### List products
+- Endpoint: `GET /api/v1/coin/products/`
+- Auth: required
+- Returns active SLC products ordered by `sort_order`, then `price_slc`.
+
+Example response:
+```json
+[
+  {
+    "code": "premium_month",
+    "title": "Premium (Monthly)",
+    "description": "Unlock Premium features for 30 days.",
+    "price_slc": 1000,
+    "duration_days": 30,
+    "entitlement_key": "premium",
+    "is_active": true
+  }
+]
+```
+
+### Purchase product with SLC
+- Endpoint: `POST /api/v1/coin/purchase/`
+- Auth: required
+- Idempotent by `idempotency_key` (scoped per user)
+
+Request:
+```json
+{
+  "product_code": "premium_month",
+  "quantity": 1,
+  "idempotency_key": "uuid-or-random-string"
+}
+```
+
+Response:
+```json
+{
+  "ok": true,
+  "product_code": "premium_month",
+  "charged_slc": 1000,
+  "balance_slc": 900,
+  "entitlements": {
+    "premium": { "active": true, "active_until": "2026-03-05T12:00:00Z" },
+    "premium_plus": { "active": false, "active_until": null }
+  },
+  "ledger_tx_id": "123"
+}
+```
+
+Notes:
+- Purchases debit the user and credit `system:revenue`.
+- `premium_plus` implies `premium` (explicitly updated at purchase time).
+
+### Entitlements
+- Endpoint: `GET /api/v1/me/entitlements/`
+- Auth: required
+
+Response:
+```json
+{
+  "premium": { "active": true, "active_until": "2026-03-05T12:00:00Z" },
+  "premium_plus": { "active": false, "active_until": null }
+}
+```
