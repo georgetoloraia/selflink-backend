@@ -146,3 +146,46 @@ class MonthlyCoinSnapshot(BaseModel):
 
     def delete(self, using=None, keep_parents=False):  # type: ignore[override]
         raise ValidationError("MonthlyCoinSnapshot rows are immutable; deletion is not allowed.")
+
+
+class EntitlementKey(models.TextChoices):
+    PREMIUM = "premium", "Premium"
+    PREMIUM_PLUS = "premium_plus", "Premium Plus"
+
+
+class PaidProduct(BaseModel):
+    code = models.CharField(max_length=64, unique=True)
+    title = models.CharField(max_length=128)
+    description = models.TextField(blank=True)
+    price_slc = models.BigIntegerField(help_text="SLC cents; integer smallest unit.")
+    duration_days = models.PositiveIntegerField(null=True, blank=True)
+    entitlement_key = models.CharField(max_length=32, choices=EntitlementKey.choices)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "price_slc"]
+
+
+class UserEntitlement(BaseModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="entitlements",
+    )
+    key = models.CharField(max_length=32, choices=EntitlementKey.choices)
+    active_until = models.DateTimeField(null=True, blank=True)
+    source = models.CharField(max_length=32, default="slc")
+    meta = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        unique_together = ("user", "key")
+        indexes = [
+            models.Index(fields=["user", "key"]),
+        ]
+
+    @property
+    def is_active(self) -> bool:
+        if not self.active_until:
+            return False
+        return self.active_until > timezone.now()
