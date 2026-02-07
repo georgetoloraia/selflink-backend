@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.contrib.auth import authenticate
+from django.db.models import Count
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -40,7 +41,15 @@ class ProblemViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    queryset = Problem.objects.filter(is_active=True).order_by("-created_at")
+    queryset = (
+        Problem.objects.filter(is_active=True)
+        .annotate(
+            comments_count=Count("comments", distinct=True),
+            artifacts_count=Count("artifacts", distinct=True),
+            working_count=Count("work_entries", distinct=True),
+        )
+        .order_by("-created_at")
+    )
     serializer_class = ProblemSerializer
     permission_classes = [permissions.AllowAny]
 
@@ -88,13 +97,25 @@ class ProblemViewSet(
         problem = self.get_object()
         serializer = ProblemWorkSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        work = ProblemWork.objects.create(
+        work, created = ProblemWork.objects.update_or_create(
             problem=problem,
             user=request.user,
-            status=serializer.validated_data.get("status", "marked"),
-            note=serializer.validated_data.get("note", ""),
+            defaults={
+                "status": serializer.validated_data.get("status", "marked"),
+                "note": serializer.validated_data.get("note", ""),
+            },
         )
-        return Response(ProblemWorkSerializer(work, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        payload = ProblemWorkSerializer(work, context={"request": request}).data
+        return Response(
+            payload,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["delete"], url_path="work")
+    def unwork(self, request, *args, **kwargs):
+        problem = self.get_object()
+        ProblemWork.objects.filter(problem=problem, user=request.user).delete()
+        return Response({"working": False, "problem_id": problem.id}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get", "post"], url_path="artifacts")
     def artifacts(self, request, *args, **kwargs):

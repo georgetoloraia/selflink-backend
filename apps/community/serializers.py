@@ -29,15 +29,24 @@ class UserTinySerializer(serializers.ModelSerializer):
 
 
 class ProblemSerializer(serializers.ModelSerializer):
-    status = serializers.CharField(write_only=True, required=False)
+    comments_count = serializers.IntegerField(read_only=True)
+    artifacts_count = serializers.IntegerField(read_only=True)
+    working_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Problem
-        fields = ["id", "title", "description", "created_at", "status"]
-        read_only_fields = ["id", "created_at"]
+        fields = [
+            "id",
+            "title",
+            "description",
+            "created_at",
+            "comments_count",
+            "artifacts_count",
+            "working_count",
+        ]
+        read_only_fields = ["id", "created_at", "comments_count", "artifacts_count", "working_count"]
 
     def create(self, validated_data: dict) -> Problem:
-        validated_data.pop("status", None)
         validated_data.setdefault("description", "")
         validated_data.setdefault("is_active", True)
         return Problem.objects.create(**validated_data)
