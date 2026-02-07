@@ -6,6 +6,7 @@ from .views import (
     CommunityLoginAPIView,
     CommunityLogoutAPIView,
     CommunityMeAPIView,
+    CommunitySummaryAPIView,
     ProblemViewSet,
 )
 
@@ -17,4 +18,5 @@ urlpatterns = router.urls + [
     path("community/auth/login/", CommunityLoginAPIView.as_view(), name="community-auth-login"),
     path("community/auth/me/", CommunityMeAPIView.as_view(), name="community-auth-me"),
     path("community/auth/logout/", CommunityLogoutAPIView.as_view(), name="community-auth-logout"),
+    path("community/summary/", CommunitySummaryAPIView.as_view(), name="community-summary"),
 ]

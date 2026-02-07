@@ -103,3 +103,26 @@ class CommunityMeSerializer(serializers.Serializer):
 
 class CommunityLogoutSerializer(serializers.Serializer):
     ok = serializers.BooleanField()
+
+
+class MoneySerializer(serializers.Serializer):
+    amount = serializers.CharField()
+    currency = serializers.CharField()
+
+
+class ContributorsSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+
+
+class DistributionItemSerializer(serializers.Serializer):
+    user = UserTinySerializer()
+    amount = serializers.CharField()
+    currency = serializers.CharField()
+
+
+class CommunitySummarySerializer(serializers.Serializer):
+    as_of = serializers.DateTimeField()
+    total_income = MoneySerializer()
+    contributors_reward = MoneySerializer()
+    contributors = ContributorsSerializer()
+    distribution_preview = DistributionItemSerializer(many=True)
