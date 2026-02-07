@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from django.contrib.auth import authenticate
-from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,12 +17,14 @@ from .models import (
     WorkArtifact,
 )
 from .permissions import AgreementAcceptedForProblem
+from .services.summary import get_community_summary
 from .serializers import (
     ArtifactCommentSerializer,
     CommunityLoginSerializer,
     CommunityMeSerializer,
     CommunityLogoutSerializer,
     CommunityLoginResponseSerializer,
+    CommunitySummarySerializer,
     ProblemAgreementSerializer,
     ProblemCommentSerializer,
     ProblemSerializer,
@@ -211,4 +212,13 @@ class CommunityLogoutAPIView(APIView):
     def post(self, request, *args, **kwargs) -> Response:
         payload = {"ok": True}
         response_serializer = CommunityLogoutSerializer(payload)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+class CommunitySummaryAPIView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs) -> Response:
+        payload = get_community_summary()
+        response_serializer = CommunitySummarySerializer(payload)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
