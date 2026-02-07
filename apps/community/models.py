@@ -9,6 +9,7 @@ from apps.core.models import BaseModel
 class Problem(BaseModel):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    status = models.CharField(max_length=32, default="open", db_index=True)
     is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
@@ -73,6 +74,26 @@ class ArtifactComment(BaseModel):
     artifact = models.ForeignKey(WorkArtifact, on_delete=models.CASCADE, related_name="comments")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="artifact_comments")
     body = models.TextField()
+
+
+class ProblemLike(BaseModel):
+    problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name="likes")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="problem_likes")
+
+    class Meta:
+        unique_together = ("problem", "user")
+
+
+class ProblemCommentLike(BaseModel):
+    comment = models.ForeignKey(ProblemComment, on_delete=models.CASCADE, related_name="likes")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="problem_comment_likes",
+    )
+
+    class Meta:
+        unique_together = ("comment", "user")
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"ArtifactComment<{self.id}>"

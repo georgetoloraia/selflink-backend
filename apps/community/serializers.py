@@ -29,9 +29,14 @@ class UserTinySerializer(serializers.ModelSerializer):
 
 
 class ProblemSerializer(serializers.ModelSerializer):
-    comments_count = serializers.IntegerField(read_only=True)
-    artifacts_count = serializers.IntegerField(read_only=True)
-    working_count = serializers.IntegerField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    comments_count = serializers.SerializerMethodField()
+    likes_count = serializers.SerializerMethodField()
+    artifacts_count = serializers.SerializerMethodField()
+    working_count = serializers.SerializerMethodField()
+    has_liked = serializers.SerializerMethodField()
+    is_working = serializers.SerializerMethodField()
+    working_on_this = serializers.SerializerMethodField()
 
     class Meta:
         model = Problem
@@ -39,17 +44,68 @@ class ProblemSerializer(serializers.ModelSerializer):
             "id",
             "title",
             "description",
+            "status",
             "created_at",
             "comments_count",
+            "likes_count",
             "artifacts_count",
             "working_count",
+            "has_liked",
+            "is_working",
+            "working_on_this",
         ]
-        read_only_fields = ["id", "created_at", "comments_count", "artifacts_count", "working_count"]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "status",
+            "comments_count",
+            "likes_count",
+            "artifacts_count",
+            "working_count",
+            "has_liked",
+            "is_working",
+            "working_on_this",
+        ]
 
     def create(self, validated_data: dict) -> Problem:
         validated_data.setdefault("description", "")
         validated_data.setdefault("is_active", True)
         return Problem.objects.create(**validated_data)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if not self.context.get("include_working_on_this"):
+            self.fields.pop("working_on_this", None)
+
+    def get_working_on_this(self, obj: Problem) -> list[dict]:
+        users = self.context.get("working_users") or []
+        return UserTinySerializer(users, many=True, context=self.context).data
+
+    def _get_int(self, obj: Problem, attr: str) -> int:
+        value = getattr(obj, attr, None)
+        return int(value or 0)
+
+    def _get_bool(self, obj: Problem, attr: str) -> bool:
+        value = getattr(obj, attr, None)
+        return bool(value)
+
+    def get_comments_count(self, obj: Problem) -> int:
+        return self._get_int(obj, "comments_count")
+
+    def get_likes_count(self, obj: Problem) -> int:
+        return self._get_int(obj, "likes_count")
+
+    def get_artifacts_count(self, obj: Problem) -> int:
+        return self._get_int(obj, "artifacts_count")
+
+    def get_working_count(self, obj: Problem) -> int:
+        return self._get_int(obj, "working_count")
+
+    def get_has_liked(self, obj: Problem) -> bool:
+        return self._get_bool(obj, "has_liked")
+
+    def get_is_working(self, obj: Problem) -> bool:
+        return self._get_bool(obj, "is_working")
 
 
 class ProblemAgreementSerializer(serializers.ModelSerializer):
@@ -86,11 +142,20 @@ class WorkArtifactSerializer(serializers.ModelSerializer):
 
 class ProblemCommentSerializer(serializers.ModelSerializer):
     user = UserTinySerializer(read_only=True)
+    likes_count = serializers.SerializerMethodField()
+    has_liked = serializers.SerializerMethodField()
 
     class Meta:
         model = ProblemComment
-        fields = ["id", "body", "created_at", "user"]
-        read_only_fields = ["id", "created_at", "user"]
+        fields = ["id", "body", "created_at", "user", "likes_count", "has_liked"]
+        read_only_fields = ["id", "created_at", "user", "likes_count", "has_liked"]
+
+    def get_likes_count(self, obj: ProblemComment) -> int:
+        value = getattr(obj, "likes_count", None)
+        return int(value or 0)
+
+    def get_has_liked(self, obj: ProblemComment) -> bool:
+        return bool(getattr(obj, "has_liked", False))
 
 
 class ArtifactCommentSerializer(serializers.ModelSerializer):

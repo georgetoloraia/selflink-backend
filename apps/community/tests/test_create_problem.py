@@ -37,6 +37,7 @@ def test_create_problem_success_and_list_public():
     data = resp.json()
     assert data["title"] == "Test problem"
     assert "id" in data
+    assert data["status"] == "open"
 
     client.force_authenticate(user=None)
     list_resp = client.get("/api/v1/community/problems/")
