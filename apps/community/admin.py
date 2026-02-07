@@ -15,7 +15,7 @@ from .models import (
 
 @admin.register(Problem)
 class ProblemAdmin(admin.ModelAdmin):
-    list_display = ("id", "title", "is_active", "created_at")
+    list_display = ("id", "title", "description", "is_active", "created_at")
     list_filter = ("is_active",)
     search_fields = ("id", "title")
     ordering = ("-created_at", "-id")
