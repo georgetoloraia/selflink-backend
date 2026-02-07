@@ -24,4 +24,5 @@ urlpatterns = [
     path("", include("apps.moderation.urls")),
     path("", include("apps.feed.urls")),
     path("", include("apps.reco.api.urls")),
+    path("", include("apps.community.urls")),
 ]
