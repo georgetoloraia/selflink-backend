@@ -92,6 +92,7 @@ LOCAL_APPS = [
     "apps.contrib_rewards",
     "apps.coin",
     "apps.realtime",
+    "apps.community",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
