@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django.contrib.auth import authenticate
-from rest_framework import permissions, status, viewsets
+from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,12 +34,19 @@ from .serializers import (
 )
 
 
-class ProblemViewSet(viewsets.ReadOnlyModelViewSet):
+class ProblemViewSet(
+    mixins.CreateModelMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
     queryset = Problem.objects.filter(is_active=True).order_by("-created_at")
     serializer_class = ProblemSerializer
     permission_classes = [permissions.AllowAny]
 
     def get_permissions(self):  # type: ignore[override]
+        if self.action == "create":
+            return [permissions.IsAuthenticated()]
         if self.action in {"work", "artifacts", "comments"} and self.request.method not in permissions.SAFE_METHODS:
             return [permissions.IsAuthenticated(), AgreementAcceptedForProblem()]
         if self.action == "agreement_accept":

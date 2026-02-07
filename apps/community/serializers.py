@@ -29,10 +29,18 @@ class UserTinySerializer(serializers.ModelSerializer):
 
 
 class ProblemSerializer(serializers.ModelSerializer):
+    status = serializers.CharField(write_only=True, required=False)
+
     class Meta:
         model = Problem
-        fields = ["id", "title", "description", "created_at"]
+        fields = ["id", "title", "description", "created_at", "status"]
         read_only_fields = ["id", "created_at"]
+
+    def create(self, validated_data: dict) -> Problem:
+        validated_data.pop("status", None)
+        validated_data.setdefault("description", "")
+        validated_data.setdefault("is_active", True)
+        return Problem.objects.create(**validated_data)
 
 
 class ProblemAgreementSerializer(serializers.ModelSerializer):
