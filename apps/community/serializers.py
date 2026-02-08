@@ -9,6 +9,7 @@ from .models import (
     Problem,
     ProblemAgreement,
     ProblemComment,
+    ProblemEvent,
     ProblemWork,
     WorkArtifact,
 )
@@ -37,6 +38,8 @@ class ProblemSerializer(serializers.ModelSerializer):
     has_liked = serializers.SerializerMethodField()
     is_working = serializers.SerializerMethodField()
     working_on_this = serializers.SerializerMethodField()
+    views_count = serializers.IntegerField(read_only=True)
+    last_activity_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Problem
@@ -53,6 +56,8 @@ class ProblemSerializer(serializers.ModelSerializer):
             "has_liked",
             "is_working",
             "working_on_this",
+            "views_count",
+            "last_activity_at",
         ]
         read_only_fields = [
             "id",
@@ -65,6 +70,8 @@ class ProblemSerializer(serializers.ModelSerializer):
             "has_liked",
             "is_working",
             "working_on_this",
+            "views_count",
+            "last_activity_at",
         ]
 
     def create(self, validated_data: dict) -> Problem:
@@ -208,3 +215,12 @@ class CommunitySummarySerializer(serializers.Serializer):
     contributors_reward = MoneySerializer()
     contributors = ContributorsSerializer()
     distribution_preview = DistributionItemSerializer(many=True)
+
+
+class ProblemEventSerializer(serializers.ModelSerializer):
+    actor = UserTinySerializer(read_only=True, allow_null=True)
+
+    class Meta:
+        model = ProblemEvent
+        fields = ["id", "type", "created_at", "actor", "metadata"]
+        read_only_fields = fields
