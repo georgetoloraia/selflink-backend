@@ -195,7 +195,12 @@ class ProblemViewSet(
             has_liked = False
         likes_count = ProblemCommentLike.objects.filter(comment=comment).count()
         return Response(
-            {"likes_count": likes_count, "has_liked": has_liked, "comment_id": comment.id},
+            {
+                "problem_id": problem.id,
+                "comment_id": comment.id,
+                "has_liked": has_liked,
+                "likes_count": likes_count,
+            },
             status=status.HTTP_200_OK,
         )
 

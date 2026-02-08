@@ -11,6 +11,8 @@ from apps.community.models import (
     AgreementAcceptance,
     ArtifactComment,
     ProblemComment,
+    ProblemCommentLike,
+    ProblemLike,
     ProblemWork,
     WorkArtifact,
 )
@@ -36,6 +38,8 @@ def _distinct_user_ids() -> set[int]:
         WorkArtifact.objects.values_list("user_id", flat=True).distinct(),
         ProblemComment.objects.values_list("user_id", flat=True).distinct(),
         ArtifactComment.objects.values_list("user_id", flat=True).distinct(),
+        ProblemLike.objects.values_list("user_id", flat=True).distinct(),
+        ProblemCommentLike.objects.values_list("user_id", flat=True).distinct(),
     ]
     for source in id_sources:
         ids.update(source)
