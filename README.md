@@ -57,5 +57,14 @@ Most contributors work in a single domain.
 
 Note: Docker Compose reads `infra/.env`; the root `.env` is only for non-Docker runs. Docker Compose interpolates `$VAR` in `infra/.env`, so escape literal `$` as `$$`. Inside containers, `localhost` does not point to other services; use Docker hostnames like `pgbouncer`, `redis`, and `opensearch`.
 
+## Build metadata (GIT_SHA)
+To stamp builds with a commit hash for debugging:
+- `GIT_SHA=$(git rev-parse --short HEAD) docker compose -f infra/compose.yaml build`
+- Or pass `--build-arg GIT_SHA=$(git rev-parse --short HEAD)` when building the API image.
+If not provided, the API will report `X-SL-Commit: unknown`.
+For convenience during local dev:
+- `./scripts/dev/build_with_sha.sh`
+- `./scripts/dev/up_with_sha.sh`
+
 ## License
 Open source. See LICENSE.

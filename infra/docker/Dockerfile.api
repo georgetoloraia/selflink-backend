@@ -15,4 +15,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
 
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 CMD ["gunicorn", "core.wsgi:application", "--bind", "0.0.0.0:8000"]

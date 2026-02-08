@@ -12,8 +12,10 @@ def test_debug_headers_present_for_community_routes():
     assert resp.status_code == 200
     assert "X-SL-Instance" in resp.headers
     assert "X-SL-DB" in resp.headers
+    assert "X-SL-Commit" in resp.headers
 
     resp = client.get("/api/v1/community/summary/")
     assert resp.status_code == 200
     assert "X-SL-Instance" in resp.headers
     assert "X-SL-DB" in resp.headers
+    assert "X-SL-Commit" in resp.headers
