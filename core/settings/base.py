@@ -371,6 +371,8 @@ _DEFAULT_CORS_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8082",
     "http://127.0.0.1:8082",
+    "https://georgetoloraia.github.io",
+    "https://community.self-link.com",
 ]
 CORS_ALLOWED_ORIGINS = [
     origin.strip()
@@ -378,6 +380,24 @@ CORS_ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+CORS_ALLOW_METHODS = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+]
 
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
