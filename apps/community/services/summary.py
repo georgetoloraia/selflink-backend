@@ -47,7 +47,8 @@ def get_community_summary() -> dict:
     contributors_count = len(_distinct_user_ids())
 
     total_income = Money(amount=_format_amount(0), currency="USD")
-    contributors_reward = Money(amount=_format_amount(0), currency="USD")
+    per_person = Decimal(total_income.amount) / contributors_count if contributors_count else Decimal(0)
+    contributors_reward = Money(amount=_format_amount(per_person), currency="USD")
 
     return {
         "as_of": as_of,
