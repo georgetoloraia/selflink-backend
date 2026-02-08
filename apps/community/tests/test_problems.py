@@ -111,4 +111,5 @@ def test_problem_like_and_comment_like():
     )
     assert comment_like.status_code == 200
     assert comment_like.json()["has_liked"] is True
+    assert comment_like.json()["problem_id"] == problem.id
     assert ProblemCommentLike.objects.filter(comment=comment, user=user).count() == 1
