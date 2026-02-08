@@ -100,6 +100,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "apps.community.middleware.CommunityNoStoreMiddleware",
+    "apps.community.middleware_debug.CommunityDebugHeadersMiddleware",
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
