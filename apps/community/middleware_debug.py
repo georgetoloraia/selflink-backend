@@ -2,19 +2,27 @@ from __future__ import annotations
 
 import os
 
+from urllib.parse import urlparse
+
 from django.conf import settings
 
 
 def _db_fingerprint() -> str:
     cfg = settings.DATABASES.get("default", {})
-    host = cfg.get("HOST") or "local"
-    name = cfg.get("NAME") or "db"
-    return f"{host}:{name}"
+    host = cfg.get("HOST")
+    if host:
+        return host
+    url = os.environ.get("DATABASE_URL", "")
+    if url:
+        parsed = urlparse(url)
+        return parsed.hostname or "local"
+    return "local"
 
 
 def _commit_fingerprint() -> str:
     return (
         os.environ.get("GIT_SHA")
+        or os.environ.get("RENDER_GIT_COMMIT")
         or os.environ.get("GIT_COMMIT")
         or os.environ.get("COMMIT_SHA")
         or "unknown"
