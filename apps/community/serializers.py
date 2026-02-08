@@ -109,19 +109,10 @@ class ProblemSerializer(serializers.ModelSerializer):
 
 
 class ProblemAgreementSerializer(serializers.ModelSerializer):
-    license_spdx = serializers.SerializerMethodField()
-    version = serializers.SerializerMethodField()
-
     class Meta:
         model = ProblemAgreement
         fields = ["id", "license_spdx", "version", "text", "is_active"]
         read_only_fields = fields
-
-    def get_license_spdx(self, obj: ProblemAgreement) -> str:
-        return "MIT"
-
-    def get_version(self, obj: ProblemAgreement) -> str:
-        return "1.0"
 
 
 class AgreementAcceptanceSerializer(serializers.ModelSerializer):

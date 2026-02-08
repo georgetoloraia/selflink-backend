@@ -21,6 +21,7 @@ from .models import (
     ProblemWork,
     WorkArtifact,
 )
+from .constants import DEFAULT_MIT_TEXT
 from .permissions import AgreementAcceptedForProblem
 from .services.summary import get_community_summary
 from .serializers import (
@@ -48,6 +49,16 @@ class ProblemViewSet(
     queryset = Problem.objects.filter(is_active=True).order_by("-created_at")
     serializer_class = ProblemSerializer
     permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer) -> None:  # type: ignore[override]
+        problem = serializer.save()
+        ProblemAgreement.objects.create(
+            problem=problem,
+            text=DEFAULT_MIT_TEXT,
+            license_spdx="MIT",
+            version="1.0",
+            is_active=True,
+        )
 
     def get_queryset(self):  # type: ignore[override]
         queryset = (

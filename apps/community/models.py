@@ -18,6 +18,8 @@ class Problem(BaseModel):
 
 class ProblemAgreement(BaseModel):
     problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name="agreements")
+    license_spdx = models.CharField(max_length=32, default="MIT")
+    version = models.CharField(max_length=16, default="1.0")
     text = models.TextField()
     is_active = models.BooleanField(default=True)
 
