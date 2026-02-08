@@ -11,7 +11,7 @@ def test_create_problem_requires_auth():
     client = APIClient()
     resp = client.post(
         "/api/v1/community/problems/",
-        {"title": "Test problem", "description": "desc", "status": "open"},
+        {"title": "Test problem", "description": "desc"},
         format="json",
     )
     assert resp.status_code in {401, 403}
@@ -30,13 +30,14 @@ def test_create_problem_success_and_list_public():
 
     resp = client.post(
         "/api/v1/community/problems/",
-        {"title": "Test problem", "description": "desc", "status": "open"},
+        {"title": "Test problem", "description": "desc"},
         format="json",
     )
     assert resp.status_code == 201
     data = resp.json()
     assert data["title"] == "Test problem"
     assert "id" in data
+    assert data["status"] == "open"
 
     client.force_authenticate(user=None)
     list_resp = client.get("/api/v1/community/problems/")
