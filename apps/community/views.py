@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django.contrib.auth import authenticate
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Exists, OuterRef, Value
+from django.db.models import Count, Exists, OuterRef, Value, F
 from django.db.models.fields import BooleanField
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -14,16 +14,19 @@ from .models import (
     AgreementAcceptance,
     ArtifactComment,
     Problem,
-    ProblemAgreement,
+    # ProblemAgreement,
+    # I comment ProblemAgreement because it's not directly used in this file,
+    # but it is used in the get_queryset method of ProblemViewSet, so we need to keep it imported for that.
     ProblemComment,
     ProblemCommentLike,
+    ProblemEvent,
     ProblemLike,
     ProblemWork,
     WorkArtifact,
 )
-from .constants import DEFAULT_MIT_TEXT
 from .permissions import AgreementAcceptedForProblem
 from .services.summary import get_community_summary
+from .services.events import emit_problem_event, ensure_active_agreement
 from .serializers import (
     ArtifactCommentSerializer,
     CommunityLoginSerializer,
@@ -31,6 +34,7 @@ from .serializers import (
     CommunityLogoutSerializer,
     CommunityLoginResponseSerializer,
     CommunitySummarySerializer,
+    ProblemEventSerializer,
     ProblemAgreementSerializer,
     ProblemCommentSerializer,
     ProblemSerializer,
@@ -52,12 +56,12 @@ class ProblemViewSet(
 
     def perform_create(self, serializer) -> None:  # type: ignore[override]
         problem = serializer.save()
-        ProblemAgreement.objects.create(
+        ensure_active_agreement(problem)
+        emit_problem_event(
             problem=problem,
-            text=DEFAULT_MIT_TEXT,
-            license_spdx="MIT",
-            version="1.0",
-            is_active=True,
+            actor=self.request.user if self.request.user.is_authenticated else None,
+            type="problem.created",
+            metadata={"problem_id": problem.id},
         )
 
     def get_queryset(self):  # type: ignore[override]
@@ -99,6 +103,8 @@ class ProblemViewSet(
 
     def retrieve(self, request, *args, **kwargs) -> Response:
         instance = self.get_object()
+        Problem.objects.filter(pk=instance.pk).update(views_count=F("views_count") + 1)
+        instance.views_count = (instance.views_count or 0) + 1
         work_qs = (
             ProblemWork.objects.filter(problem=instance)
             .select_related("user")
@@ -118,11 +124,7 @@ class ProblemViewSet(
     @action(detail=True, methods=["get"], url_path="agreement")
     def agreement(self, request, *args, **kwargs):
         problem = self.get_object()
-        agreement = (
-            ProblemAgreement.objects.filter(problem=problem, is_active=True)
-            .only("id", "text", "is_active", "problem_id")
-            .first()
-        )
+        agreement = ensure_active_agreement(problem)
         payload = {
             "agreement": ProblemAgreementSerializer(agreement).data if agreement else None
         }
@@ -131,17 +133,17 @@ class ProblemViewSet(
     @action(detail=True, methods=["post"], url_path="agreement/accept")
     def agreement_accept(self, request, *args, **kwargs):
         problem = self.get_object()
-        agreement = (
-            ProblemAgreement.objects.filter(problem=problem, is_active=True)
-            .only("id", "problem_id")
-            .first()
-        )
-        if not agreement:
-            return Response({"detail": "AGREEMENT_REQUIRED"}, status=status.HTTP_403_FORBIDDEN)
+        agreement = ensure_active_agreement(problem)
         AgreementAcceptance.objects.get_or_create(
             problem=problem,
             agreement=agreement,
             user=request.user,
+        )
+        emit_problem_event(
+            problem=problem,
+            actor=request.user,
+            type="problem.agreement_accepted",
+            metadata={"agreement_id": agreement.id},
         )
         return Response({"accepted": True, "agreement_id": agreement.id, "problem_id": problem.id})
 
@@ -158,6 +160,12 @@ class ProblemViewSet(
                 "note": serializer.validated_data.get("note", ""),
             },
         )
+        emit_problem_event(
+            problem=problem,
+            actor=request.user,
+            type="problem.work_marked",
+            metadata={"status": work.status},
+        )
         working_count = ProblemWork.objects.filter(problem=problem).count()
         payload = {
             "working_count": working_count,
@@ -173,6 +181,12 @@ class ProblemViewSet(
     def unwork(self, request, *args, **kwargs):
         problem = self.get_object()
         ProblemWork.objects.filter(problem=problem, user=request.user).delete()
+        emit_problem_event(
+            problem=problem,
+            actor=request.user,
+            type="problem.work_unmarked",
+            metadata={},
+        )
         working_count = ProblemWork.objects.filter(problem=problem).count()
         return Response(
             {"working_count": working_count, "is_working": False, "problem_id": problem.id},
@@ -185,9 +199,21 @@ class ProblemViewSet(
         if request.method.lower() == "post":
             ProblemLike.objects.get_or_create(problem=problem, user=request.user)
             has_liked = True
+            emit_problem_event(
+                problem=problem,
+                actor=request.user,
+                type="problem.liked",
+                metadata={},
+            )
         else:
             ProblemLike.objects.filter(problem=problem, user=request.user).delete()
             has_liked = False
+            emit_problem_event(
+                problem=problem,
+                actor=request.user,
+                type="problem.unliked",
+                metadata={},
+            )
         likes_count = ProblemLike.objects.filter(problem=problem).count()
         return Response(
             {"likes_count": likes_count, "has_liked": has_liked, "problem_id": problem.id},
@@ -201,9 +227,21 @@ class ProblemViewSet(
         if request.method.lower() == "post":
             ProblemCommentLike.objects.get_or_create(comment=comment, user=request.user)
             has_liked = True
+            emit_problem_event(
+                problem=problem,
+                actor=request.user,
+                type="problem.comment_liked",
+                metadata={"comment_id": comment.id},
+            )
         else:
             ProblemCommentLike.objects.filter(comment=comment, user=request.user).delete()
             has_liked = False
+            emit_problem_event(
+                problem=problem,
+                actor=request.user,
+                type="problem.comment_unliked",
+                metadata={"comment_id": comment.id},
+            )
         likes_count = ProblemCommentLike.objects.filter(comment=comment).count()
         return Response(
             {
@@ -235,6 +273,12 @@ class ProblemViewSet(
             title=serializer.validated_data["title"],
             description=serializer.validated_data.get("description", ""),
             url=serializer.validated_data.get("url", ""),
+        )
+        emit_problem_event(
+            problem=problem,
+            actor=request.user,
+            type="problem.artifact_created",
+            metadata={"artifact_id": artifact.id},
         )
         return Response(
             WorkArtifactSerializer(artifact, context={"request": request}).data,
@@ -275,10 +319,31 @@ class ProblemViewSet(
             user=request.user,
             body=serializer.validated_data["body"],
         )
+        emit_problem_event(
+            problem=problem,
+            actor=request.user,
+            type="problem.comment_created",
+            metadata={"comment_id": comment.id},
+        )
         return Response(
             ProblemCommentSerializer(comment, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=True, methods=["get"], url_path="events")
+    def events(self, request, *args, **kwargs):
+        problem = self.get_object()
+        queryset = (
+            ProblemEvent.objects.filter(problem=problem)
+            .select_related("actor")
+            .order_by("-created_at")
+        )
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = ProblemEventSerializer(page, many=True, context={"request": request})
+            return self.get_paginated_response(serializer.data)
+        serializer = ProblemEventSerializer(queryset, many=True, context={"request": request})
+        return Response(serializer.data)
 
 
 class ArtifactViewSet(viewsets.ReadOnlyModelViewSet):

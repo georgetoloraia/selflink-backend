@@ -11,6 +11,8 @@ class Problem(BaseModel):
     description = models.TextField(blank=True)
     status = models.CharField(max_length=32, default="open", db_index=True)
     is_active = models.BooleanField(default=True)
+    views_count = models.PositiveIntegerField(default=0)
+    last_activity_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"Problem<{self.id}>"
@@ -99,3 +101,25 @@ class ProblemCommentLike(BaseModel):
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"ArtifactComment<{self.id}>"
+
+
+class ProblemEvent(BaseModel):
+    problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name="events")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="community_events",
+    )
+    type = models.CharField(max_length=64, db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["problem", "-created_at"]),
+            models.Index(fields=["type", "-created_at"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - debug helper
+        return f"ProblemEvent<{self.id}>"
