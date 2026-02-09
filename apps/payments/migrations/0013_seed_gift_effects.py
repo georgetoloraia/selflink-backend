@@ -3,10 +3,26 @@ from __future__ import annotations
 from django.db import migrations
 
 
+def upsert_gift(gift_model, *, key: str, defaults: dict) -> None:
+    name = defaults.get("name")
+    gift = gift_model.objects.filter(key=key).first()
+    if not gift and name:
+        gift = gift_model.objects.filter(name=name).first()
+    if gift:
+        for field, value in defaults.items():
+            setattr(gift, field, value)
+        if key and not gift.key:
+            gift.key = key
+        gift.save()
+        return
+    gift_model.objects.create(key=key, **defaults)
+
+
 def seed_effect_gifts(apps, schema_editor) -> None:
     GiftType = apps.get_model("payments", "GiftType")
 
-    GiftType.objects.update_or_create(
+    upsert_gift(
+        GiftType,
         key="border_lighting",
         defaults={
             "name": "Border Lighting",
@@ -27,7 +43,8 @@ def seed_effect_gifts(apps, schema_editor) -> None:
         },
     )
 
-    GiftType.objects.update_or_create(
+    upsert_gift(
+        GiftType,
         key="super_like",
         defaults={
             "name": "Super Like",

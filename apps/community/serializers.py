@@ -17,7 +17,11 @@ from .models import (
 User = get_user_model()
 
 
-class UserTinySerializer(serializers.ModelSerializer):
+class StringIDModelSerializer(serializers.ModelSerializer):
+    id = serializers.CharField(read_only=True)
+
+
+class UserTinySerializer(StringIDModelSerializer):
     username = serializers.CharField(source="handle", read_only=True)
     avatar_url = serializers.SerializerMethodField()
 
@@ -29,7 +33,7 @@ class UserTinySerializer(serializers.ModelSerializer):
         return getattr(obj, "photo", None) or None
 
 
-class ProblemSerializer(serializers.ModelSerializer):
+class ProblemSerializer(StringIDModelSerializer):
     status = serializers.CharField(read_only=True)
     comments_count = serializers.SerializerMethodField()
     likes_count = serializers.SerializerMethodField()
@@ -115,21 +119,21 @@ class ProblemSerializer(serializers.ModelSerializer):
         return self._get_bool(obj, "is_working")
 
 
-class ProblemAgreementSerializer(serializers.ModelSerializer):
+class ProblemAgreementSerializer(StringIDModelSerializer):
     class Meta:
         model = ProblemAgreement
         fields = ["id", "license_spdx", "version", "text", "is_active"]
         read_only_fields = fields
 
 
-class AgreementAcceptanceSerializer(serializers.ModelSerializer):
+class AgreementAcceptanceSerializer(StringIDModelSerializer):
     class Meta:
         model = AgreementAcceptance
         fields = ["id", "problem", "agreement", "accepted_at"]
         read_only_fields = fields
 
 
-class ProblemWorkSerializer(serializers.ModelSerializer):
+class ProblemWorkSerializer(StringIDModelSerializer):
     user = UserTinySerializer(read_only=True)
 
     class Meta:
@@ -138,7 +142,7 @@ class ProblemWorkSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "user"]
 
 
-class WorkArtifactSerializer(serializers.ModelSerializer):
+class WorkArtifactSerializer(StringIDModelSerializer):
     user = UserTinySerializer(read_only=True)
 
     class Meta:
@@ -147,7 +151,7 @@ class WorkArtifactSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "user"]
 
 
-class ProblemCommentSerializer(serializers.ModelSerializer):
+class ProblemCommentSerializer(StringIDModelSerializer):
     user = UserTinySerializer(read_only=True)
     likes_count = serializers.SerializerMethodField()
     has_liked = serializers.SerializerMethodField()
@@ -165,7 +169,7 @@ class ProblemCommentSerializer(serializers.ModelSerializer):
         return bool(getattr(obj, "has_liked", False))
 
 
-class ArtifactCommentSerializer(serializers.ModelSerializer):
+class ArtifactCommentSerializer(StringIDModelSerializer):
     user = UserTinySerializer(read_only=True)
 
     class Meta:
@@ -217,7 +221,7 @@ class CommunitySummarySerializer(serializers.Serializer):
     distribution_preview = DistributionItemSerializer(many=True)
 
 
-class ProblemEventSerializer(serializers.ModelSerializer):
+class ProblemEventSerializer(StringIDModelSerializer):
     actor = UserTinySerializer(read_only=True, allow_null=True)
 
     class Meta:
