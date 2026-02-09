@@ -95,7 +95,7 @@ class ProblemViewSet(
     def get_permissions(self):  # type: ignore[override]
         if self.action == "create":
             return [permissions.IsAuthenticated()]
-        if self.action in {"work", "unwork", "artifacts", "comments", "like", "comment_like"} and self.request.method not in permissions.SAFE_METHODS:
+        if self.action in {"work", "artifacts", "comments", "like", "comment_like"} and self.request.method not in permissions.SAFE_METHODS:
             return [permissions.IsAuthenticated(), AgreementAcceptedForProblem()]
         if self.action == "agreement_accept":
             return [permissions.IsAuthenticated()]
@@ -145,41 +145,45 @@ class ProblemViewSet(
             type="problem.agreement_accepted",
             metadata={"agreement_id": agreement.id},
         )
-        return Response({"accepted": True, "agreement_id": agreement.id, "problem_id": problem.id})
+        return Response(
+            {
+                "accepted": True,
+                "agreement_id": str(agreement.id),
+                "problem_id": str(problem.id),
+            }
+        )
 
-    @action(detail=True, methods=["post"], url_path="work")
+    @action(detail=True, methods=["post", "delete"], url_path="work")
     def work(self, request, *args, **kwargs):
         problem = self.get_object()
-        serializer = ProblemWorkSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        work, created = ProblemWork.objects.update_or_create(
-            problem=problem,
-            user=request.user,
-            defaults={
-                "status": serializer.validated_data.get("status", "marked"),
-                "note": serializer.validated_data.get("note", ""),
-            },
-        )
-        emit_problem_event(
-            problem=problem,
-            actor=request.user,
-            type="problem.work_marked",
-            metadata={"status": work.status},
-        )
-        working_count = ProblemWork.objects.filter(problem=problem).count()
-        payload = {
-            "working_count": working_count,
-            "is_working": True,
-            "problem_id": problem.id,
-        }
-        return Response(
-            payload,
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
-        )
+        if request.method.lower() == "post":
+            serializer = ProblemWorkSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            work, created = ProblemWork.objects.update_or_create(
+                problem=problem,
+                user=request.user,
+                defaults={
+                    "status": serializer.validated_data.get("status", "marked"),
+                    "note": serializer.validated_data.get("note", ""),
+                },
+            )
+            emit_problem_event(
+                problem=problem,
+                actor=request.user,
+                type="problem.work_marked",
+                metadata={"status": work.status},
+            )
+            working_count = ProblemWork.objects.filter(problem=problem).count()
+            payload = {
+                "working_count": working_count,
+                "is_working": True,
+                "problem_id": str(problem.id),
+            }
+            return Response(
+                payload,
+                status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+            )
 
-    @action(detail=True, methods=["delete"], url_path="work")
-    def unwork(self, request, *args, **kwargs):
-        problem = self.get_object()
         ProblemWork.objects.filter(problem=problem, user=request.user).delete()
         emit_problem_event(
             problem=problem,
@@ -189,7 +193,11 @@ class ProblemViewSet(
         )
         working_count = ProblemWork.objects.filter(problem=problem).count()
         return Response(
-            {"working_count": working_count, "is_working": False, "problem_id": problem.id},
+            {
+                "working_count": working_count,
+                "is_working": False,
+                "problem_id": str(problem.id),
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -216,7 +224,11 @@ class ProblemViewSet(
             )
         likes_count = ProblemLike.objects.filter(problem=problem).count()
         return Response(
-            {"likes_count": likes_count, "has_liked": has_liked, "problem_id": problem.id},
+            {
+                "likes_count": likes_count,
+                "has_liked": has_liked,
+                "problem_id": str(problem.id),
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -245,8 +257,8 @@ class ProblemViewSet(
         likes_count = ProblemCommentLike.objects.filter(comment=comment).count()
         return Response(
             {
-                "problem_id": problem.id,
-                "comment_id": comment.id,
+                "problem_id": str(problem.id),
+                "comment_id": str(comment.id),
                 "has_liked": has_liked,
                 "likes_count": likes_count,
             },

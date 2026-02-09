@@ -3,6 +3,21 @@ from __future__ import annotations
 from django.db import migrations
 
 
+def upsert_gift(gift_model, *, key: str, defaults: dict) -> None:
+    name = defaults.get("name")
+    gift = gift_model.objects.filter(key=key).first()
+    if not gift and name:
+        gift = gift_model.objects.filter(name=name).first()
+    if gift:
+        for field, value in defaults.items():
+            setattr(gift, field, value)
+        if key and not gift.key:
+            gift.key = key
+        gift.save()
+        return
+    gift_model.objects.create(key=key, **defaults)
+
+
 def seed_trendy_gifts(apps, schema_editor) -> None:
     GiftType = apps.get_model("payments", "GiftType")
 
@@ -226,7 +241,7 @@ def seed_trendy_gifts(apps, schema_editor) -> None:
     ]
 
     for entry in gifts:
-        GiftType.objects.update_or_create(key=entry["key"], defaults=entry["defaults"])
+        upsert_gift(GiftType, key=entry["key"], defaults=entry["defaults"])
 
 
 def noop_reverse(apps, schema_editor) -> None:

@@ -29,6 +29,25 @@ docker compose -f infra/compose.yaml --profile storage up -d
 
 Realtime gateway (FastAPI) is enabled by default; no profile is required.
 
+## Migrations help if need
+```
+# Reset app migrations to zero (fake), then reapply for real
+python manage.py migrate <app_label> zero --fake
+python manage.py migrate <app_label>
+```
+
+Project apps (examples)
+```
+python manage.py migrate profile zero --fake
+python manage.py migrate profile
+
+python manage.py migrate payments zero --fake
+python manage.py migrate payments
+
+python manage.py migrate community zero --fake
+python manage.py migrate community
+```
+
 ---
 
 ## 🧱 Check Containers
@@ -209,6 +228,19 @@ docker compose -f infra/compose.yaml up -d --build
   sudo chmod +x /usr/local/bin/docker-compose
   COMPOSE=docker-compose make -C infra up
   ```
+
+---
+
+- **Payments gifts migration fix (production-safe)**
+
+  If you applied the patched gift seed migrations and need to normalize GiftType rows, run:
+
+  ```bash
+  python manage.py migrate payments
+  ```
+
+  This includes the forward-only repair migration:
+  - `apps/payments/migrations/0019_repair_gift_types.py`
 
 ---
 
