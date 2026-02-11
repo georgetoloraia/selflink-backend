@@ -5,7 +5,7 @@ import time
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.messaging.models import Message, ThreadMember
+from apps.messaging.models import Message, ThreadMember, MessageStatus
 
 
 def register_and_login(client: APIClient, email: str, handle: str) -> dict:
@@ -56,7 +56,7 @@ class MessagingReliabilityTests(APITestCase):
         )
         self.assertEqual(ack_response.status_code, status.HTTP_200_OK)
         message = Message.objects.get(id=message_id)
-        self.assertEqual(message.status, Message.Status.DELIVERED)
+        self.assertEqual(message.status, MessageStatus.DELIVERED)
         self.assertIsNotNone(message.delivered_at)
 
     def test_client_uuid_prevents_duplicates(self) -> None:
@@ -99,7 +99,7 @@ class MessagingReliabilityTests(APITestCase):
         self.assertEqual(len(messages), 1)
         returned = messages[0]
         self.assertEqual(str(returned["id"]), str(m2["id"]))
-        self.assertEqual(returned["status"], Message.Status.READ)
+        self.assertEqual(returned["status"], MessageStatus.READ)
         self.assertIsNotNone(returned.get("delivered_at"))
         self.assertIsNotNone(returned.get("read_at"))
 
@@ -119,13 +119,13 @@ class MessagingReliabilityTests(APITestCase):
         )
         self.assertEqual(ack_response.status_code, status.HTTP_200_OK)
         message = Message.objects.get(id=message_id)
-        self.assertEqual(message.status, Message.Status.DELIVERED)
+        self.assertEqual(message.status, MessageStatus.DELIVERED)
 
         # Marking read moves status forward; another ack should not regress it.
         read_response = self.recipient_client.post(f"/api/v1/messaging/threads/{thread_id}/read/")
         self.assertEqual(read_response.status_code, status.HTTP_200_OK)
         message.refresh_from_db()
-        self.assertEqual(message.status, Message.Status.READ)
+        self.assertEqual(message.status, MessageStatus.READ)
 
         second_ack = self.recipient_client.post(
             f"/api/v1/messaging/messages/{message_id}/ack/",
@@ -134,7 +134,7 @@ class MessagingReliabilityTests(APITestCase):
         )
         self.assertEqual(second_ack.status_code, status.HTTP_200_OK)
         message.refresh_from_db()
-        self.assertEqual(message.status, Message.Status.READ)
+        self.assertEqual(message.status, MessageStatus.READ)
 
         intruder = APIClient()
         register_and_login(intruder, "intruder@example.com", "intruder")
@@ -167,9 +167,9 @@ class MessagingReliabilityTests(APITestCase):
         self.assertEqual(membership.last_read_message_id, messages[1])
 
         updated_messages = list(Message.objects.filter(thread_id=int(thread_id)).order_by("id"))
-        self.assertEqual(updated_messages[0].status, Message.Status.READ)
-        self.assertEqual(updated_messages[1].status, Message.Status.READ)
-        self.assertEqual(updated_messages[2].status, Message.Status.SENT)
+        self.assertEqual(updated_messages[0].status, MessageStatus.READ)
+        self.assertEqual(updated_messages[1].status, MessageStatus.READ)
+        self.assertEqual(updated_messages[2].status, MessageStatus.SENT)
 
         threads = self.recipient_client.get("/api/v1/messaging/threads/")
         self.assertEqual(threads.status_code, status.HTTP_200_OK)

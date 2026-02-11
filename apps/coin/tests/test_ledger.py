@@ -10,8 +10,11 @@ from django.utils import timezone
 
 from apps.coin.models import (
     CoinAccount,
+    CoinAccountStatus,
     CoinEvent,
+    CoinEventType,
     CoinLedgerEntry,
+    CoinLedgerEntryDirection,
     SYSTEM_ACCOUNT_FEES,
     SYSTEM_ACCOUNT_MINT,
     SYSTEM_ACCOUNT_REVENUE,
@@ -24,18 +27,18 @@ from apps.coin.services.ledger import (
     post_event_and_entries,
 )
 from apps.coin.services.payments import mint_from_payment_event
-from apps.payments.models import PaymentEvent
+from apps.payments.models import PaymentEvent, PaymentEventProvider, PaymentEventStatus
 from apps.users.models import User
 
 
 def _create_payment_event(*, user: User, amount_cents: int, provider_event_id: str) -> PaymentEvent:
     return PaymentEvent.objects.create(
-        provider=PaymentEvent.Provider.STRIPE,
+        provider=PaymentEventProvider.STRIPE,
         provider_event_id=provider_event_id,
         event_type="checkout.session.completed",
         user=user,
         amount_cents=amount_cents,
-        status=PaymentEvent.Status.RECEIVED,
+        status=PaymentEventStatus.RECEIVED,
         raw_body_hash=hashlib.sha256(provider_event_id.encode("utf-8")).hexdigest(),
         verified_at=timezone.now(),
     )
@@ -50,27 +53,27 @@ def test_balanced_transaction_succeeds():
     )
 
     event = post_event_and_entries(
-        event_type=CoinEvent.EventType.TRANSFER,
+        event_type=CoinEventType.TRANSFER,
         created_by=None,
         entries=[
             {
                 "account_key": SYSTEM_ACCOUNT_MINT,
                 "amount_cents": 1000,
                 "currency": "SLC",
-                "direction": CoinLedgerEntry.Direction.DEBIT,
+                "direction": CoinLedgerEntryDirection.DEBIT,
             },
             {
                 "account_key": f"user:{user.id}",
                 "amount_cents": 1000,
                 "currency": "SLC",
-                "direction": CoinLedgerEntry.Direction.CREDIT,
+                "direction": CoinLedgerEntryDirection.CREDIT,
             },
         ],
     )
     entries = list(event.ledger_entries.all())
     assert len(entries) == 2
-    credits = [e for e in entries if e.direction == CoinLedgerEntry.Direction.CREDIT]
-    debits = [e for e in entries if e.direction == CoinLedgerEntry.Direction.DEBIT]
+    credits = [e for e in entries if e.direction == CoinLedgerEntryDirection.CREDIT]
+    debits = [e for e in entries if e.direction == CoinLedgerEntryDirection.DEBIT]
     assert sum(e.amount_cents for e in credits) == sum(e.amount_cents for e in debits)
 
 
@@ -83,20 +86,20 @@ def test_unbalanced_transaction_raises():
     )
     with pytest.raises(ValidationError):
         post_event_and_entries(
-            event_type=CoinEvent.EventType.TRANSFER,
+            event_type=CoinEventType.TRANSFER,
             created_by=None,
             entries=[
                 {
                     "account_key": SYSTEM_ACCOUNT_MINT,
                     "amount_cents": 500,
                     "currency": "SLC",
-                    "direction": CoinLedgerEntry.Direction.DEBIT,
+                    "direction": CoinLedgerEntryDirection.DEBIT,
                 },
                 {
                     "account_key": f"user:{user.id}",
                     "amount_cents": 300,
                     "currency": "SLC",
-                    "direction": CoinLedgerEntry.Direction.CREDIT,
+                    "direction": CoinLedgerEntryDirection.CREDIT,
                 },
             ],
         )
@@ -112,20 +115,20 @@ def test_immutability():
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
     event = post_event_and_entries(
-        event_type=CoinEvent.EventType.TRANSFER,
+        event_type=CoinEventType.TRANSFER,
         created_by=None,
         entries=[
             {
                 "account_key": SYSTEM_ACCOUNT_MINT,
                 "amount_cents": 200,
                 "currency": "SLC",
-                "direction": CoinLedgerEntry.Direction.DEBIT,
+                "direction": CoinLedgerEntryDirection.DEBIT,
             },
             {
                 "account_key": f"user:{user.id}",
                 "amount_cents": 200,
                 "currency": "SLC",
-                "direction": CoinLedgerEntry.Direction.CREDIT,
+                "direction": CoinLedgerEntryDirection.CREDIT,
             },
         ],
     )
@@ -169,9 +172,9 @@ def test_transfer_balances_without_fee():
     receiver_entry = next(e for e in entries if e.account_key == f"user:{receiver.id}")
 
     assert sender_entry.amount_cents == amount_cents
-    assert sender_entry.direction == CoinLedgerEntry.Direction.DEBIT
+    assert sender_entry.direction == CoinLedgerEntryDirection.DEBIT
     assert receiver_entry.amount_cents == amount_cents
-    assert receiver_entry.direction == CoinLedgerEntry.Direction.CREDIT
+    assert receiver_entry.direction == CoinLedgerEntryDirection.CREDIT
 
 
 @pytest.mark.django_db
@@ -234,12 +237,12 @@ def test_unverified_payment_event_blocks_mint():
         name="User Unverified",
     )
     payment_event = PaymentEvent.objects.create(
-        provider=PaymentEvent.Provider.STRIPE,
+        provider=PaymentEventProvider.STRIPE,
         provider_event_id="evt_unverified",
         event_type="checkout.session.completed",
         user=user,
         amount_cents=1000,
-        status=PaymentEvent.Status.RECEIVED,
+        status=PaymentEventStatus.RECEIVED,
         raw_body_hash="hash",
         verified_at=None,
     )
@@ -263,7 +266,7 @@ def test_spend_posts_to_revenue_account():
     event = create_spend(user=user, amount_cents=200, reference="product:test")
     entries = list(event.ledger_entries.all())
     revenue_entry = next(e for e in entries if e.account_key == SYSTEM_ACCOUNT_REVENUE)
-    assert revenue_entry.direction == CoinLedgerEntry.Direction.CREDIT
+    assert revenue_entry.direction == CoinLedgerEntryDirection.CREDIT
     assert revenue_entry.amount_cents == 200
 
 
@@ -277,17 +280,17 @@ def test_suspended_accounts_cannot_send_or_receive():
     mint_for_payment(payment_event=payment_event)
 
     sender_account = CoinAccount.objects.get(user=sender)
-    sender_account.status = CoinAccount.Status.SUSPENDED
+    sender_account.status = CoinAccountStatus.SUSPENDED
     sender_account.save(update_fields=["status", "updated_at"])
 
     with pytest.raises(ValidationError):
         create_transfer(sender=sender, receiver=receiver, amount_cents=200)
 
-    sender_account.status = CoinAccount.Status.ACTIVE
+    sender_account.status = CoinAccountStatus.ACTIVE
     sender_account.save(update_fields=["status", "updated_at"])
 
     receiver_account = CoinAccount.objects.get(user=receiver)
-    receiver_account.status = CoinAccount.Status.SUSPENDED
+    receiver_account.status = CoinAccountStatus.SUSPENDED
     receiver_account.save(update_fields=["status", "updated_at"])
 
     with pytest.raises(ValidationError):
@@ -304,7 +307,7 @@ def test_suspended_system_account_rejected():
     mint_for_payment(payment_event=payment_event)
 
     fees_account = CoinAccount.objects.get(account_key=SYSTEM_ACCOUNT_FEES)
-    fees_account.status = CoinAccount.Status.SUSPENDED
+    fees_account.status = CoinAccountStatus.SUSPENDED
     fees_account.save(update_fields=["status", "updated_at"])
 
     with pytest.raises(ValidationError):
@@ -324,20 +327,20 @@ def test_system_account_whitelist_rejects_unknown():
     )
     with pytest.raises(ValidationError):
         post_event_and_entries(
-            event_type=CoinEvent.EventType.TRANSFER,
+            event_type=CoinEventType.TRANSFER,
             created_by=None,
             entries=[
                 {
                     "account_key": "system:bogus",
                     "amount_cents": 100,
                     "currency": "SLC",
-                    "direction": CoinLedgerEntry.Direction.DEBIT,
+                    "direction": CoinLedgerEntryDirection.DEBIT,
                 },
                 {
                     "account_key": f"user:{user.id}",
                     "amount_cents": 100,
                     "currency": "SLC",
-                    "direction": CoinLedgerEntry.Direction.CREDIT,
+                    "direction": CoinLedgerEntryDirection.CREDIT,
                 },
             ],
         )
@@ -353,20 +356,20 @@ def test_unknown_account_key_rejected():
 
     with pytest.raises(ValidationError):
         post_event_and_entries(
-            event_type=CoinEvent.EventType.TRANSFER,
+            event_type=CoinEventType.TRANSFER,
             created_by=None,
             entries=[
                 {
                     "account_key": SYSTEM_ACCOUNT_MINT,
                     "amount_cents": 100,
                     "currency": "SLC",
-                    "direction": CoinLedgerEntry.Direction.DEBIT,
+                    "direction": CoinLedgerEntryDirection.DEBIT,
                 },
                 {
                     "account_key": "user:999999",
                     "amount_cents": 100,
                     "currency": "SLC",
-                    "direction": CoinLedgerEntry.Direction.CREDIT,
+                    "direction": CoinLedgerEntryDirection.CREDIT,
                 },
             ],
         )

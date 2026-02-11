@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from apps.mentor.models import MentorMessage, MentorSession
+from apps.mentor.models import MentorMessage, MentorSession, MentorMessageRole
 
 # Limit how many past turns we feed back into the LLM to keep prompts small.
 DEFAULT_HISTORY_LIMIT = 20
@@ -45,7 +45,7 @@ def load_conversation_history(
         role_value = msg["role"]
         role = (
             "assistant"
-            if role_value in (MentorMessage.Role.MENTOR, MentorMessage.Role.ASSISTANT)
+            if role_value in (MentorMessageRole.MENTOR, MentorMessageRole.ASSISTANT)
             else "user"
         )
         content = msg["content"] or ""

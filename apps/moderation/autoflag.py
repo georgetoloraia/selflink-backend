@@ -4,7 +4,7 @@ from typing import Iterable
 
 from django.conf import settings
 
-from apps.moderation.models import Report
+from apps.moderation.models import Report, ReportTargetType, ReportStatus
 
 
 def _banned_words() -> Iterable[str]:
@@ -28,11 +28,11 @@ def auto_report_message(message) -> None:
     if _contains_banned_word(message.body):
         Report.objects.get_or_create(
             reporter=message.sender,
-            target_type=Report.TargetType.MESSAGE,
+            target_type=ReportTargetType.MESSAGE,
             target_id=message.id,
             defaults={
                 "reason": "auto_flag:banned_word",
-                "status": Report.Status.IN_REVIEW,
+                "status": ReportStatus.IN_REVIEW,
                 "notes": message.body[:200],
             },
         )
@@ -44,11 +44,11 @@ def auto_report_post(post) -> None:
     if _contains_banned_word(post.text):
         Report.objects.get_or_create(
             reporter=post.author,
-            target_type=Report.TargetType.POST,
+            target_type=ReportTargetType.POST,
             target_id=post.id,
             defaults={
                 "reason": "auto_flag:banned_word",
-                "status": Report.Status.IN_REVIEW,
+                "status": ReportStatus.IN_REVIEW,
                 "notes": post.text[:200],
             },
         )

@@ -5,9 +5,9 @@ from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.coin.models import CoinEvent
+from apps.coin.models import CoinEvent, CoinEventType
 from apps.coin.services.ledger import get_balance_cents, get_or_create_user_account
-from apps.payments.models import PaymentCheckout, PaymentEvent
+from apps.payments.models import PaymentCheckout, PaymentEvent, PaymentEventProvider, PaymentEventStatus
 from apps.users.models import User
 
 
@@ -26,7 +26,7 @@ class StripeWebhookCoinTests(TestCase):
     @patch("apps.payments.webhook.get_stripe_client")
     def test_duplicate_webhook_does_not_double_mint(self, mock_get_client: Mock) -> None:
         checkout = PaymentCheckout.objects.create(
-            provider=PaymentEvent.Provider.STRIPE,
+            provider=PaymentEventProvider.STRIPE,
             user=self.user,
             amount_cents=1500,
             currency="USD",
@@ -55,11 +55,11 @@ class StripeWebhookCoinTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 1)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 1)
         account = get_or_create_user_account(self.user)
         self.assertEqual(get_balance_cents(account.account_key), 1500)
         payment_event = PaymentEvent.objects.get(
-            provider=PaymentEvent.Provider.STRIPE,
+            provider=PaymentEventProvider.STRIPE,
             provider_event_id="evt_coin_1",
         )
         self.assertEqual(payment_event.amount_cents, 1500)
@@ -72,7 +72,7 @@ class StripeWebhookCoinTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 1)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 1)
         self.assertEqual(get_balance_cents(account.account_key), 1500)
 
         self.assertIsNotNone(payment_event.minted_coin_event_id)
@@ -95,7 +95,7 @@ class StripeWebhookCoinTests(TestCase):
     @patch("apps.payments.webhook.get_stripe_client")
     def test_non_paid_event_does_not_mint(self, mock_get_client: Mock) -> None:
         checkout = PaymentCheckout.objects.create(
-            provider=PaymentEvent.Provider.STRIPE,
+            provider=PaymentEventProvider.STRIPE,
             user=self.user,
             amount_cents=1500,
             currency="USD",
@@ -124,7 +124,7 @@ class StripeWebhookCoinTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)
 
     @patch("apps.payments.webhook.get_stripe_client")
     def test_unknown_reference_rejected(self, mock_get_client: Mock) -> None:
@@ -152,7 +152,7 @@ class StripeWebhookCoinTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(PaymentEvent.objects.count(), 0)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)
 
     @patch("apps.payments.webhook.get_stripe_client")
     def test_payment_event_user_mismatch_rejected(self, mock_get_client: Mock) -> None:
@@ -163,19 +163,19 @@ class StripeWebhookCoinTests(TestCase):
             password="pass12345",
         )
         checkout = PaymentCheckout.objects.create(
-            provider=PaymentEvent.Provider.STRIPE,
+            provider=PaymentEventProvider.STRIPE,
             user=self.user,
             amount_cents=1500,
             currency="USD",
         )
         PaymentEvent.objects.create(
-            provider=PaymentEvent.Provider.STRIPE,
+            provider=PaymentEventProvider.STRIPE,
             provider_event_id="evt_coin_4",
             event_type="checkout.session.completed",
             user=other,
             amount_cents=1500,
             currency="USD",
-            status=PaymentEvent.Status.RECEIVED,
+            status=PaymentEventStatus.RECEIVED,
             raw_body_hash="hash",
         )
         event = {
@@ -201,4 +201,4 @@ class StripeWebhookCoinTests(TestCase):
             HTTP_STRIPE_SIGNATURE="t=1,v1=valid",
         )
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Iterable, List, Tuple
 
-from apps.social.models import Follow, Post, Timeline
+from apps.social.models import Follow, Post, Timeline, PostVisibility
 from apps.users.models import User
 
 
@@ -24,7 +24,7 @@ def follow_relationship_weight(follow: Follow) -> float:
 
 def select_candidate_posts(user: User, follow_ids: Iterable[int], limit: int = 200) -> List[Post]:
     return list(
-        Post.objects.filter(author_id__in=follow_ids, visibility__in=[Post.Visibility.PUBLIC, Post.Visibility.FOLLOWERS])
+        Post.objects.filter(author_id__in=follow_ids, visibility__in=[PostVisibility.PUBLIC, PostVisibility.FOLLOWERS])
         .select_related("author", "author__settings")
         .prefetch_related("media")
         .order_by("-created_at")[:limit]

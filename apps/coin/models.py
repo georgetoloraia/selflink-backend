@@ -22,11 +22,24 @@ SYSTEM_ACCOUNT_KEYS = {
 }
 
 
-class CoinAccount(BaseModel):
-    class Status(models.TextChoices):
-        ACTIVE = "active", "Active"
-        SUSPENDED = "suspended", "Suspended"
+class CoinAccountStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    SUSPENDED = "suspended", "Suspended"
 
+
+class CoinEventType(models.TextChoices):
+    MINT = "mint", "Mint"
+    TRANSFER = "transfer", "Transfer"
+    SPEND = "spend", "Spend"
+    REFUND = "refund", "Refund"
+
+
+class CoinLedgerEntryDirection(models.TextChoices):
+    DEBIT = "DEBIT", "Debit"
+    CREDIT = "CREDIT", "Credit"
+
+
+class CoinAccount(BaseModel):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -37,7 +50,7 @@ class CoinAccount(BaseModel):
     account_key = models.CharField(max_length=255, unique=True)
     label = models.CharField(max_length=255, blank=True)
     is_system = models.BooleanField(default=False)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    status = models.CharField(max_length=16, choices=CoinAccountStatus.choices, default=CoinAccountStatus.ACTIVE)
 
     class Meta:
         indexes = [
@@ -59,13 +72,7 @@ class CoinAccount(BaseModel):
 
 
 class CoinEvent(BaseModel):
-    class EventType(models.TextChoices):
-        MINT = "mint", "Mint"
-        TRANSFER = "transfer", "Transfer"
-        SPEND = "spend", "Spend"
-        REFUND = "refund", "Refund"
-
-    event_type = models.CharField(max_length=32, choices=EventType.choices)
+    event_type = models.CharField(max_length=32, choices=CoinEventType.choices)
     occurred_at = models.DateTimeField(default=timezone.now)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -92,10 +99,6 @@ class CoinEvent(BaseModel):
 
 
 class CoinLedgerEntry(BaseModel):
-    class Direction(models.TextChoices):
-        DEBIT = "DEBIT", "Debit"
-        CREDIT = "CREDIT", "Credit"
-
     tx_id = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
     event = models.ForeignKey(
         CoinEvent,
@@ -105,7 +108,7 @@ class CoinLedgerEntry(BaseModel):
     account_key = models.CharField(max_length=255)
     amount_cents = models.BigIntegerField(help_text="Smallest unit in cents.")
     currency = models.CharField(max_length=16, default=COIN_CURRENCY)
-    direction = models.CharField(max_length=6, choices=Direction.choices)
+    direction = models.CharField(max_length=6, choices=CoinLedgerEntryDirection.choices)
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
@@ -126,7 +129,7 @@ class CoinLedgerEntry(BaseModel):
         raise ValidationError("CoinLedgerEntry rows are immutable; deletion is not allowed.")
 
     def signed_amount(self) -> int:
-        return self.amount_cents if self.direction == self.Direction.CREDIT else -self.amount_cents
+        return self.amount_cents if self.direction == CoinLedgerEntryDirection.CREDIT else -self.amount_cents
 
 
 class MonthlyCoinSnapshot(BaseModel):

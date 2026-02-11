@@ -3,10 +3,15 @@ from __future__ import annotations
 import pytest
 from rest_framework.test import APIClient
 
-from apps.coin.models import CoinAccount, CoinEvent, CoinLedgerEntry, PaidProduct, UserEntitlement
+from apps.coin.models import (
+    CoinAccount,
+    CoinEventType,
+    CoinLedgerEntryDirection,
+    PaidProduct,
+    UserEntitlement,
+)
 from apps.coin.services.ledger import post_event_and_entries
 from apps.users.models import User
-
 
 def _seed_balance(user: User, amount_cents: int) -> None:
     CoinAccount.objects.get_or_create(
@@ -14,7 +19,7 @@ def _seed_balance(user: User, amount_cents: int) -> None:
         defaults={"account_key": CoinAccount.user_account_key(user.id)},
     )
     post_event_and_entries(
-        event_type=CoinEvent.EventType.TRANSFER,
+        event_type=CoinEventType.TRANSFER,
         created_by=None,
         metadata={"seed": True},
         entries=[
@@ -22,13 +27,13 @@ def _seed_balance(user: User, amount_cents: int) -> None:
                 "account_key": "system:mint",
                 "amount_cents": amount_cents,
                 "currency": "SLC",
-                "direction": CoinLedgerEntry.Direction.DEBIT,
+                "direction": CoinLedgerEntryDirection.DEBIT,
             },
             {
                 "account_key": f"user:{user.id}",
                 "amount_cents": amount_cents,
                 "currency": "SLC",
-                "direction": CoinLedgerEntry.Direction.CREDIT,
+                "direction": CoinLedgerEntryDirection.CREDIT,
             },
         ],
     )

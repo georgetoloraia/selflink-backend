@@ -7,7 +7,7 @@ from django.core.files.storage import default_storage
 from django.test import override_settings
 from django.utils.functional import empty
 
-from apps.messaging.models import Message, MessageAttachment, Thread
+from apps.messaging.models import Message, MessageAttachment, Thread, MessageType, MessageAttachmentType
 
 
 @pytest.mark.django_db
@@ -22,12 +22,12 @@ def test_local_storage_url_uses_media_prefix():
     message = Message.objects.create(
         thread=thread,
         sender=user,
-        type=Message.Type.IMAGE,
+        type=MessageType.IMAGE,
     )
     attachment = MessageAttachment.objects.create(
         message=message,
         file="messages/attachments/test.png",
-        type=MessageAttachment.AttachmentType.IMAGE,
+        type=MessageAttachmentType.IMAGE,
         mime_type="image/png",
     )
 
@@ -67,12 +67,12 @@ def test_s3_storage_url_is_absolute():
         message = Message.objects.create(
             thread=thread,
             sender=user,
-            type=Message.Type.IMAGE,
+            type=MessageType.IMAGE,
         )
         attachment = MessageAttachment.objects.create(
             message=message,
             file="messages/attachments/test.png",
-            type=MessageAttachment.AttachmentType.IMAGE,
+            type=MessageAttachmentType.IMAGE,
             mime_type="image/png",
         )
 

@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.coin.services.ledger import mint_for_payment
-from apps.payments.models import GiftType, PaymentEvent
+from apps.payments.models import GiftType, PaymentEvent, PaymentEventProvider, PaymentEventStatus
 from apps.social.models import Post
 from apps.users.models import User
 
@@ -33,12 +33,12 @@ class GiftPublishOnCommitTests(TransactionTestCase):
             is_active=True,
         )
         event = PaymentEvent.objects.create(
-            provider=PaymentEvent.Provider.STRIPE,
+            provider=PaymentEventProvider.STRIPE,
             provider_event_id="evt_commit_1",
             event_type="checkout.session.completed",
             user=self.sender,
             amount_cents=1000,
-            status=PaymentEvent.Status.RECEIVED,
+            status=PaymentEventStatus.RECEIVED,
             raw_body_hash=hashlib.sha256(b"evt_commit_1").hexdigest(),
             verified_at=timezone.now(),
         )

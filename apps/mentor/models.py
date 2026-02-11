@@ -4,6 +4,18 @@ from django.db import models
 from apps.core.models import BaseModel
 
 
+class MentorMessageRole(models.TextChoices):
+    USER = "user", "User"
+    ASSISTANT = "assistant", "Assistant"
+    MENTOR = "mentor", "Mentor"  # legacy alias
+
+
+class DailyTaskStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    COMPLETED = "completed", "Completed"
+    SKIPPED = "skipped", "Skipped"
+
+
 class MentorProfile(BaseModel):
     user = models.OneToOneField("users.User", on_delete=models.CASCADE, related_name="mentor_profile")
     tone = models.CharField(max_length=32, default="gentle")
@@ -34,17 +46,12 @@ class MentorSession(BaseModel):
 
 
 class MentorMessage(BaseModel):
-    class Role(models.TextChoices):
-        USER = "user", "User"
-        ASSISTANT = "assistant", "Assistant"
-        MENTOR = "mentor", "Mentor"  # legacy alias
-
     session = models.ForeignKey(
         MentorSession,
         related_name="messages",
         on_delete=models.CASCADE,
     )
-    role = models.CharField(max_length=16, choices=Role.choices)
+    role = models.CharField(max_length=16, choices=MentorMessageRole.choices)
     content = models.TextField()
     meta = models.JSONField(blank=True, null=True)
 
@@ -54,15 +61,10 @@ class MentorMessage(BaseModel):
 
 
 class DailyTask(BaseModel):
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        COMPLETED = "completed", "Completed"
-        SKIPPED = "skipped", "Skipped"
-
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="daily_tasks")
     task = models.CharField(max_length=255)
     due_date = models.DateField()
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=16, choices=DailyTaskStatus.choices, default=DailyTaskStatus.PENDING)
 
 
 class MentorMemory(BaseModel):

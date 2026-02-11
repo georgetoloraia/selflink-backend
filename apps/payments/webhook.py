@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 
 from apps.coin.services.payments import mint_from_payment_event
 from apps.payments.clients import get_stripe_client
-from apps.payments.models import PaymentCheckout, PaymentEvent
+from apps.payments.models import PaymentCheckout, PaymentEvent, PaymentEventProvider, PaymentEventStatus, PaymentCheckoutStatus
 from apps.payments.services import update_subscription_from_stripe
 from .feature_flag import provider_enabled
 
@@ -101,7 +101,7 @@ class StripeWebhookView(APIView):
                 return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
             checkout = PaymentCheckout.objects.select_related("user").filter(
-                provider=PaymentEvent.Provider.STRIPE,
+                provider=PaymentEventProvider.STRIPE,
                 reference=reference,
             ).first()
             if not checkout:
@@ -140,13 +140,13 @@ class StripeWebhookView(APIView):
 
             raw_body_hash = hashlib.sha256(request.body).hexdigest()
             verified_at = timezone.now()
-            status_value = PaymentEvent.Status.RECEIVED
+            status_value = PaymentEventStatus.RECEIVED
             if payment_status == "unpaid":
-                status_value = PaymentEvent.Status.FAILED
+                status_value = PaymentEventStatus.FAILED
 
             try:
                 payment_event, created = PaymentEvent.objects.get_or_create(
-                    provider=PaymentEvent.Provider.STRIPE,
+                    provider=PaymentEventProvider.STRIPE,
                     provider_event_id=provider_event_id,
                     defaults={
                         "event_type": event_type or "",
@@ -160,7 +160,7 @@ class StripeWebhookView(APIView):
                 )
             except IntegrityError:
                 payment_event = PaymentEvent.objects.filter(
-                    provider=PaymentEvent.Provider.STRIPE,
+                    provider=PaymentEventProvider.STRIPE,
                     provider_event_id=provider_event_id,
                 ).first()
                 created = False
@@ -180,11 +180,11 @@ class StripeWebhookView(APIView):
                 if payment_event.verified_at is None:
                     payment_event.verified_at = verified_at
                     payment_event.save(update_fields=["verified_at", "updated_at"])
-                if payment_event.status != status_value and status_value == PaymentEvent.Status.FAILED:
+                if payment_event.status != status_value and status_value == PaymentEventStatus.FAILED:
                     payment_event.status = status_value
                     payment_event.save(update_fields=["status", "updated_at"])
                 if payment_event.minted_coin_event_id:
-                    checkout.status = PaymentCheckout.Status.PAID
+                    checkout.status = PaymentCheckoutStatus.PAID
                     checkout.save(update_fields=["status", "updated_at"])
                     logger.info(
                         "coin_mint.duplicate provider=stripe event_id=%s user_id=%s amount_cents=%s",
@@ -200,8 +200,8 @@ class StripeWebhookView(APIView):
                     provider_event_id,
                     payment_status,
                 )
-                if status_value == PaymentEvent.Status.FAILED:
-                    checkout.status = PaymentCheckout.Status.FAILED
+                if status_value == PaymentEventStatus.FAILED:
+                    checkout.status = PaymentCheckoutStatus.FAILED
                     checkout.save(update_fields=["status", "updated_at"])
                 return Response({"received": True})
 
@@ -219,9 +219,9 @@ class StripeWebhookView(APIView):
                 )
                 return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
             payment_event.minted_coin_event = minted_event
-            payment_event.status = PaymentEvent.Status.MINTED
+            payment_event.status = PaymentEventStatus.MINTED
             payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
-            checkout.status = PaymentCheckout.Status.PAID
+            checkout.status = PaymentCheckoutStatus.PAID
             checkout.save(update_fields=["status", "updated_at"])
             logger.info(
                 "coin_mint.accepted provider=stripe event_id=%s user_id=%s amount_cents=%s coin_event_id=%s",

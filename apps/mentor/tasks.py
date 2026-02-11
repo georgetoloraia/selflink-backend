@@ -17,7 +17,7 @@ from apps.ai.services.mentor import (
 from apps.astro.models import NatalChart
 from apps.astro.services.transits import get_today_transits
 from apps.matching.services.soulmatch import calculate_soulmatch
-from apps.mentor.models import MentorMessage, MentorSession
+from apps.mentor.models import MentorMessage, MentorSession, MentorMessageRole
 from apps.mentor.services import generate_mentor_reply, llm_client
 from apps.mentor.services import memory_manager, prompt_builder, safety
 from apps.mentor.services.llm_client import build_prompt, full_completion
@@ -80,7 +80,7 @@ def mentor_chat_generate_task(
 
     existing = MentorMessage.objects.filter(
         session=session,
-        role=MentorMessage.Role.ASSISTANT,
+        role=MentorMessageRole.ASSISTANT,
         meta__request_id=user_message_id,
         meta__task_version=task_version,
     ).first()
@@ -128,7 +128,7 @@ def mentor_chat_generate_task(
     with transaction.atomic():
         assistant_message = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.ASSISTANT,
+            role=MentorMessageRole.ASSISTANT,
             content=reply_text,
             meta=meta,
         )
@@ -149,7 +149,7 @@ def mentor_daily_entry_task(
 
     existing = MentorMessage.objects.filter(
         session=session,
-        role=MentorMessage.Role.MENTOR,
+        role=MentorMessageRole.MENTOR,
         meta__request_id=user_message_id,
         meta__task_version=task_version,
     ).first()
@@ -188,7 +188,7 @@ def mentor_daily_entry_task(
     with transaction.atomic():
         mentor_message = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.MENTOR,
+            role=MentorMessageRole.MENTOR,
             content=mentor_reply,
             meta=meta,
         )
@@ -231,7 +231,7 @@ def mentor_natal_generate_task(
     with transaction.atomic():
         mentor_message = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.MENTOR,
+            role=MentorMessageRole.MENTOR,
             content=reply_text,
             meta=meta,
         )
@@ -283,7 +283,7 @@ def mentor_daily_mentor_task(
     with transaction.atomic():
         mentor_message = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.MENTOR,
+            role=MentorMessageRole.MENTOR,
             content=reply_text,
             meta=meta,
         )
@@ -338,7 +338,7 @@ def mentor_soulmatch_generate_task(
     with transaction.atomic():
         mentor_message = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.MENTOR,
+            role=MentorMessageRole.MENTOR,
             content=reply_text,
             meta=meta,
         )

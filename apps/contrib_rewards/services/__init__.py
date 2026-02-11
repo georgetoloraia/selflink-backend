@@ -12,7 +12,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.contrib_rewards.models import ContributorProfile, MonthlyRewardSnapshot, Payout, RewardEvent
+from apps.contrib_rewards.models import ContributorProfile, MonthlyRewardSnapshot, Payout, RewardEvent, PayoutStatus
 
 
 @dataclass
@@ -187,7 +187,7 @@ def calculate_monthly_rewards(
                     contributor=payout.contributor,
                     points=payout.points,
                     amount_cents=payout.amount_cents,
-                    status=Payout.Status.PENDING,
+                    status=PayoutStatus.PENDING,
                 )
                 for payout in payouts
             ]

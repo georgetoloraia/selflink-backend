@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.coin.models import CoinEvent
-from apps.payments.models import PaymentEvent
+from apps.coin.models import CoinEvent, CoinEventType
+from apps.payments.models import PaymentEvent, PaymentEventProvider
 
 
 class Command(BaseCommand):
@@ -16,7 +16,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         provider = str(options.get("provider") or "").strip().lower()
-        if provider not in PaymentEvent.Provider.values:
+        if provider not in PaymentEventProvider.values:
             raise CommandError(f"Unsupported provider: {provider}")
 
         limit = max(1, min(int(options.get("limit") or 50), 500))
@@ -35,7 +35,7 @@ class Command(BaseCommand):
                 )
 
         missing_payment = (
-            CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT, idempotency_key__startswith=f"{provider}:")
+            CoinEvent.objects.filter(event_type=CoinEventType.MINT, idempotency_key__startswith=f"{provider}:")
             .filter(payment_events__isnull=True)
             .order_by("created_at", "id")
         )

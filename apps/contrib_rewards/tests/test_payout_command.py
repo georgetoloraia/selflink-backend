@@ -6,7 +6,7 @@ import pytest
 from django.core.management import call_command
 from django.utils import timezone
 
-from apps.contrib_rewards.models import ContributorProfile, LedgerEntry, RewardEvent
+from apps.contrib_rewards.models import ContributorProfile, LedgerEntryDirection, RewardEventType
 from apps.contrib_rewards.services.ledger import post_event_and_ledger_entries
 from apps.contrib_rewards.services.payout import generate_monthly_payout
 from apps.users.models import User
@@ -25,19 +25,19 @@ def test_payout_command_dry_run_hash_stable():
     contributor1 = ContributorProfile.objects.get(user=user1)
     contributor2 = ContributorProfile.objects.get(user=user2)
     post_event_and_ledger_entries(
-        event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
+        event_type=RewardEventType.MANUAL_ADJUSTMENT,
         contributor=contributor1,
         entries=[
-            {"account": "platform:rewards_pool", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-            {"account": f"user:{user1.id}", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+            {"account": "platform:rewards_pool", "amount": 10, "currency": "POINTS", "direction": LedgerEntryDirection.DEBIT},
+            {"account": f"user:{user1.id}", "amount": 10, "currency": "POINTS", "direction": LedgerEntryDirection.CREDIT},
         ],
     )
     post_event_and_ledger_entries(
-        event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
+        event_type=RewardEventType.MANUAL_ADJUSTMENT,
         contributor=contributor2,
         entries=[
-            {"account": "platform:rewards_pool", "amount": 5, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-            {"account": f"user:{user2.id}", "amount": 5, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+            {"account": "platform:rewards_pool", "amount": 5, "currency": "POINTS", "direction": LedgerEntryDirection.DEBIT},
+            {"account": f"user:{user2.id}", "amount": 5, "currency": "POINTS", "direction": LedgerEntryDirection.CREDIT},
         ],
     )
 

@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.payments.models import PaymentCheckout, PaymentEvent
+from apps.payments.models import PaymentCheckout, PaymentEventProvider
 from apps.users.models import User
 
 
@@ -43,9 +43,9 @@ class BtcPayCheckoutTests(TestCase):
         self.assertEqual(payload["amount_cents"], 1500)
         self.assertEqual(payload["currency"], "USD")
         self.assertEqual(payload["payment_url"], "https://btcpay.example/i/inv_test_1")
-        self.assertEqual(PaymentCheckout.objects.filter(provider=PaymentEvent.Provider.BTCPAY).count(), 1)
+        self.assertEqual(PaymentCheckout.objects.filter(provider=PaymentEventProvider.BTCPAY).count(), 1)
 
-        checkout = PaymentCheckout.objects.get(provider=PaymentEvent.Provider.BTCPAY)
+        checkout = PaymentCheckout.objects.get(provider=PaymentEventProvider.BTCPAY)
         self.assertEqual(checkout.provider_reference, "inv_test_1")
         mock_client.create_invoice.assert_called_once()
         called_kwargs = mock_client.create_invoice.call_args.kwargs

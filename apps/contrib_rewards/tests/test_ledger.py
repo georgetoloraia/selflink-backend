@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from django.core.exceptions import ValidationError
 
-from apps.contrib_rewards.models import LedgerEntry, RewardEvent
+from apps.contrib_rewards.models import LedgerEntry, RewardEvent, RewardEventType, LedgerEntryDirection
 from apps.contrib_rewards.services.ledger import post_event_and_ledger_entries
 from apps.contrib_rewards.models import ContributorProfile
 from apps.users.models import User
@@ -15,17 +15,17 @@ def test_balanced_transaction_succeeds():
     contributor = ContributorProfile.objects.create(user=user, github_username="u1")
 
     event = post_event_and_ledger_entries(
-        event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
+        event_type=RewardEventType.MANUAL_ADJUSTMENT,
         contributor=contributor,
         entries=[
-            {"account": "platform:rewards_pool", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-            {"account": f"user:{user.id}", "amount": 10, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+            {"account": "platform:rewards_pool", "amount": 10, "currency": "POINTS", "direction": LedgerEntryDirection.DEBIT},
+            {"account": f"user:{user.id}", "amount": 10, "currency": "POINTS", "direction": LedgerEntryDirection.CREDIT},
         ],
     )
     entries = list(event.ledger_entries.all())
     assert len(entries) == 2
-    credits = [e for e in entries if e.direction == LedgerEntry.Direction.CREDIT]
-    debits = [e for e in entries if e.direction == LedgerEntry.Direction.DEBIT]
+    credits = [e for e in entries if e.direction == LedgerEntryDirection.CREDIT]
+    debits = [e for e in entries if e.direction == LedgerEntryDirection.DEBIT]
     assert sum(e.amount for e in credits) == sum(e.amount for e in debits)
 
 
@@ -35,11 +35,11 @@ def test_unbalanced_transaction_raises():
     contributor = ContributorProfile.objects.create(user=user, github_username="u2")
     with pytest.raises(ValidationError):
         post_event_and_ledger_entries(
-            event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
+            event_type=RewardEventType.MANUAL_ADJUSTMENT,
             contributor=contributor,
             entries=[
-                {"account": "platform:rewards_pool", "amount": 5, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-                {"account": f"user:{user.id}", "amount": 3, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+                {"account": "platform:rewards_pool", "amount": 5, "currency": "POINTS", "direction": LedgerEntryDirection.DEBIT},
+                {"account": f"user:{user.id}", "amount": 3, "currency": "POINTS", "direction": LedgerEntryDirection.CREDIT},
             ],
         )
     assert RewardEvent.objects.count() == 0
@@ -51,11 +51,11 @@ def test_immutability():
     user = User.objects.create_user(email="u3@example.com", password="pass1234", handle="u3", name="User Three")
     contributor = ContributorProfile.objects.create(user=user, github_username="u3")
     event = post_event_and_ledger_entries(
-        event_type=RewardEvent.EventType.MANUAL_ADJUSTMENT,
+        event_type=RewardEventType.MANUAL_ADJUSTMENT,
         contributor=contributor,
         entries=[
-            {"account": "platform:rewards_pool", "amount": 2, "currency": "POINTS", "direction": LedgerEntry.Direction.DEBIT},
-            {"account": f"user:{user.id}", "amount": 2, "currency": "POINTS", "direction": LedgerEntry.Direction.CREDIT},
+            {"account": "platform:rewards_pool", "amount": 2, "currency": "POINTS", "direction": LedgerEntryDirection.DEBIT},
+            {"account": f"user:{user.id}", "amount": 2, "currency": "POINTS", "direction": LedgerEntryDirection.CREDIT},
         ],
     )
     with pytest.raises(ValidationError):

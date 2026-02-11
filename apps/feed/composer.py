@@ -12,7 +12,7 @@ from django.db.models import Q
 from apps.matching.services.feed_insights import get_daily_feed_recommendations
 from apps.matrix.feed_insights import get_daily_feed_insight as get_matrix_feed_insight
 from apps.mentor.services.feed_insights import get_daily_feed_insight as get_mentor_feed_insight
-from apps.social.models import Follow, Post, Timeline
+from apps.social.models import Follow, Post, Timeline, PostVisibility
 from apps.social.serializers import PostSerializer
 from apps.feed.rank import (
     FEED_RANKING_CONFIG_FOR_YOU,
@@ -196,9 +196,9 @@ def compose_for_you_feed(user, cursor: str | None = None, limit: int = 20, seria
         Follow.objects.filter(follower=user).values_list("followee_id", flat=True)
     )
     visibility_filter = (
-        Q(visibility=Post.Visibility.PUBLIC)
+        Q(visibility=PostVisibility.PUBLIC)
         | Q(author=user)
-        | (Q(visibility=Post.Visibility.FOLLOWERS) & Q(author_id__in=followee_ids))
+        | (Q(visibility=PostVisibility.FOLLOWERS) & Q(author_id__in=followee_ids))
     )
     candidate_limit = max(limit * 3, limit + 10)
     candidates = list(
@@ -243,9 +243,9 @@ def compose_for_you_videos_feed(
     visibility_filter = (
         Q(video__isnull=False)
         & (
-            Q(visibility=Post.Visibility.PUBLIC)
+            Q(visibility=PostVisibility.PUBLIC)
             | Q(author=user)
-            | (Q(visibility=Post.Visibility.FOLLOWERS) & Q(author_id__in=followee_ids))
+            | (Q(visibility=PostVisibility.FOLLOWERS) & Q(author_id__in=followee_ids))
         )
     )
     candidate_limit = max(limit * 3, limit + 10)
