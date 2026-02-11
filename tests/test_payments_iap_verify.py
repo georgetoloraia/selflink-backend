@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.coin.models import CoinEvent
+from apps.coin.models import CoinEvent, CoinEventType
 from apps.coin.services.ledger import get_balance_cents, get_or_create_user_account
 from apps.payments.models import PaymentEvent
 from apps.payments.providers.iap import VerificationResult
@@ -79,7 +79,7 @@ class IapVerifyTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 1)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 1)
         account = get_or_create_user_account(self.user)
         self.assertEqual(get_balance_cents(account.account_key), 499)
 
@@ -95,7 +95,7 @@ class IapVerifyTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 1)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 1)
         self.assertEqual(get_balance_cents(account.account_key), 499)
 
     @patch("apps.payments.iap.verify_apple_receipt")
@@ -119,4 +119,4 @@ class IapVerifyTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(PaymentEvent.objects.count(), 0)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)

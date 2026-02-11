@@ -10,19 +10,19 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.coin.services.ledger import mint_for_payment
-from apps.payments.models import GiftType, PaymentEvent
-from apps.social.models import Comment, Post
+from apps.payments.models import GiftType, PaymentEvent, PaymentEventProvider, PaymentEventStatus
+from apps.social.models import Comment, Post, PaidReactionTargetType
 from apps.users.models import User
 
 
 def _mint_slc(user: User, amount_cents: int, provider_event_id: str) -> None:
     event = PaymentEvent.objects.create(
-        provider=PaymentEvent.Provider.STRIPE,
+        provider=PaymentEventProvider.STRIPE,
         provider_event_id=provider_event_id,
         event_type="checkout.session.completed",
         user=user,
         amount_cents=amount_cents,
-        status=PaymentEvent.Status.RECEIVED,
+        status=PaymentEventStatus.RECEIVED,
         raw_body_hash=hashlib.sha256(provider_event_id.encode("utf-8")).hexdigest(),
         verified_at=timezone.now(),
     )
@@ -163,7 +163,7 @@ def test_gift_publish_without_request_context() -> None:
     )
     reaction = PaidReaction.objects.create(
         sender=sender,
-        target_type=PaidReaction.TargetType.POST,
+        target_type=PaidReactionTargetType.POST,
         post=post,
         gift_type=gift_type,
         quantity=1,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from apps.coin.models import CoinAccount, CoinLedgerEntry, EntitlementKey, PaidProduct, UserEntitlement
+from apps.coin.models import CoinAccount, CoinLedgerEntry, EntitlementKey, PaidProduct, UserEntitlement, CoinAccountStatus
 from apps.users.models import User
 
 
@@ -52,7 +52,7 @@ class CoinTransferSerializer(serializers.Serializer):
             )
             if account is None or account.user is None:
                 raise serializers.ValidationError({"receiver_account_key": "Receiver not found."})
-            if account.status != CoinAccount.Status.ACTIVE:
+            if account.status != CoinAccountStatus.ACTIVE:
                 raise serializers.ValidationError({"receiver_account_key": "Receiver not found."})
             receiver = account.user
 

@@ -16,7 +16,7 @@ from rest_framework.views import APIView
 
 from apps.coin.services.payments import mint_from_payment_event
 from apps.payments.feature_flag import provider_enabled
-from apps.payments.models import PaymentCheckout, PaymentEvent
+from apps.payments.models import PaymentCheckout, PaymentEvent, PaymentEventProvider, PaymentEventStatus, PaymentCheckoutStatus
 from apps.payments.providers.btcpay import (
     get_btcpay_client,
     normalize_invoice,
@@ -71,7 +71,7 @@ class BtcPayWebhookView(APIView):
             return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
         checkout = PaymentCheckout.objects.select_related("user").filter(
-            provider=PaymentEvent.Provider.BTCPAY,
+            provider=PaymentEventProvider.BTCPAY,
             provider_reference=invoice.invoice_id,
         ).first()
         if not checkout:
@@ -83,7 +83,7 @@ class BtcPayWebhookView(APIView):
                 )
                 return Response({"detail": "Unknown payment reference."}, status=status.HTTP_400_BAD_REQUEST)
             checkout = PaymentCheckout.objects.select_related("user").filter(
-                provider=PaymentEvent.Provider.BTCPAY,
+                provider=PaymentEventProvider.BTCPAY,
                 reference=invoice.reference,
             ).first()
 
@@ -133,13 +133,13 @@ class BtcPayWebhookView(APIView):
         raw_body_hash = hashlib.sha256(request.body).hexdigest()
         verified_at = timezone.now()
 
-        status_value = PaymentEvent.Status.RECEIVED
+        status_value = PaymentEventStatus.RECEIVED
         if invoice.status in failed_statuses:
-            status_value = PaymentEvent.Status.FAILED
+            status_value = PaymentEventStatus.FAILED
 
         try:
             payment_event, created = PaymentEvent.objects.get_or_create(
-                provider=PaymentEvent.Provider.BTCPAY,
+                provider=PaymentEventProvider.BTCPAY,
                 provider_event_id=invoice.invoice_id,
                 defaults={
                     "event_type": event.event_type,
@@ -153,7 +153,7 @@ class BtcPayWebhookView(APIView):
             )
         except IntegrityError:
             payment_event = PaymentEvent.objects.filter(
-                provider=PaymentEvent.Provider.BTCPAY,
+                provider=PaymentEventProvider.BTCPAY,
                 provider_event_id=invoice.invoice_id,
             ).first()
             created = False
@@ -176,11 +176,11 @@ class BtcPayWebhookView(APIView):
             if payment_event.verified_at is None:
                 payment_event.verified_at = verified_at
                 payment_event.save(update_fields=["verified_at", "updated_at"])
-            if invoice.status in failed_statuses and payment_event.status != PaymentEvent.Status.FAILED:
-                payment_event.status = PaymentEvent.Status.FAILED
+            if invoice.status in failed_statuses and payment_event.status != PaymentEventStatus.FAILED:
+                payment_event.status = PaymentEventStatus.FAILED
                 payment_event.save(update_fields=["status", "updated_at"])
             if payment_event.minted_coin_event_id:
-                checkout.status = PaymentCheckout.Status.PAID
+                checkout.status = PaymentCheckoutStatus.PAID
                 checkout.save(update_fields=["status", "updated_at"])
                 logger.info(
                     "btcpay_mint.duplicate request_id=%s invoice_id=%s user_id=%s amount_cents=%s",
@@ -192,7 +192,7 @@ class BtcPayWebhookView(APIView):
                 return Response({"received": True})
 
         if invoice.status in failed_statuses:
-            checkout.status = PaymentCheckout.Status.FAILED
+            checkout.status = PaymentCheckoutStatus.FAILED
             checkout.save(update_fields=["status", "updated_at"])
             logger.info(
                 "btcpay_mint.skipped request_id=%s reason=failed_status invoice_id=%s status=%s",
@@ -227,9 +227,9 @@ class BtcPayWebhookView(APIView):
             return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
         payment_event.minted_coin_event = minted_event
-        payment_event.status = PaymentEvent.Status.MINTED
+        payment_event.status = PaymentEventStatus.MINTED
         payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
-        checkout.status = PaymentCheckout.Status.PAID
+        checkout.status = PaymentCheckoutStatus.PAID
         checkout.save(update_fields=["status", "updated_at"])
 
         logger.info(

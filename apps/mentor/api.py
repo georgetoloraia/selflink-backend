@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.mentor.models import MentorMessage, MentorSession
+from apps.mentor.models import MentorMessage, MentorSession, MentorMessageRole
 from apps.mentor.services.llm_client import LLMError, build_prompt, full_completion
 from apps.mentor.services.personality import get_persona_prompt
 from apps.mentor.tasks import mentor_chat_generate_task
@@ -65,7 +65,7 @@ class MentorChatView(APIView):
         with transaction.atomic():
             user_message_obj = MentorMessage.objects.create(
                 session=session,
-                role=MentorMessage.Role.USER,
+                role=MentorMessageRole.USER,
                 content=user_message,
             )
 
@@ -129,7 +129,7 @@ class MentorChatView(APIView):
 
         MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.ASSISTANT,
+            role=MentorMessageRole.ASSISTANT,
             content=reply_text,
         )
 

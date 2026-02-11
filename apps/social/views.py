@@ -28,6 +28,7 @@ from .serializers import (
     PostSerializer,
     TimelineSerializer,
 )
+from apps.social.models import PaidReactionTargetType
 from .events import publish_gift_received
 
 logger = logging.getLogger(__name__)
@@ -161,7 +162,7 @@ class PostViewSet(viewsets.ModelViewSet):
 
         reaction = PaidReaction.objects.create(
             sender=request.user,
-            target_type=PaidReaction.TargetType.POST,
+            target_type=PaidReactionTargetType.POST,
             post=post,
             gift_type=gift_type,
             quantity=quantity,
@@ -320,7 +321,7 @@ class CommentViewSet(viewsets.ModelViewSet):
 
         reaction = PaidReaction.objects.create(
             sender=request.user,
-            target_type=PaidReaction.TargetType.COMMENT,
+            target_type=PaidReactionTargetType.COMMENT,
             comment=comment,
             gift_type=gift_type,
             quantity=quantity,

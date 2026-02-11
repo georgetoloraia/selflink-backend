@@ -8,9 +8,9 @@ from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.coin.models import CoinEvent
+from apps.coin.models import CoinEvent, CoinEventType
 from apps.coin.services.ledger import get_balance_cents, get_or_create_user_account
-from apps.payments.models import PaymentCheckout, PaymentEvent
+from apps.payments.models import PaymentCheckout, PaymentEvent, PaymentEventProvider
 from apps.users.models import User
 
 
@@ -39,7 +39,7 @@ class BtcPayWebhookTests(TestCase):
 
     def _create_checkout(self, invoice_id: str, amount_cents: int = 1500, currency: str = "USD") -> PaymentCheckout:
         return PaymentCheckout.objects.create(
-            provider=PaymentEvent.Provider.BTCPAY,
+            provider=PaymentEventProvider.BTCPAY,
             user=self.user,
             amount_cents=amount_cents,
             currency=currency,
@@ -56,7 +56,7 @@ class BtcPayWebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 401)
         self.assertEqual(PaymentEvent.objects.count(), 0)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)
 
     @patch("apps.payments.webhooks.btcpay_webhook.get_btcpay_client")
     def test_paid_event_mints_once(self, mock_get_client: Mock) -> None:
@@ -83,7 +83,7 @@ class BtcPayWebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 1)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 1)
         payment_event = PaymentEvent.objects.get(provider_event_id="inv_paid")
         self.assertIsNotNone(payment_event.verified_at)
         self.assertEqual(payment_event.amount_cents, 1500)
@@ -99,7 +99,7 @@ class BtcPayWebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 1)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 1)
         self.assertEqual(get_balance_cents(account.account_key), 1500)
 
     @patch("apps.payments.webhooks.btcpay_webhook.get_btcpay_client")
@@ -127,7 +127,7 @@ class BtcPayWebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(PaymentEvent.objects.count(), 1)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)
 
     @patch("apps.payments.webhooks.btcpay_webhook.get_btcpay_client")
     def test_amount_currency_mismatch_rejected(self, mock_get_client: Mock) -> None:
@@ -154,7 +154,7 @@ class BtcPayWebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(PaymentEvent.objects.count(), 0)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)
 
     @patch("apps.payments.webhooks.btcpay_webhook.get_btcpay_client")
     def test_unknown_reference_rejected(self, mock_get_client: Mock) -> None:
@@ -180,4 +180,4 @@ class BtcPayWebhookTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(PaymentEvent.objects.count(), 0)
-        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT).count(), 0)
+        self.assertEqual(CoinEvent.objects.filter(event_type=CoinEventType.MINT).count(), 0)

@@ -21,6 +21,7 @@ from .events import (
     publish_message_status_event,
     publish_typing_event,
 )
+from apps.messaging.models import MessageAttachmentType, MessageStatus
 from apps.notifications.consumers import notify_thread_message
 from .models import Message, MessageAttachment, MessageReaction, Thread, ThreadMember
 from .serializers import MessageSerializer, ThreadSerializer, aggregate_reactions
@@ -77,9 +78,9 @@ def _validate_attachment_files(files) -> list[dict]:
     for uploaded in files:
         mime = getattr(uploaded, "content_type", "") or ""
         if mime.startswith("image/"):
-            attachment_type = MessageAttachment.AttachmentType.IMAGE
+            attachment_type = MessageAttachmentType.IMAGE
         elif mime.startswith("video/"):
-            attachment_type = MessageAttachment.AttachmentType.VIDEO
+            attachment_type = MessageAttachmentType.VIDEO
         else:
             raise ValidationError("Unsupported attachment type.")
         specs.append({"file": uploaded, "type": attachment_type, "mime_type": mime})
@@ -88,9 +89,9 @@ def _validate_attachment_files(files) -> list[dict]:
     if len(type_set) > 1:
         raise ValidationError("Cannot mix images and videos in the same message.")
     only_type = next(iter(type_set))
-    if only_type == MessageAttachment.AttachmentType.IMAGE and len(specs) > 4:
+    if only_type == MessageAttachmentType.IMAGE and len(specs) > 4:
         raise ValidationError("You can attach up to 4 images per message.")
-    if only_type == MessageAttachment.AttachmentType.VIDEO and len(specs) > 1:
+    if only_type == MessageAttachmentType.VIDEO and len(specs) > 1:
         raise ValidationError("Only one video can be attached per message.")
     return specs
 
@@ -210,10 +211,10 @@ class ThreadViewSet(viewsets.ModelViewSet):
         unread_messages = list(
             thread.messages.filter(id__lte=last_read_id)
             .exclude(sender=request.user)
-            .exclude(status=Message.Status.READ)
+            .exclude(status=MessageStatus.READ)
         )
         for msg in unread_messages:
-            msg.status = Message.Status.READ
+            msg.status = MessageStatus.READ
             msg.read_at = now
             if not msg.delivered_at:
                 msg.delivered_at = now
@@ -400,15 +401,15 @@ class MessageViewSet(viewsets.ModelViewSet):
     def ack(self, request: Request, pk: str | None = None) -> Response:
         message = self.get_object()
         status_value = request.data.get("status")
-        if status_value != Message.Status.DELIVERED:
+        if status_value != MessageStatus.DELIVERED:
             return Response({"detail": "status must be 'delivered'."}, status=status.HTTP_400_BAD_REQUEST)
 
         if not message.thread.members.filter(user=request.user).exists():
             raise PermissionDenied("Not a member of this thread")
 
-        if message.status == Message.Status.SENT:
+        if message.status == MessageStatus.SENT:
             now = timezone.now()
-            message.status = Message.Status.DELIVERED
+            message.status = MessageStatus.DELIVERED
             if not message.delivered_at:
                 message.delivered_at = now
             message.save(update_fields=["status", "delivered_at", "updated_at"])

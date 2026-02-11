@@ -5,7 +5,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-from apps.payments.models import GiftType
+from apps.payments.models import GiftType, GiftTypeKind
 
 
 class Command(BaseCommand):
@@ -26,7 +26,7 @@ class Command(BaseCommand):
                 "name": "Winter Snow",
                 "price_cents": 100,
                 "price_slc_cents": 100,
-                "kind": GiftType.Kind.ANIMATED,
+                "kind": GiftTypeKind.ANIMATED,
                 "media_url": "/static/gifts/snowfall.png",
                 "animation_url": "/static/gifts/snowfall.json",
                 "is_active": True,

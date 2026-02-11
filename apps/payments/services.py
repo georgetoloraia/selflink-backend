@@ -7,7 +7,7 @@ from typing import Optional
 from django.utils import timezone
 
 from apps.payments.clients import get_stripe_client
-from apps.payments.models import Plan, Subscription, Wallet
+from apps.payments.models import Plan, Subscription, Wallet, SubscriptionStatus
 from apps.users.models import User
 
 
@@ -40,12 +40,12 @@ def create_checkout_session(user: User, plan: Plan, success_url: str, cancel_url
         user=user,
         defaults={
             "plan": plan,
-            "status": Subscription.Status.INCOMPLETE,
+            "status": SubscriptionStatus.INCOMPLETE,
         },
     )
     if subscription.plan_id != plan.id:
         subscription.plan = plan
-    subscription.status = Subscription.Status.INCOMPLETE
+    subscription.status = SubscriptionStatus.INCOMPLETE
     subscription.save(update_fields=["plan", "status", "updated_at"])
 
     if not plan.external_price_id:
@@ -69,15 +69,15 @@ def create_checkout_session(user: User, plan: Plan, success_url: str, cancel_url
 def map_stripe_status(status: str) -> str:
     status = status or ""
     mapping = {
-        "active": Subscription.Status.ACTIVE,
-        "trialing": Subscription.Status.ACTIVE,
-        "canceled": Subscription.Status.CANCELED,
-        "incomplete": Subscription.Status.INCOMPLETE,
-        "incomplete_expired": Subscription.Status.CANCELED,
-        "past_due": Subscription.Status.PAST_DUE,
-        "unpaid": Subscription.Status.PAST_DUE,
+        "active": SubscriptionStatus.ACTIVE,
+        "trialing": SubscriptionStatus.ACTIVE,
+        "canceled": SubscriptionStatus.CANCELED,
+        "incomplete": SubscriptionStatus.INCOMPLETE,
+        "incomplete_expired": SubscriptionStatus.CANCELED,
+        "past_due": SubscriptionStatus.PAST_DUE,
+        "unpaid": SubscriptionStatus.PAST_DUE,
     }
-    return mapping.get(status, Subscription.Status.INCOMPLETE)
+    return mapping.get(status, SubscriptionStatus.INCOMPLETE)
 
 
 def update_subscription_from_stripe(subscription_id: str | None, stripe_subscription: dict) -> None:

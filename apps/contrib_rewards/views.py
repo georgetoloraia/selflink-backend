@@ -10,7 +10,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditEvent
-from apps.contrib_rewards.models import ContributorProfile, LedgerEntry, MonthlyRewardSnapshot, Payout, RewardEvent
+from apps.contrib_rewards.models import (
+    ContributorProfile,
+    LedgerEntryDirection,
+    MonthlyRewardSnapshot,
+    Payout,
+    RewardEvent,
+    RewardEventType,
+)
 from apps.contrib_rewards.serializers import (
     MonthlyRewardSnapshotSerializer,
     PayoutSerializer,
@@ -102,7 +109,7 @@ class GitHubRewardsWebhookView(APIView):
         reference = f"PR-{pr.get('number') or pr.get('id') or 'unknown'}"
         if RewardEvent.objects.filter(
             contributor=contributor,
-            event_type=RewardEvent.EventType.PR_MERGED,
+            event_type=RewardEventType.PR_MERGED,
             reference=reference,
         ).exists():
             return Response({"detail": "Already recorded."}, status=status.HTTP_200_OK)
@@ -122,7 +129,7 @@ class GitHubRewardsWebhookView(APIView):
 
         with transaction.atomic():
             reward_event = post_event_and_ledger_entries(
-                event_type=RewardEvent.EventType.PR_MERGED,
+                event_type=RewardEventType.PR_MERGED,
                 contributor=contributor,
                 reference=reference,
                 metadata=metadata,
@@ -131,13 +138,13 @@ class GitHubRewardsWebhookView(APIView):
                         "account": "platform:rewards_pool",
                         "amount": points,
                         "currency": "POINTS",
-                        "direction": LedgerEntry.Direction.DEBIT,
+                        "direction": LedgerEntryDirection.DEBIT,
                     },
                     {
                         "account": f"user:{contributor.user_id}",
                         "amount": points,
                         "currency": "POINTS",
-                        "direction": LedgerEntry.Direction.CREDIT,
+                        "direction": LedgerEntryDirection.CREDIT,
                     },
                 ],
             )

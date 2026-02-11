@@ -23,6 +23,7 @@ from apps.ai.services.mentor import (
 from apps.astro.services.transits import get_today_transits
 from apps.core_platform.async_mode import should_run_async_default
 from apps.matching.services.soulmatch import calculate_soulmatch
+from apps.mentor.models import MentorMessageRole
 from apps.users.models import User
 from .models import DailyTask, MentorMessage, MentorProfile, MentorSession
 from .serializers import DailyTaskSerializer, MentorAskSerializer, MentorProfileSerializer, MentorSessionSerializer
@@ -122,7 +123,7 @@ class NatalMentorView(APIView):
             )
             user_message_obj = MentorMessage.objects.create(
                 session=session,
-                role=MentorMessage.Role.USER,
+                role=MentorMessageRole.USER,
                 content="Natal mentor request",
                 meta={"natal_chart_id": chart.id},
             )
@@ -179,7 +180,7 @@ class SoulmatchMentorView(APIView):
             )
             user_message_obj = MentorMessage.objects.create(
                 session=session,
-                role=MentorMessage.Role.USER,
+                role=MentorMessageRole.USER,
                 content=f"Soulmatch mentor request for user {target.id}",
                 meta={"target_user_id": target.id},
             )
@@ -244,7 +245,7 @@ class DailyMentorView(APIView):
             )
             user_message_obj = MentorMessage.objects.create(
                 session=session,
-                role=MentorMessage.Role.USER,
+                role=MentorMessageRole.USER,
                 content="Daily mentor request",
                 meta={"date": str(entry_date)},
             )

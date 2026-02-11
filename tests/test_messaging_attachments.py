@@ -4,7 +4,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
-from apps.messaging.models import Message, MessageAttachment
+from apps.messaging.models import Message, MessageAttachment, MessageAttachmentType
 
 
 def register_and_login(client: APIClient, email: str, handle: str) -> dict:
@@ -51,7 +51,7 @@ class MessageAttachmentTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         attachments = response.data.get("attachments", [])
         self.assertEqual(len(attachments), 1)
-        self.assertEqual(attachments[0]["type"], MessageAttachment.AttachmentType.IMAGE)
+        self.assertEqual(attachments[0]["type"], MessageAttachmentType.IMAGE)
         self.assertTrue(attachments[0]["url"])
 
     def test_send_message_with_multiple_images_limits_to_four(self) -> None:
@@ -87,7 +87,7 @@ class MessageAttachmentTests(APITestCase):
             format="multipart",
         )
         self.assertEqual(video_resp.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(video_resp.data.get("attachments", [])[0]["type"], MessageAttachment.AttachmentType.VIDEO)
+        self.assertEqual(video_resp.data.get("attachments", [])[0]["type"], MessageAttachmentType.VIDEO)
         self.assertTrue(video_resp.data.get("attachments", [])[0]["url"])
 
         mixed_resp = self.sender_client.post(

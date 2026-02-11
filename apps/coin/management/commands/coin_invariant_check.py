@@ -4,9 +4,16 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import models
 from django.db.models import Case, F, Sum, When
 
-from apps.coin.models import CoinAccount, CoinEvent, CoinLedgerEntry, SYSTEM_ACCOUNT_KEYS
-from apps.payments.models import PaymentEvent
-
+from apps.coin.models import (
+    CoinAccount,
+    CoinAccountStatus,
+    CoinEvent,
+    CoinEventType,
+    CoinLedgerEntry,
+    CoinLedgerEntryDirection,
+    SYSTEM_ACCOUNT_KEYS,
+)
+from apps.payments.models import PaymentEvent, PaymentEventStatus
 
 class Command(BaseCommand):
     help = "Validate SLC ledger invariants (read-only)."
@@ -14,7 +21,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         failures: list[str] = []
 
-        mint_events = CoinEvent.objects.filter(event_type=CoinEvent.EventType.MINT)
+        mint_events = CoinEvent.objects.filter(event_type=CoinEventType.MINT)
         missing_payment = mint_events.filter(payment_events__isnull=True).distinct()
         missing_payment_count = missing_payment.count()
         if missing_payment_count:
@@ -22,7 +29,7 @@ class Command(BaseCommand):
 
         non_minted_payment = (
             mint_events.filter(payment_events__isnull=False)
-            .exclude(payment_events__status=PaymentEvent.Status.MINTED)
+            .exclude(payment_events__status=PaymentEventStatus.MINTED)
             .distinct()
         )
         non_minted_payment_count = non_minted_payment.count()
@@ -30,7 +37,7 @@ class Command(BaseCommand):
             failures.append(f"mint_events_with_non_minted_payment_event={non_minted_payment_count}")
 
         payment_wrong_type = PaymentEvent.objects.filter(minted_coin_event__isnull=False).exclude(
-            minted_coin_event__event_type=CoinEvent.EventType.MINT
+            minted_coin_event__event_type=CoinEventType.MINT
         )
         payment_wrong_type_count = payment_wrong_type.count()
         if payment_wrong_type_count:
@@ -41,8 +48,8 @@ class Command(BaseCommand):
             .annotate(
                 total=Sum(
                     Case(
-                        When(direction=CoinLedgerEntry.Direction.CREDIT, then=F("amount_cents")),
-                        When(direction=CoinLedgerEntry.Direction.DEBIT, then=-F("amount_cents")),
+                        When(direction=CoinLedgerEntryDirection.CREDIT, then=F("amount_cents")),
+                        When(direction=CoinLedgerEntryDirection.DEBIT, then=-F("amount_cents")),
                         default=0,
                         output_field=models.BigIntegerField(),
                     )
@@ -61,7 +68,7 @@ class Command(BaseCommand):
         if unknown_accounts_count:
             failures.append(f"unknown_account_entries={unknown_accounts_count}")
 
-        suspended_accounts = CoinAccount.objects.filter(status=CoinAccount.Status.SUSPENDED).exclude(
+        suspended_accounts = CoinAccount.objects.filter(status=CoinAccountStatus.SUSPENDED).exclude(
             account_key__in=SYSTEM_ACCOUNT_KEYS
         )
         suspended_entries = CoinLedgerEntry.objects.filter(

@@ -9,15 +9,18 @@ from django.db.models import Case, F, Sum, When
 
 from apps.coin.models import (
     COIN_CURRENCY,
-    SYSTEM_ACCOUNT_FEES,
+    # SYSTEM_ACCOUNT_FEES,
     SYSTEM_ACCOUNT_KEYS,
     SYSTEM_ACCOUNT_MINT,
     SYSTEM_ACCOUNT_REVENUE,
     CoinAccount,
+    CoinAccountStatus,
     CoinEvent,
+    CoinEventType,
     CoinLedgerEntry,
+    CoinLedgerEntryDirection,
 )
-from apps.payments.models import PaymentEvent
+from apps.payments.models import PaymentEvent, PaymentEventStatus
 from apps.users.models import User
 
 
@@ -47,11 +50,11 @@ def _validate_entries(entries: Sequence[dict]) -> None:
         currency = entry.get("currency", COIN_CURRENCY)
         if currency != COIN_CURRENCY:
             raise ValidationError(f"Unsupported currency: {currency}")
-        if direction not in CoinLedgerEntry.Direction.values:
+        if direction not in CoinLedgerEntryDirection.values:
             raise ValidationError(f"Invalid direction: {direction}")
         if amount <= 0:
             raise ValidationError("Amounts must be positive integers.")
-        signed = amount if direction == CoinLedgerEntry.Direction.CREDIT else -amount
+        signed = amount if direction == CoinLedgerEntryDirection.CREDIT else -amount
         totals[currency] = totals.get(currency, 0) + signed
     unbalanced = {cur: total for cur, total in totals.items() if total != 0}
     if unbalanced:
@@ -72,7 +75,7 @@ def _validate_entries(entries: Sequence[dict]) -> None:
         inactive = sorted(
             account["account_key"]
             for account in accounts
-            if account["status"] != CoinAccount.Status.ACTIVE
+            if account["status"] != CoinAccountStatus.ACTIVE
         )
         if inactive:
             raise ValidationError("Coin account is not active.")
@@ -95,7 +98,7 @@ def get_or_create_user_account(user: User) -> CoinAccount:
         raise ValidationError("User coin accounts cannot be system accounts.")
     if account.account_key != account_key:
         raise ValidationError("Coin account key mismatch for user.")
-    if account.status != CoinAccount.Status.ACTIVE:
+    if account.status != CoinAccountStatus.ACTIVE:
         raise ValidationError("Coin account is not active.")
     return account
 
@@ -104,8 +107,8 @@ def get_balance_cents(account_key: str) -> int:
     total = CoinLedgerEntry.objects.filter(account_key=account_key).aggregate(
         total=Sum(
             Case(
-                When(direction=CoinLedgerEntry.Direction.CREDIT, then=F("amount_cents")),
-                When(direction=CoinLedgerEntry.Direction.DEBIT, then=-F("amount_cents")),
+                When(direction=CoinLedgerEntryDirection.CREDIT, then=F("amount_cents")),
+                When(direction=CoinLedgerEntryDirection.DEBIT, then=-F("amount_cents")),
                 default=0,
                 output_field=models.BigIntegerField(),
             )
@@ -124,7 +127,7 @@ def post_event_and_entries(
     idempotency_key: str | None = None,
     ruleset_version: str = "v1",
 ) -> CoinEvent:
-    if event_type == CoinEvent.EventType.MINT:
+    if event_type == CoinEventType.MINT:
         if not idempotency_key or ":" not in idempotency_key:
             raise ValidationError("Mint events require a provider:event_id idempotency_key.")
         provider, external_id = idempotency_key.split(":", 1)
@@ -134,7 +137,7 @@ def post_event_and_entries(
         ).only("id", "status", "verified_at").first()
         if not payment_event:
             raise ValidationError("PaymentEvent not found for mint.")
-        if payment_event.status == PaymentEvent.Status.FAILED:
+        if payment_event.status == PaymentEventStatus.FAILED:
             raise ValidationError("PaymentEvent is failed.")
         if not payment_event.verified_at:
             raise ValidationError("PaymentEvent is unverified.")
@@ -200,7 +203,7 @@ def create_transfer(
         if balance < total_debit:
             raise ValidationError("insufficient_funds")
         event = post_event_and_entries(
-            event_type=CoinEvent.EventType.TRANSFER,
+            event_type=CoinEventType.TRANSFER,
             created_by=sender,
             note=note,
             metadata={
@@ -214,13 +217,13 @@ def create_transfer(
                     "account_key": sender_account.account_key,
                     "amount_cents": total_debit,
                     "currency": COIN_CURRENCY,
-                    "direction": CoinLedgerEntry.Direction.DEBIT,
+                    "direction": CoinLedgerEntryDirection.DEBIT,
                 },
                 {
                     "account_key": receiver_account.account_key,
                     "amount_cents": amount_cents,
                     "currency": COIN_CURRENCY,
-                    "direction": CoinLedgerEntry.Direction.CREDIT,
+                    "direction": CoinLedgerEntryDirection.CREDIT,
                 },
             ],
         )
@@ -238,7 +241,7 @@ def create_spend(*, user: User, amount_cents: int, reference: str, note: str = "
         if balance < amount_cents:
             raise ValidationError("insufficient_funds")
         event = post_event_and_entries(
-            event_type=CoinEvent.EventType.SPEND,
+            event_type=CoinEventType.SPEND,
             created_by=user,
             note=note,
             metadata={
@@ -251,13 +254,13 @@ def create_spend(*, user: User, amount_cents: int, reference: str, note: str = "
                     "account_key": account.account_key,
                     "amount_cents": amount_cents,
                     "currency": COIN_CURRENCY,
-                    "direction": CoinLedgerEntry.Direction.DEBIT,
+                    "direction": CoinLedgerEntryDirection.DEBIT,
                 },
                 {
                     "account_key": SYSTEM_ACCOUNT_REVENUE,
                     "amount_cents": amount_cents,
                     "currency": COIN_CURRENCY,
-                    "direction": CoinLedgerEntry.Direction.CREDIT,
+                    "direction": CoinLedgerEntryDirection.CREDIT,
                 },
             ],
         )
@@ -267,15 +270,15 @@ def create_spend(*, user: User, amount_cents: int, reference: str, note: str = "
 def mint_for_payment(*, payment_event: PaymentEvent, metadata: dict | None = None) -> CoinEvent:
     if payment_event is None or payment_event.pk is None:
         raise ValidationError("PaymentEvent is required.")
-    if payment_event.status == PaymentEvent.Status.FAILED:
+    if payment_event.status == PaymentEventStatus.FAILED:
         raise ValidationError("PaymentEvent is failed.")
     if not payment_event.verified_at:
         raise ValidationError("PaymentEvent is unverified.")
     if payment_event.amount_cents <= 0:
         raise ValidationError("Amount must be positive.")
     if payment_event.minted_coin_event_id:
-        if payment_event.status != PaymentEvent.Status.MINTED:
-            payment_event.status = PaymentEvent.Status.MINTED
+        if payment_event.status != PaymentEventStatus.MINTED:
+            payment_event.status = PaymentEventStatus.MINTED
             payment_event.save(update_fields=["status", "updated_at"])
         return payment_event.minted_coin_event  # type: ignore[return-value]
     idempotency_key = f"{payment_event.provider}:{payment_event.provider_event_id}"
@@ -283,7 +286,7 @@ def mint_for_payment(*, payment_event: PaymentEvent, metadata: dict | None = Non
     if existing:
         if payment_event.minted_coin_event_id is None:
             payment_event.minted_coin_event = existing
-            payment_event.status = PaymentEvent.Status.MINTED
+            payment_event.status = PaymentEventStatus.MINTED
             payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
         return existing
     account = get_or_create_user_account(payment_event.user)
@@ -298,7 +301,7 @@ def mint_for_payment(*, payment_event: PaymentEvent, metadata: dict | None = Non
     try:
         with transaction.atomic():
             event = post_event_and_entries(
-                event_type=CoinEvent.EventType.MINT,
+                event_type=CoinEventType.MINT,
                 created_by=None,
                 metadata=event_metadata,
                 idempotency_key=idempotency_key,
@@ -307,18 +310,18 @@ def mint_for_payment(*, payment_event: PaymentEvent, metadata: dict | None = Non
                         "account_key": SYSTEM_ACCOUNT_MINT,
                         "amount_cents": payment_event.amount_cents,
                         "currency": COIN_CURRENCY,
-                        "direction": CoinLedgerEntry.Direction.DEBIT,
+                        "direction": CoinLedgerEntryDirection.DEBIT,
                     },
                     {
                         "account_key": account.account_key,
                         "amount_cents": payment_event.amount_cents,
                         "currency": COIN_CURRENCY,
-                        "direction": CoinLedgerEntry.Direction.CREDIT,
+                        "direction": CoinLedgerEntryDirection.CREDIT,
                     },
                 ],
             )
             payment_event.minted_coin_event = event
-            payment_event.status = PaymentEvent.Status.MINTED
+            payment_event.status = PaymentEventStatus.MINTED
             payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
             return event
     except IntegrityError:
@@ -326,7 +329,7 @@ def mint_for_payment(*, payment_event: PaymentEvent, metadata: dict | None = Non
         if existing:
             if payment_event.minted_coin_event_id is None:
                 payment_event.minted_coin_event = existing
-                payment_event.status = PaymentEvent.Status.MINTED
+                payment_event.status = PaymentEventStatus.MINTED
                 payment_event.save(update_fields=["minted_coin_event", "status", "updated_at"])
             return existing
         raise

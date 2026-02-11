@@ -10,7 +10,7 @@ from django.http import StreamingHttpResponse
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
-from apps.mentor.models import MentorMessage, MentorSession
+from apps.mentor.models import MentorMessage, MentorSession, MentorMessageRole
 from apps.mentor.services.llm_client import DEFAULT_TIMEOUT, LLMError, build_prompt, stream_completion
 from apps.mentor.services.personality import get_persona_prompt
 from apps.core_platform.rate_limit import is_rate_limited
@@ -72,7 +72,7 @@ class MentorChatStreamView(APIView):
 
                 user_message_obj = MentorMessage.objects.create(
                     session=session,
-                    role=MentorMessage.Role.USER,
+                    role=MentorMessageRole.USER,
                     content=user_message,
                 )
 
@@ -114,7 +114,7 @@ class MentorChatStreamView(APIView):
                 full_reply = "".join(reply_parts)
                 MentorMessage.objects.create(
                     session=session,
-                    role=MentorMessage.Role.ASSISTANT,
+                    role=MentorMessageRole.ASSISTANT,
                     content=full_reply,
                 )
                 yield _sse_format({"event": "end", "session_id": session.id})

@@ -6,7 +6,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from apps.contrib_rewards.models import ContributorProfile, MonthlyRewardSnapshot, RewardEvent
+from apps.contrib_rewards.models import ContributorProfile, MonthlyRewardSnapshot, RewardEvent, RewardEventType
 from apps.contrib_rewards.services import calculate_monthly_rewards
 from apps.users.models import User
 
@@ -18,7 +18,7 @@ def test_reward_event_is_immutable():
 
     event = RewardEvent.objects.create(
         contributor=contributor,
-        event_type=RewardEvent.EventType.PR_MERGED,
+        event_type=RewardEventType.PR_MERGED,
         points=10,
         reference="PR-1",
     )
@@ -36,7 +36,7 @@ def test_monthly_rewards_dry_run_allocates_pool():
     contributor = ContributorProfile.objects.create(user=user, github_username="user2")
     RewardEvent.objects.create(
         contributor=contributor,
-        event_type=RewardEvent.EventType.PR_MERGED,
+        event_type=RewardEventType.PR_MERGED,
         points=10,
         occurred_at=datetime(2025, 1, 15, tzinfo=dt_timezone.utc),
     )
@@ -63,7 +63,7 @@ def test_rewards_snapshot_is_deterministic():
     contributor = ContributorProfile.objects.create(user=user, github_username="det")
     RewardEvent.objects.create(
         contributor=contributor,
-        event_type=RewardEvent.EventType.PR_MERGED,
+        event_type=RewardEventType.PR_MERGED,
         points=7,
         occurred_at=datetime(2025, 2, 10, tzinfo=dt_timezone.utc),
     )

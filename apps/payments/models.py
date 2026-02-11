@@ -10,6 +10,39 @@ from django.db import models
 from apps.core.models import BaseModel
 
 
+class SubscriptionStatus(models.TextChoices):
+    ACTIVE = "active", "Active"
+    CANCELED = "canceled", "Canceled"
+    INCOMPLETE = "incomplete", "Incomplete"
+    PAST_DUE = "past_due", "Past Due"
+
+
+class GiftTypeKind(models.TextChoices):
+    STATIC = "static", "Static"
+    ANIMATED = "animated", "Animated"
+
+
+class PaymentEventProvider(models.TextChoices):
+    STRIPE = "stripe", "Stripe"
+    IPAY = "ipay", "iPay"
+    BTCPAY = "btcpay", "BTCPay"
+    APPLE_IAP = "apple_iap", "Apple IAP"
+    GOOGLE_IAP = "google_iap", "Google IAP"
+
+
+class PaymentEventStatus(models.TextChoices):
+    RECEIVED = "received", "Received"
+    MINTED = "minted", "Minted"
+    FAILED = "failed", "Failed"
+
+
+class PaymentCheckoutStatus(models.TextChoices):
+    CREATED = "created", "Created"
+    PAID = "paid", "Paid"
+    FAILED = "failed", "Failed"
+    CANCELED = "canceled", "Canceled"
+
+
 class Plan(BaseModel):
     name = models.CharField(max_length=64, unique=True)
     price_cents = models.PositiveIntegerField()
@@ -23,15 +56,9 @@ class Plan(BaseModel):
 
 
 class Subscription(BaseModel):
-    class Status(models.TextChoices):
-        ACTIVE = "active", "Active"
-        CANCELED = "canceled", "Canceled"
-        INCOMPLETE = "incomplete", "Incomplete"
-        PAST_DUE = "past_due", "Past Due"
-
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="subscriptions")
     plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="subscriptions")
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.INCOMPLETE)
+    status = models.CharField(max_length=16, choices=SubscriptionStatus.choices, default=SubscriptionStatus.INCOMPLETE)
     current_period_start = models.DateTimeField(null=True, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
     external_customer_id = models.CharField(max_length=96, blank=True, null=True)
@@ -48,15 +75,11 @@ class Wallet(BaseModel):
 
 
 class GiftType(BaseModel):
-    class Kind(models.TextChoices):
-        STATIC = "static", "Static"
-        ANIMATED = "animated", "Animated"
-
     key = models.CharField(max_length=64, unique=True, null=True, blank=True)
     name = models.CharField(max_length=64, unique=True)
     price_cents = models.PositiveIntegerField()
     price_slc_cents = models.PositiveIntegerField(default=0)
-    kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.STATIC)
+    kind = models.CharField(max_length=16, choices=GiftTypeKind.choices, default=GiftTypeKind.STATIC)
     media_file = models.ImageField(
         upload_to="gifts/",
         blank=True,
@@ -106,25 +129,13 @@ class GiftType(BaseModel):
 
 
 class PaymentEvent(BaseModel):
-    class Provider(models.TextChoices):
-        STRIPE = "stripe", "Stripe"
-        IPAY = "ipay", "iPay"
-        BTCPAY = "btcpay", "BTCPay"
-        APPLE_IAP = "apple_iap", "Apple IAP"
-        GOOGLE_IAP = "google_iap", "Google IAP"
-
-    class Status(models.TextChoices):
-        RECEIVED = "received", "Received"
-        MINTED = "minted", "Minted"
-        FAILED = "failed", "Failed"
-
-    provider = models.CharField(max_length=32, choices=Provider.choices)
+    provider = models.CharField(max_length=32, choices=PaymentEventProvider.choices)
     provider_event_id = models.CharField(max_length=128)
     event_type = models.CharField(max_length=64, blank=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payment_events")
     amount_cents = models.PositiveIntegerField()
     currency = models.CharField(max_length=8, default="USD")
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.RECEIVED)
+    status = models.CharField(max_length=16, choices=PaymentEventStatus.choices, default=PaymentEventStatus.RECEIVED)
     minted_coin_event = models.ForeignKey(
         "coin.CoinEvent",
         on_delete=models.PROTECT,
@@ -144,16 +155,10 @@ def generate_payment_reference() -> str:
 
 
 class PaymentCheckout(BaseModel):
-    class Status(models.TextChoices):
-        CREATED = "created", "Created"
-        PAID = "paid", "Paid"
-        FAILED = "failed", "Failed"
-        CANCELED = "canceled", "Canceled"
-
-    provider = models.CharField(max_length=32, choices=PaymentEvent.Provider.choices)
+    provider = models.CharField(max_length=32, choices=PaymentEventProvider.choices)
     reference = models.CharField(max_length=64, unique=True, default=generate_payment_reference)
     provider_reference = models.CharField(max_length=128, blank=True, null=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payment_checkouts")
     amount_cents = models.PositiveIntegerField()
     currency = models.CharField(max_length=8, default="USD")
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.CREATED)
+    status = models.CharField(max_length=16, choices=PaymentCheckoutStatus.choices, default=PaymentCheckoutStatus.CREATED)

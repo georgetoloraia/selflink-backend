@@ -7,8 +7,8 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.messaging.models import Message, Thread, ThreadMember
-from apps.payments.models import GiftType, Plan, Subscription, Wallet
-from apps.social.models import Follow, Post
+from apps.payments.models import GiftType, Plan, Subscription, Wallet, SubscriptionStatus
+from apps.social.models import Follow, Post, PostVisibility
 from apps.users.models import User, UserSettings
 
 DEMO_USERS = [
@@ -146,7 +146,7 @@ class Command(BaseCommand):
                 author=author,
                 text=text,
                 defaults={
-                    "visibility": Post.Visibility.PUBLIC,
+                    "visibility": PostVisibility.PUBLIC,
                     "language": "en",
                 },
             )
@@ -177,6 +177,6 @@ class Command(BaseCommand):
             Subscription.objects.update_or_create(
                 user=user,
                 plan=premium,
-                defaults={"status": Subscription.Status.ACTIVE},
+                defaults={"status": SubscriptionStatus.ACTIVE},
             )
             Wallet.objects.get_or_create(user=user)
