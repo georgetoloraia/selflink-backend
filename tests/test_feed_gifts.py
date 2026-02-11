@@ -6,21 +6,21 @@ import pytest
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from apps.coin.models import CoinEvent
+from apps.coin.models import CoinEvent, CoinEventType
 from apps.coin.services.ledger import mint_for_payment
-from apps.payments.models import GiftType, PaymentEvent
+from apps.payments.models import GiftType, PaymentEvent, PaymentEventProvider, PaymentEventStatus
 from apps.social.models import Comment, PaidReaction, Post
 from apps.users.models import User
 
 
 def _mint_slc(user: User, amount_cents: int, provider_event_id: str) -> None:
     event = PaymentEvent.objects.create(
-        provider=PaymentEvent.Provider.STRIPE,
+        provider=PaymentEventProvider.STRIPE,
         provider_event_id=provider_event_id,
         event_type="checkout.session.completed",
         user=user,
         amount_cents=amount_cents,
-        status=PaymentEvent.Status.RECEIVED,
+        status=PaymentEventStatus.RECEIVED,
         raw_body_hash=hashlib.sha256(provider_event_id.encode("utf-8")).hexdigest(),
         verified_at=timezone.now(),
     )
@@ -49,11 +49,11 @@ def test_post_gift_idempotency_same_payload() -> None:
 
     response = client.post(f"/api/v1/posts/{post.id}/gifts/", data=payload, format="json", **headers)
     assert response.status_code == 201
-    spend_count = CoinEvent.objects.filter(event_type=CoinEvent.EventType.SPEND).count()
+    spend_count = CoinEvent.objects.filter(event_type=CoinEventType.SPEND).count()
 
     response_repeat = client.post(f"/api/v1/posts/{post.id}/gifts/", data=payload, format="json", **headers)
     assert response_repeat.status_code == 200
-    assert CoinEvent.objects.filter(event_type=CoinEvent.EventType.SPEND).count() == spend_count
+    assert CoinEvent.objects.filter(event_type=CoinEventType.SPEND).count() == spend_count
 
 
 @pytest.mark.django_db

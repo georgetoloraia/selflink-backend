@@ -7,15 +7,21 @@ from django.db import models
 from apps.core.models import BaseModel
 
 
-class Post(BaseModel):
-    class Visibility(models.TextChoices):
-        PUBLIC = "public", "Public"
-        FOLLOWERS = "followers", "Followers"
-        PRIVATE = "private", "Private"
+class PostVisibility(models.TextChoices):
+    PUBLIC = "public", "Public"
+    FOLLOWERS = "followers", "Followers"
+    PRIVATE = "private", "Private"
 
+
+class PaidReactionTargetType(models.TextChoices):
+    POST = "post", "Post"
+    COMMENT = "comment", "Comment"
+
+
+class Post(BaseModel):
     author = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="posts")
     text = models.TextField()
-    visibility = models.CharField(max_length=16, choices=Visibility.choices, default=Visibility.PUBLIC)
+    visibility = models.CharField(max_length=16, choices=PostVisibility.choices, default=PostVisibility.PUBLIC)
     language = models.CharField(max_length=8, default="en")
     media = models.ManyToManyField("media.MediaAsset", blank=True, related_name="posts")
     like_count = models.PositiveIntegerField(default=0)
@@ -137,12 +143,8 @@ class CommentLike(BaseModel):
 
 
 class PaidReaction(BaseModel):
-    class TargetType(models.TextChoices):
-        POST = "post", "Post"
-        COMMENT = "comment", "Comment"
-
     sender = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="paid_reactions_sent")
-    target_type = models.CharField(max_length=16, choices=TargetType.choices)
+    target_type = models.CharField(max_length=16, choices=PaidReactionTargetType.choices)
     post = models.ForeignKey(Post, on_delete=models.CASCADE, null=True, blank=True, related_name="paid_reactions")
     comment = models.ForeignKey(
         Comment,

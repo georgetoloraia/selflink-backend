@@ -11,7 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.mentor.models import MentorMessage, MentorSession
+from apps.mentor.models import MentorMessage, MentorSession, MentorMessageRole
 from apps.mentor.serializers import (
     DailyEntryRequestSerializer,
     DailyHistoryParamsSerializer,
@@ -77,13 +77,13 @@ class MentorChatView(APIView):
         )
         user_message_obj = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.USER,
+            role=MentorMessageRole.USER,
             content=user_message,
             meta={"safety": pre_flags} if pre_flags else None,
         )
         mentor_message_obj = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.MENTOR,
+            role=MentorMessageRole.MENTOR,
             content=mentor_reply,
             meta={"safety": post_flags} if post_flags else None,
         )
@@ -156,7 +156,7 @@ class DailyEntryView(APIView):
 
             user_message_obj = MentorMessage.objects.create(
                 session=session,
-                role=MentorMessage.Role.USER,
+                role=MentorMessageRole.USER,
                 content=entry_text,
                 meta={"safety": pre_flags} if pre_flags else None,
             )
@@ -221,13 +221,13 @@ class DailyEntryView(APIView):
 
         user_message_obj = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.USER,
+            role=MentorMessageRole.USER,
             content=entry_text,
             meta={"safety": pre_flags} if pre_flags else None,
         )
         mentor_message_obj = MentorMessage.objects.create(
             session=session,
-            role=MentorMessage.Role.MENTOR,
+            role=MentorMessageRole.MENTOR,
             content=mentor_reply,
             meta={"safety": post_flags} if post_flags else None,
         )
@@ -324,7 +324,7 @@ class MentorTaskStatusView(APIView):
             MentorMessage.objects.filter(
                 session__user=request.user,
                 meta__task_id=task_id,
-                role__in=[MentorMessage.Role.ASSISTANT, MentorMessage.Role.MENTOR],
+                role__in=[MentorMessageRole.ASSISTANT, MentorMessageRole.MENTOR],
             )
             .select_related("session")
             .order_by("-created_at")

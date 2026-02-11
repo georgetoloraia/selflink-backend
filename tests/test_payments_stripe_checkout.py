@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
-from apps.payments.models import PaymentCheckout, PaymentEvent
+from apps.payments.models import PaymentCheckout, PaymentEventProvider
 from apps.users.models import User
 
 
@@ -47,9 +47,9 @@ class StripeCheckoutTests(TestCase):
         self.assertEqual(payload["amount_cents"], 1500)
         self.assertEqual(payload["currency"], "USD")
         self.assertEqual(payload["payment_url"], "https://stripe.example/checkout")
-        self.assertEqual(PaymentCheckout.objects.filter(provider=PaymentEvent.Provider.STRIPE).count(), 1)
+        self.assertEqual(PaymentCheckout.objects.filter(provider=PaymentEventProvider.STRIPE).count(), 1)
 
-        checkout = PaymentCheckout.objects.get(provider=PaymentEvent.Provider.STRIPE)
+        checkout = PaymentCheckout.objects.get(provider=PaymentEventProvider.STRIPE)
         mock_client.create_checkout_payment_session.assert_called_once()
         called_kwargs = mock_client.create_checkout_payment_session.call_args.kwargs
         self.assertEqual(called_kwargs["amount_cents"], 1500)

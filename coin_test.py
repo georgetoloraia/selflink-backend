@@ -6,7 +6,7 @@ python manage.py shell
 from hashlib import sha256
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from apps.payments.models import PaymentEvent
+from apps.payments.models import PaymentEvent, PaymentEventProvider
 from apps.coin.services.payments import mint_from_payment_event
 
 User = get_user_model()
@@ -14,7 +14,7 @@ admin = User.objects.filter(is_superuser=True).order_by("id").first()
 assert admin, "No superuser found"
 
 amount_cents = 100_000_000  # 1,000,000 SLC @ 1 SLC = $1.00, amounts in cents
-provider = PaymentEvent.Provider.STRIPE
+provider = PaymentEventProvider.STRIPE
 provider_event_id = "bootstrap_superuser_slc_2026_01_22"  # stable, unique
 
 pe, created = PaymentEvent.objects.get_or_create(

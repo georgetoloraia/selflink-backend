@@ -10,6 +10,26 @@ from django.utils import timezone
 from apps.core.models import BaseModel
 
 
+class RewardEventType(models.TextChoices):
+    PR_MERGED = "pr_merged", "PR merged"
+    BOUNTY_PAID = "bounty_paid", "Bounty paid"
+    MANUAL_ADJUSTMENT = "manual_adjustment", "Manual adjustment"
+    BONUS = "bonus", "Bonus"
+    PENALTY = "penalty", "Penalty"
+
+
+class LedgerEntryDirection(models.TextChoices):
+    DEBIT = "DEBIT", "Debit"
+    CREDIT = "CREDIT", "Credit"
+
+
+class PayoutStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    PROCESSING = "processing", "Processing"
+    PAID = "paid", "Paid"
+    CANCELED = "canceled", "Canceled"
+
+
 class ContributorProfile(BaseModel):
     """Public contributor identity used for rewards and audits."""
 
@@ -45,19 +65,12 @@ class RewardEvent(BaseModel):
     Use compensating events instead of updates/deletes.
     """
 
-    class EventType(models.TextChoices):
-        PR_MERGED = "pr_merged", "PR merged"
-        BOUNTY_PAID = "bounty_paid", "Bounty paid"
-        MANUAL_ADJUSTMENT = "manual_adjustment", "Manual adjustment"
-        BONUS = "bonus", "Bonus"
-        PENALTY = "penalty", "Penalty"
-
     contributor = models.ForeignKey(
         ContributorProfile,
         on_delete=models.PROTECT,
         related_name="events",
     )
-    event_type = models.CharField(max_length=64, choices=EventType.choices)
+    event_type = models.CharField(max_length=64, choices=RewardEventType.choices)
     points = models.IntegerField(help_text="Positive for rewards, negative for clawbacks.")
     occurred_at = models.DateTimeField(default=timezone.now)
     reference = models.CharField(
@@ -89,10 +102,6 @@ class RewardEvent(BaseModel):
 
 
 class LedgerEntry(BaseModel):
-    class Direction(models.TextChoices):
-        DEBIT = "DEBIT", "Debit"
-        CREDIT = "CREDIT", "Credit"
-
     tx_id = models.UUIDField(default=uuid.uuid4, editable=False, db_index=True)
     event = models.ForeignKey(
         RewardEvent,
@@ -102,7 +111,7 @@ class LedgerEntry(BaseModel):
     account = models.CharField(max_length=255, db_index=True)
     amount = models.BigIntegerField(help_text="Smallest unit, e.g. integer points.")
     currency = models.CharField(max_length=16, default="POINTS")
-    direction = models.CharField(max_length=6, choices=Direction.choices)
+    direction = models.CharField(max_length=6, choices=LedgerEntryDirection.choices)
 
     class Meta:
         indexes = [
@@ -120,7 +129,7 @@ class LedgerEntry(BaseModel):
         raise ValidationError("LedgerEntry rows are immutable; deletion is not allowed.")
 
     def signed_amount(self) -> int:
-        return self.amount if self.direction == self.Direction.CREDIT else -self.amount
+        return self.amount if self.direction == LedgerEntryDirection.CREDIT else -self.amount
 
     def __str__(self) -> str:  # pragma: no cover - debug helper
         return f"LedgerEntry<{self.tx_id}:{self.account}:{self.amount}{self.currency}:{self.direction}>"
@@ -156,12 +165,6 @@ class MonthlyRewardSnapshot(BaseModel):
 class Payout(BaseModel):
     """Calculated payout per contributor for a given monthly snapshot."""
 
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        PROCESSING = "processing", "Processing"
-        PAID = "paid", "Paid"
-        CANCELED = "canceled", "Canceled"
-
     snapshot = models.ForeignKey(
         MonthlyRewardSnapshot,
         on_delete=models.CASCADE,
@@ -174,7 +177,7 @@ class Payout(BaseModel):
     )
     points = models.IntegerField()
     amount_cents = models.PositiveIntegerField(default=0)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=16, choices=PayoutStatus.choices, default=PayoutStatus.PENDING)
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:

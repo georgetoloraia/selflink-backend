@@ -5,7 +5,7 @@ from typing import Iterable, List, Sequence
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from apps.contrib_rewards.models import ContributorProfile, LedgerEntry, RewardEvent
+from apps.contrib_rewards.models import ContributorProfile, LedgerEntry, RewardEvent, LedgerEntryDirection
 
 
 def _validate_entries(entries: Sequence[dict]) -> None:
@@ -16,11 +16,11 @@ def _validate_entries(entries: Sequence[dict]) -> None:
         direction = entry.get("direction")
         amount = int(entry.get("amount", 0))
         currency = entry.get("currency", "POINTS")
-        if direction not in LedgerEntry.Direction.values:
+        if direction not in LedgerEntryDirection.values:
             raise ValidationError(f"Invalid direction: {direction}")
         if amount <= 0:
             raise ValidationError("Amounts must be positive integers.")
-        signed = amount if direction == LedgerEntry.Direction.CREDIT else -amount
+        signed = amount if direction == LedgerEntryDirection.CREDIT else -amount
         totals[currency] = totals.get(currency, 0) + signed
     unbalanced = {cur: total for cur, total in totals.items() if total != 0}
     if unbalanced:
@@ -37,9 +37,9 @@ def _points_from_entries(entries: Sequence[dict], contributor: ContributorProfil
             continue
         amount = int(entry.get("amount", 0))
         direction = entry.get("direction")
-        if direction == LedgerEntry.Direction.CREDIT:
+        if direction == LedgerEntryDirection.CREDIT:
             points += amount
-        elif direction == LedgerEntry.Direction.DEBIT:
+        elif direction == LedgerEntryDirection.DEBIT:
             points -= amount
     return points
 

@@ -20,7 +20,9 @@ from apps.coin.models import (
     SYSTEM_ACCOUNT_REVENUE,
     CoinAccount,
     CoinEvent,
+    CoinEventType,
     CoinLedgerEntry,
+    CoinLedgerEntryDirection,
     EntitlementKey,
     PaidProduct,
     UserEntitlement,
@@ -357,7 +359,7 @@ class CoinPurchaseView(APIView):
                 }
                 try:
                     event = post_event_and_entries(
-                        event_type=CoinEvent.EventType.SPEND,
+                        event_type=CoinEventType.SPEND,
                         created_by=request.user,
                         idempotency_key=purchase_idempotency,
                         metadata=event_meta,
@@ -366,13 +368,13 @@ class CoinPurchaseView(APIView):
                                 "account_key": account.account_key,
                                 "amount_cents": total_price,
                                 "currency": COIN_CURRENCY,
-                                "direction": CoinLedgerEntry.Direction.DEBIT,
+                                "direction": CoinLedgerEntryDirection.DEBIT,
                             },
                             {
                                 "account_key": SYSTEM_ACCOUNT_REVENUE,
                                 "amount_cents": total_price,
                                 "currency": COIN_CURRENCY,
-                                "direction": CoinLedgerEntry.Direction.CREDIT,
+                                "direction": CoinLedgerEntryDirection.CREDIT,
                             },
                         ],
                     )

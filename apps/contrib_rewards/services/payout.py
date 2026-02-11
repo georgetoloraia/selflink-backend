@@ -8,7 +8,7 @@ from datetime import date
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from apps.contrib_rewards.models import LedgerEntry
+from apps.contrib_rewards.models import LedgerEntry, LedgerEntryDirection
 
 
 def _month_bounds(month: str) -> tuple[date, date]:
@@ -79,7 +79,7 @@ def generate_monthly_payout(month: str, ruleset_version: str = "v1", dry_run: bo
             user_id = int(entry.account.split("user:")[1])
         except Exception:
             continue
-        delta = entry.amount if entry.direction == LedgerEntry.Direction.CREDIT else -entry.amount
+        delta = entry.amount if entry.direction == LedgerEntryDirection.CREDIT else -entry.amount
         balances[user_id] = balances.get(user_id, 0) + delta
 
     rows = [(user_id, points) for user_id, points in balances.items() if points != 0]

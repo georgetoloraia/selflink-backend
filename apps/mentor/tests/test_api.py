@@ -5,7 +5,7 @@ import pytest
 from unittest import mock
 from rest_framework.test import APIClient
 
-from apps.mentor.models import MentorMessage, MentorSession
+from apps.mentor.models import MentorMessage, MentorSession, MentorMessageRole
 from apps.users.models import User
 
 
@@ -64,8 +64,8 @@ def test_chat_returns_reply_and_saves_messages(monkeypatch):
 
     messages = MentorMessage.objects.filter(session_id=data["session_id"]).order_by("created_at")
     assert messages.count() == 2
-    assert messages.first().role == MentorMessage.Role.USER
-    assert messages.last().role in (MentorMessage.Role.ASSISTANT, MentorMessage.Role.MENTOR)
+    assert messages.first().role == MentorMessageRole.USER
+    assert messages.last().role in (MentorMessageRole.ASSISTANT, MentorMessageRole.MENTOR)
 
 
 @pytest.mark.django_db
@@ -121,7 +121,7 @@ def test_task_status_ready():
     session = MentorSession.objects.create(user=user, mode=MentorSession.DEFAULT_MODE, active=True)
     message = MentorMessage.objects.create(
         session=session,
-        role=MentorMessage.Role.ASSISTANT,
+        role=MentorMessageRole.ASSISTANT,
         content="Done",
         meta={"task_id": "task-ready"},
     )
@@ -141,7 +141,7 @@ def test_task_status_pending():
     session = MentorSession.objects.create(user=user, mode=MentorSession.DEFAULT_MODE, active=True)
     MentorMessage.objects.create(
         session=session,
-        role=MentorMessage.Role.USER,
+        role=MentorMessageRole.USER,
         content="Pending",
         meta={"task_id": "task-pending"},
     )

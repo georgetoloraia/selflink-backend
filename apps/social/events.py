@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.realtime.publish import publish_realtime_event
 from apps.payments.serializers import GiftTypeSerializer
-from apps.social.models import PaidReaction
+from apps.social.models import PaidReaction, PaidReactionTargetType
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def publish_gift_received(*, reaction: PaidReaction, channel: str, request=None)
         price_slc = gift_type_payload.get("price_slc_cents") or gift_type_payload.get("price_cents")
         gift_type_payload["price_slc_cents"] = price_slc
         target_type = reaction.target_type
-        target_id = reaction.post_id if target_type == PaidReaction.TargetType.POST else reaction.comment_id
+        target_id = reaction.post_id if target_type == PaidReactionTargetType.POST else reaction.comment_id
         server_time = timezone.now()
         payload = {
             "type": "gift.received",

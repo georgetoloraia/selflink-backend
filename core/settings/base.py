@@ -355,6 +355,8 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API documentation for the SelfLink platform",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_ADD_EXPLICIT_BLANK_NULL_CHOICE": False,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 SIMPLE_JWT = {

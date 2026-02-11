@@ -3,10 +3,9 @@ from __future__ import annotations
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import GiftType, PaymentCheckout, PaymentEvent, Plan, Subscription, Wallet
+from .models import GiftType, PaymentCheckout, Plan, Subscription, Wallet
+from .models import PaymentEventProvider
 from .services import CheckoutSessionResult, create_checkout_session
-
-
 class PlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Plan
@@ -133,7 +132,7 @@ class IpayCheckoutCreateSerializer(serializers.Serializer):
     def save(self) -> PaymentCheckout:
         request = self.context["request"]
         return PaymentCheckout.objects.create(
-            provider=PaymentEvent.Provider.IPAY,
+            provider=PaymentEventProvider.IPAY,
             user=request.user,
             amount_cents=self.validated_data["amount_cents"],
             currency=self.validated_data["currency"],
@@ -160,7 +159,7 @@ class StripeCheckoutCreateSerializer(serializers.Serializer):
     def save(self) -> PaymentCheckout:
         request = self.context["request"]
         return PaymentCheckout.objects.create(
-            provider=PaymentEvent.Provider.STRIPE,
+            provider=PaymentEventProvider.STRIPE,
             user=request.user,
             amount_cents=self.validated_data["amount_cents"],
             currency=self.validated_data["currency"],
@@ -181,7 +180,7 @@ class BtcPayCheckoutCreateSerializer(serializers.Serializer):
     def save(self) -> PaymentCheckout:
         request = self.context["request"]
         return PaymentCheckout.objects.create(
-            provider=PaymentEvent.Provider.BTCPAY,
+            provider=PaymentEventProvider.BTCPAY,
             user=request.user,
             amount_cents=self.validated_data["amount_cents"],
             currency=self.validated_data["currency"],

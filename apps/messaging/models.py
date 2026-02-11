@@ -5,6 +5,30 @@ from django.db import models
 from apps.core.models import BaseModel
 
 
+class ThreadMemberRole(models.TextChoices):
+    MEMBER = "member", "Member"
+    ADMIN = "admin", "Admin"
+
+
+class MessageType(models.TextChoices):
+    TEXT = "text", "Text"
+    IMAGE = "image", "Image"
+    VIDEO = "video", "Video"
+    SYSTEM = "system", "System"
+
+
+class MessageStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    SENT = "sent", "Sent"
+    DELIVERED = "delivered", "Delivered"
+    READ = "read", "Read"
+
+
+class MessageAttachmentType(models.TextChoices):
+    IMAGE = "image", "Image"
+    VIDEO = "video", "Video"
+
+
 class Thread(BaseModel):
     is_group = models.BooleanField(default=False)
     created_by = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="created_threads")
@@ -15,13 +39,9 @@ class Thread(BaseModel):
 
 
 class ThreadMember(BaseModel):
-    class Role(models.TextChoices):
-        MEMBER = "member", "Member"
-        ADMIN = "admin", "Admin"
-
     thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="members")
     user = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="thread_memberships")
-    role = models.CharField(max_length=16, choices=Role.choices, default=Role.MEMBER)
+    role = models.CharField(max_length=16, choices=ThreadMemberRole.choices, default=ThreadMemberRole.MEMBER)
     last_read_message = models.ForeignKey(
         "Message", on_delete=models.SET_NULL, related_name="readers", null=True, blank=True
     )
@@ -31,17 +51,6 @@ class ThreadMember(BaseModel):
 
 
 class Message(BaseModel):
-    class Type(models.TextChoices):
-        TEXT = "text", "Text"
-        IMAGE = "image", "Image"
-        VIDEO = "video", "Video"
-        SYSTEM = "system", "System"
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        SENT = "sent", "Sent"
-        DELIVERED = "delivered", "Delivered"
-        READ = "read", "Read"
-
     thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="messages")
     sender = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="sent_messages")
     reply_to = models.ForeignKey(
@@ -52,9 +61,9 @@ class Message(BaseModel):
         related_name="replies",
     )
     body = models.TextField(blank=True)
-    type = models.CharField(max_length=16, choices=Type.choices, default=Type.TEXT)
+    type = models.CharField(max_length=16, choices=MessageType.choices, default=MessageType.TEXT)
     meta = models.JSONField(default=dict, blank=True)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.SENT)
+    status = models.CharField(max_length=16, choices=MessageStatus.choices, default=MessageStatus.SENT)
     delivered_at = models.DateTimeField(null=True, blank=True)
     read_at = models.DateTimeField(null=True, blank=True)
     client_uuid = models.CharField(max_length=64, null=True, blank=True)
@@ -65,13 +74,9 @@ class Message(BaseModel):
 
 
 class MessageAttachment(BaseModel):
-    class AttachmentType(models.TextChoices):
-        IMAGE = "image", "Image"
-        VIDEO = "video", "Video"
-
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(upload_to="messages/attachments/")
-    type = models.CharField(max_length=8, choices=AttachmentType.choices)
+    type = models.CharField(max_length=8, choices=MessageAttachmentType.choices)
     mime_type = models.CharField(max_length=128)
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)

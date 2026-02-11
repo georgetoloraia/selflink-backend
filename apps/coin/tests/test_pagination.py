@@ -8,18 +8,18 @@ from rest_framework.test import APIClient
 
 from apps.coin.models import CoinAccount, CoinLedgerEntry
 from apps.coin.services.ledger import mint_for_payment
-from apps.payments.models import PaymentEvent
+from apps.payments.models import PaymentEvent, PaymentEventProvider, PaymentEventStatus
 from apps.users.models import User
 
 
 def _create_payment_event(*, user: User, amount_cents: int, provider_event_id: str) -> PaymentEvent:
     return PaymentEvent.objects.create(
-        provider=PaymentEvent.Provider.STRIPE,
+        provider=PaymentEventProvider.STRIPE,
         provider_event_id=provider_event_id,
         event_type="checkout.session.completed",
         user=user,
         amount_cents=amount_cents,
-        status=PaymentEvent.Status.RECEIVED,
+        status=PaymentEventStatus.RECEIVED,
         raw_body_hash=hashlib.sha256(provider_event_id.encode("utf-8")).hexdigest(),
         verified_at=timezone.now(),
     )

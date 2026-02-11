@@ -18,6 +18,7 @@ from .events import publish_message_event
 from .models import Message, MessageAttachment, Thread, ThreadMember
 
 
+from apps.messaging.models import MessageStatus
 class ThreadMemberSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
 
@@ -247,7 +248,7 @@ class MessageSerializer(serializers.ModelSerializer):
                 return existing
 
         try:
-            message = Message.objects.create(sender=user, status=Message.Status.SENT, **validated_data)
+            message = Message.objects.create(sender=user, status=MessageStatus.SENT, **validated_data)
         except IntegrityError:
             existing = Message.objects.filter(thread=thread, client_uuid=client_uuid).first()
             if existing:

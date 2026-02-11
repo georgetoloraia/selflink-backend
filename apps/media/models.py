@@ -5,20 +5,21 @@ from django.db import models
 from apps.core.models import BaseModel
 
 
-class MediaAsset(BaseModel):
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        PROCESSING = "processing", "Processing"
-        READY = "ready", "Ready"
-        FAILED = "failed", "Failed"
+class MediaAssetStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    PROCESSING = "processing", "Processing"
+    READY = "ready", "Ready"
+    FAILED = "failed", "Failed"
 
+
+class MediaAsset(BaseModel):
     owner = models.ForeignKey("users.User", on_delete=models.CASCADE, related_name="media_assets")
     s3_key = models.CharField(max_length=255)
     mime = models.CharField(max_length=64)
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
     duration = models.FloatField(null=True, blank=True)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=16, choices=MediaAssetStatus.choices, default=MediaAssetStatus.PENDING)
     checksum = models.CharField(max_length=128, blank=True)
     meta = models.JSONField(default=dict, blank=True)
 
