@@ -5,12 +5,12 @@ services:
       dockerfile: infra/docker/Dockerfile.api
       args:
         GIT_SHA: ${GIT_SHA:-unknown}
-    command: python manage.py runserver 0.0.0.0:8000
+    profiles: ["wsgi"]
     volumes:
       - ..:/app
       - media-data:/app/media
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     env_file:
       - ./.env
     environment:
@@ -35,6 +35,7 @@ services:
     depends_on:
       - pgbouncer
       - redis
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/docs/')\""]
       interval: 500s
@@ -47,12 +48,12 @@ services:
       dockerfile: infra/docker/Dockerfile.api
       args:
         GIT_SHA: ${GIT_SHA:-unknown}
-    command: uvicorn core.asgi:application --host 0.0.0.0 --port 8001
+    command: gunicorn core.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8001 --workers 2 --threads 2 --timeout 60 --graceful-timeout 30 --keep-alive 5
     volumes:
       - ..:/app
       - media-data:/app/media
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     env_file:
       - ./.env
     environment:
@@ -70,6 +71,7 @@ services:
     depends_on:
       - pgbouncer
       - redis
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/api/docs/')\""]
       interval: 500s
@@ -82,7 +84,7 @@ services:
       dockerfile: infra/docker/Dockerfile.api
       args:
         GIT_SHA: ${GIT_SHA:-unknown}
-    command: celery -A core worker -l info
+    command: celery -A core worker -l info --concurrency=4
     volumes:
       - ..:/app
     env_file:
@@ -104,6 +106,35 @@ services:
     depends_on:
       - pgbouncer
       - redis
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.api
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    command: python manage.py migrate --noinput
+    volumes:
+      - ..:/app
+      - media-data:/app/media
+    env_file:
+      - ./.env
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "0.0.0.0,localhost,api.self-link.com"
+      DJANGO_SETTINGS_MODULE: core.settings.base
+      SERVE_MEDIA: "${SERVE_MEDIA:-false}"
+      STORAGE_BACKEND: "${STORAGE_BACKEND:-local}"
+      DATABASE_URL: ${DATABASE_URL:-postgres://selflink:selflink@pgbouncer:6432/selflink}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PUBSUB_REDIS_URL: ${PUBSUB_REDIS_URL:-redis://redis:6379/1}
+      GIT_SHA: ${GIT_SHA:-unknown}
+    depends_on:
+      - pgbouncer
+    restart: "no"
 
   media:
     image: nginx:alpine
@@ -112,6 +143,7 @@ services:
     volumes:
       - media-data:/srv/media
       - ./nginx/media.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
 
   beat:
     build:
@@ -139,6 +171,7 @@ services:
     depends_on:
       - pgbouncer
       - redis
+    restart: unless-stopped
 
   realtime:
     build:
@@ -147,13 +180,14 @@ services:
     env_file:
       - ./.env
     ports:
-      - "8002:8001"
+      - "127.0.0.1:8002:8001"
     environment:
       JWT_SIGNING_KEY: ${JWT_SIGNING_KEY}
       REALTIME_JWT_SECRET: ${REALTIME_JWT_SECRET}
       REALTIME_REDIS_URL: ${REALTIME_REDIS_URL:-redis://redis:6379/1}
     depends_on:
       - redis
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
       interval: 500s
@@ -168,6 +202,7 @@ services:
       POSTGRES_PASSWORD: selflink
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U selflink -d selflink"]
       interval: 500s
@@ -189,11 +224,13 @@ services:
       - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
     depends_on:
       - postgres
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     volumes:
       - redis-data:/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 500s
@@ -229,6 +266,20 @@ services:
       - "9001:9001"
     volumes:
       - minio-data:/data
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --config /etc/cloudflared/config.yml --credentials-file /etc/cloudflared/${CLOUDFLARED_TUNNEL_UUID}.json run ${CLOUDFLARED_TUNNEL_UUID}
+    env_file:
+      - ./.env
+    volumes:
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ./cloudflared/${CLOUDFLARED_TUNNEL_UUID}.json:/etc/cloudflared/${CLOUDFLARED_TUNNEL_UUID}.json:ro
+    depends_on:
+      - asgi
+      - realtime
+      - media
+    restart: unless-stopped
 
 volumes:
   postgres-data:
