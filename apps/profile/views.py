@@ -16,16 +16,9 @@ class MeProfileView(APIView):
         user = request.user
         try:
             profile = user.profile
-            if profile.is_empty():
-                return Response(
-                    {"detail": "No profile yet. Update to create one."},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
         except UserProfile.DoesNotExist:
-            return Response(
-                {"detail": "No profile yet. Update to create one."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            # Return an empty/default profile payload so clients can render/edit immediately.
+            profile = UserProfile(user=user)
         serializer = UserProfileSerializer(profile)
         return Response(serializer.data)
 
